@@ -1,0 +1,232 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+    # git tag v1.2.0 && git push origin v1.2.0 publishes image tags 1.2.0 and 1.2. Versions
+    # from the changelog are tagged without a git tag, see the image job.
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  # Report and data files must never be committed: they hold private data.
+  no-reports:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Fail on tracked report or data files
+        run: |
+          bad=$(git ls-files | grep -E '(^|/)(reports|rapporten|huizen|data)/|\.report\.md$|\.sqlite(-.*)?$|\.db$|(^|/)huizenjacht-[^/]*\.json$' || true)
+          if [ -n "$bad" ]; then
+            echo "::error::These files must not be tracked:"
+            echo "$bad"
+            exit 1
+          fi
+          echo "No report or data files tracked."
+
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v7
+      # setup-uv publishes no major-version tags (v10) any more, only exact ones.
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          python-version: "3.14"
+      - run: uv sync --frozen
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run pytest -q
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+
+  chart:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # A pull request is checked out as a merge commit; its first parent is the base branch.
+          fetch-depth: 2
+      - uses: azure/setup-helm@v5
+      # chart-publish skips a version that is published already, so a chart change without a
+      # new version would never reach a cluster. Comment-only and blank-line changes are fine.
+      - name: Require a new chart version for chart changes
+        if: github.event_name == 'pull_request'
+        run: |
+          chart=deploy/helm/huizenjacht
+          changes=$(git diff --unified=0 HEAD^1 HEAD -- "$chart" \
+            | grep -E '^[+-]' | grep -vE '^(\+\+\+|---) ' | grep -vE '^[+-][[:space:]]*(#.*)?$' || true)
+          if [ -z "$changes" ]; then
+            echo "No chart changes."
+            exit 0
+          fi
+          if ! old=$(git show "HEAD^1:$chart/Chart.yaml" 2>/dev/null | awk '$1 == "version:" {print $2}') || [ -z "$old" ]; then
+            echo "New chart, no version to compare."
+            exit 0
+          fi
+          new=$(awk '$1 == "version:" {print $2}' "$chart/Chart.yaml")
+          if [ "$new" = "$old" ] || [ "$(printf '%s\n' "$old" "$new" | sort -V | tail -n 1)" != "$new" ]; then
+            echo "::error file=$chart/Chart.yaml::The chart changed, so raise version in $chart/Chart.yaml (now $new, $old on the base branch)."
+            exit 1
+          fi
+          echo "Chart version goes from $old to $new."
+      - name: Install kubeconform
+        run: |
+          curl -sSL https://github.com/yannh/kubeconform/releases/download/v0.8.0/kubeconform-linux-amd64.tar.gz \
+            | tar xz -C /usr/local/bin kubeconform
+      - run: helm lint --strict deploy/helm/huizenjacht --set auth.acknowledgeNoLogin=true
+      # Render the chart in its main configurations and check it against the Kubernetes schemas.
+      - name: Validate rendered manifests
+        run: |
+          chart=deploy/helm/huizenjacht
+          validate() {
+            kubeconform -strict -summary -kubernetes-version 1.37.0 -schema-location default
+          }
+          helm template hj "$chart" --set auth.acknowledgeNoLogin=true | validate
+          helm template hj "$chart" --set auth.acknowledgeNoLogin=true \
+            --set ingress.enabled=true --set ingress.tls.enabled=true \
+            --set environment.label=dev \
+            | validate
+          helm template hj "$chart" --set auth.acknowledgeNoLogin=true \
+            --set reports.git.enabled=true --set reports.git.existingSecret=huizenjacht-reports \
+            --set reports.git.repo=https://github.com/brnl-claude/huizenjacht_rapporten \
+            | validate
+          helm template hj "$chart" --set auth.acknowledgeNoLogin=true \
+            --set persistence.existingClaim=huizenjacht-data \
+            --set reports.existingClaim=huizenjacht-reports \
+            | validate
+
+  # Pushes to main publish the chart to oci://ghcr.io/<owner>/charts, once per chart version:
+  # a version that is published already is left alone, so a chart change needs a new
+  # `version` in Chart.yaml.
+  chart-publish:
+    needs: [chart]
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    env:
+      CHART: deploy/helm/huizenjacht
+      REGISTRY: oci://ghcr.io/${{ github.repository_owner }}/charts
+    steps:
+      - uses: actions/checkout@v7
+      - uses: azure/setup-helm@v5
+      - name: Log in to ghcr.io
+        run: >-
+          echo "${{ secrets.GITHUB_TOKEN }}" |
+          helm registry login ghcr.io --username "${{ github.actor }}" --password-stdin
+      - name: Push the chart unless this version is published already
+        run: |
+          name=$(helm show chart "$CHART" | awk '$1 == "name:" {print $2}')
+          version=$(helm show chart "$CHART" | awk '$1 == "version:" {print $2}')
+          if found=$(helm show chart "$REGISTRY/$name" --version "$version" 2>&1); then
+            echo "$name $version is published already. Raise version in $CHART/Chart.yaml to publish a change."
+            exit 0
+          fi
+          echo "$name $version is not published yet: $found"
+          helm package "$CHART" --destination "$RUNNER_TEMP"
+          helm push "$RUNNER_TEMP/$name-$version.tgz" "$REGISTRY"
+
+  image:
+    needs: [no-reports, backend, frontend]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        if: github.event_name == 'push'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/metadata-action@v6
+        id: meta
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+      # /api/health reports this, so you can tell which build a `latest` pod runs.
+      - name: Pick the version the app reports
+        id: version
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=sha-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+          fi
+      # Pull requests only build the image; pushes to main also publish it.
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: ${{ github.event_name == 'push' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            HJ_VERSION=${{ steps.version.outputs.version }}
+            HJ_COMMIT_URL=${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      # The newest version in frontend/src/changelog.ts gets image tags 0.9.0 and 0.9 on the
+      # first build of main that has it; later builds never move a version tag.
+      - name: Tag the newest changelog version if it has no image yet
+        if: github.ref == 'refs/heads/main'
+        env:
+          IMAGE: ghcr.io/${{ github.repository }}
+        run: |
+          version=$(node .github/scripts/changelog-notes.mjs version)
+          sha=${GITHUB_SHA::7}
+          if docker buildx imagetools inspect "$IMAGE:$version" > /dev/null 2>&1; then
+            echo "$IMAGE:$version exists already."
+            exit 0
+          fi
+          echo "Tagging sha-$sha as $version and ${version%.*}"
+          docker buildx imagetools create --tag "$IMAGE:$version" --tag "$IMAGE:${version%.*}" "$IMAGE:sha-$sha"
+
+  # Creates the GitHub release v<version> for the newest changelog version, once.
+  release:
+    needs: [image]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - name: Create the release if the newest changelog version has none
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          version=$(node .github/scripts/changelog-notes.mjs version)
+          if gh release view "v$version" > /dev/null 2>&1; then
+            echo "Release v$version exists already."
+            exit 0
+          fi
+          node .github/scripts/changelog-notes.mjs notes > "$RUNNER_TEMP/notes.md"
+          gh release create "v$version" --target "$GITHUB_SHA" --title "v$version" \
+            --notes-file "$RUNNER_TEMP/notes.md"

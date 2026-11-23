@@ -1,0 +1,23 @@
+Huizenjacht is starting.
+{{- if .Values.ingress.enabled }}
+
+Open http{{ if .Values.ingress.tls.enabled }}s{{ end }}://{{ .Values.ingress.host }}
+{{- else }}
+
+No ingress is enabled. Try it with:
+  kubectl --namespace {{ .Release.Namespace }} port-forward svc/{{ include "hj.fullname" . }} 8000:{{ .Values.service.port }}
+and open http://localhost:8000
+{{- end }}
+
+The app has no login of its own: everyone who can reach it uses it. Keep it internal or
+put forward-auth in front of the ingress.
+{{- if not .Values.persistence.enabled }}
+
+Warning: persistence is off, so the database and uploads are lost when the pod restarts.
+{{- end }}
+{{- if .Values.reports.git.enabled }}
+
+Reports are synced from {{ .Values.reports.git.repo }} ({{ .Values.reports.git.ref }}) every {{ .Values.reports.git.period }}.
+Follow the sync with:
+  kubectl --namespace {{ .Release.Namespace }} logs deploy/{{ include "hj.fullname" . }} -c git-sync
+{{- end }}

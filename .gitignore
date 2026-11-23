@@ -1,0 +1,23 @@
+# Dependencies and builds
+node_modules/
+frontend/dist/
+backend/static/
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+
+# House reports and personal data never belong in this public repository. They live in the
+# private reports repository and in the app's own volume. CI fails on tracked files like these.
+data/
+reports/
+rapporten/
+huizen/
+*.report.md
+*.sqlite
+*.sqlite-*
+*.db
+huizenjacht-*.json
+.env
+.env.*
