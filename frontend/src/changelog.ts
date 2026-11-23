@@ -19,6 +19,16 @@ export type Release = {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.1.1',
+    date: '2026-11-24',
+    title: 'Rapporten uit Huizen beoordelen netter getoond',
+    changes: [
+      'Eigendom toont “Eigen grond” of “Erfpacht” in plaats van “False”.',
+      'Het id van een rapport staat niet meer onder Overige gegevens.',
+      'Een wijk met dezelfde naam als de plaats staat niet meer dubbel onder het adres.',
+    ],
+  },
+  {
     version: '0.1.0',
     date: '2026-11-24',
     title: 'De eerste versie van Huizenjacht',

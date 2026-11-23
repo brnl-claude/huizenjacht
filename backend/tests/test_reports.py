@@ -7,6 +7,7 @@ plaats: Utrecht
 vraagprijs: € 450.000 k.k.
 woonoppervlakte: 120 m²
 energielabel: Label A++
+erfpacht: false
 ---
 # Dorpsstraat 12, Utrecht
 
@@ -29,6 +30,8 @@ def test_front_matter_and_body():
     assert fields["vraagprijs"] == 450000
     assert fields["woonoppervlakte"] == 120
     assert fields["energielabel"] == "A++"
+    assert fields["erfpacht"] == "Eigen grond"
+    assert "extra" not in fields
     assert fields["bouwjaar"] == 1932
     assert fields["perceel"] == 210
     assert fields["slaapkamers"] == 3
