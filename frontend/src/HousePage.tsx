@@ -70,7 +70,7 @@ export function HousePage({ id, tab }: { id: string; tab: string | null }) {
           <div className="hero-top">
             <div>
               <h1>{displayAddress(house)}</h1>
-              <p className="muted">{[place(house), house.wijk].filter(Boolean).join(' · ')}</p>
+              <p className="muted">{[place(house), house.wijk !== house.plaats ? house.wijk : undefined].filter(Boolean).join(' · ')}</p>
             </div>
             <FavoriteButton
               active={house.favoriet}

@@ -129,9 +129,14 @@ def normalise(raw: dict[str, Any]) -> dict[str, Any]:
             continue
         field = _LOOKUP.get(plain(str(key)))
         if not field:
-            extra[str(key)] = value
+            # The id names the house; it is not something to show.
+            if plain(str(key)) not in {"id", "titel", "title"}:
+                extra[str(key)] = value
             continue
         if field in fields:
+            continue
+        if field == "erfpacht" and isinstance(value, bool):
+            fields[field] = "Erfpacht" if value else "Eigen grond"
             continue
         if field in NUMERIC:
             number = parse_number(value)
