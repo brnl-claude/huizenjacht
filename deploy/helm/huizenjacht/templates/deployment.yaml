@@ -1,0 +1,183 @@
+{{- if not .Values.auth.acknowledgeNoLogin }}
+{{- fail "The app has no login of its own. Put forward-auth (such as Authelia) in front of the ingress, or keep it internal, then set auth.acknowledgeNoLogin=true" }}
+{{- end }}
+{{- if and .Values.reports.git.enabled .Values.reports.existingClaim }}
+{{- fail "Set either reports.git.enabled or reports.existingClaim, not both" }}
+{{- end }}
+{{- $image := printf "%s:%s" .Values.image.repository (.Values.image.tag | default .Chart.AppVersion) }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "hj.fullname" . }}
+  labels:
+    {{- include "hj.labels" . | nindent 4 }}
+spec:
+  # SQLite on a ReadWriteOnce volume: one pod, and the old one stops before the new starts.
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "hj.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "hj.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      automountServiceAccountToken: false
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- if .Values.reports.git.enabled }}
+      initContainers:
+        # Native sidecar: keeps running next to the app and refreshes /git/current.
+        - name: git-sync
+          image: "{{ .Values.reports.git.image }}"
+          restartPolicy: Always
+          env:
+            - name: GITSYNC_REPO
+              value: {{ required "Set reports.git.repo" .Values.reports.git.repo | quote }}
+            - name: GITSYNC_REF
+              value: {{ .Values.reports.git.ref | quote }}
+            - name: GITSYNC_PERIOD
+              value: {{ .Values.reports.git.period | quote }}
+            - name: GITSYNC_ROOT
+              value: /git
+            - name: GITSYNC_LINK
+              value: current
+            # After each sync git-sync tells the app (same pod, so localhost) to import now.
+            - name: GITSYNC_WEBHOOK_URL
+              value: http://127.0.0.1:8000/api/import/hook
+            - name: GITSYNC_WEBHOOK_SUCCESS_STATUS
+              value: "202"
+            - name: HOME
+              value: /tmp
+            {{- with .Values.reports.git.existingSecret }}
+            - name: GITSYNC_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ . }}
+                  key: {{ $.Values.reports.git.usernameKey }}
+            - name: GITSYNC_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ . }}
+                  key: {{ $.Values.reports.git.passwordKey }}
+            {{- end }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.reports.git.resources | nindent 12 }}
+          volumeMounts:
+            - name: reports
+              mountPath: /git
+            - name: tmp
+              mountPath: /tmp
+      {{- end }}
+      containers:
+        - name: app
+          image: {{ $image | quote }}
+          {{- with .Values.image.pullPolicy }}
+          imagePullPolicy: {{ . }}
+          {{- end }}
+          ports:
+            - name: http
+              containerPort: 8000
+          env:
+            - name: HJ_DATA_DIR
+              value: /data
+            {{- with include "hj.reportsDir" . }}
+            - name: HJ_REPORTS_DIR
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.reports.hook.existingSecret }}
+            - name: HJ_IMPORT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ . }}
+                  key: {{ $.Values.reports.hook.existingSecretKey }}
+            {{- end }}
+            {{- with .Values.environment.label }}
+            - name: HJ_ENV_LABEL
+              value: {{ . | quote }}
+            - name: HJ_ENV_COLOR
+              value: {{ $.Values.environment.color | quote }}
+            {{- end }}
+            {{- with .Values.forwardedAllowIps }}
+            - name: FORWARDED_ALLOW_IPS
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          startupProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            periodSeconds: 5
+            failureThreshold: 60
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            periodSeconds: 10
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: data
+              mountPath: /data
+            {{- if or .Values.reports.git.enabled .Values.reports.existingClaim }}
+            - name: reports
+              mountPath: /reports
+              readOnly: true
+            {{- end }}
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: data
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "hj.dataClaim" . }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        {{- if .Values.reports.git.enabled }}
+        - name: reports
+          emptyDir: {}
+        {{- else if .Values.reports.existingClaim }}
+        - name: reports
+          persistentVolumeClaim:
+            claimName: {{ .Values.reports.existingClaim }}
+            readOnly: true
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

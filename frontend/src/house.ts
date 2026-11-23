@@ -1,0 +1,203 @@
+/** Houses: what the report says, merged with what Bram adds in the app. */
+
+export type CheckState = 'ok' | 'twijfel' | 'probleem'
+export type CheckEntry = { s?: CheckState; n?: string }
+
+export type Fields = {
+  titel?: string
+  adres?: string
+  postcode?: string
+  plaats?: string
+  wijk?: string
+  vraagprijs?: number
+  woonoppervlakte?: number
+  perceel?: number
+  inhoud?: number
+  kamers?: number
+  slaapkamers?: number
+  badkamers?: number
+  bouwjaar?: number
+  energielabel?: string
+  woningtype?: string
+  tuin?: string
+  parkeren?: string
+  servicekosten?: number
+  erfpacht?: string
+  url?: string
+  foto?: string
+  makelaar?: string
+  score?: number
+  advies?: string
+  samenvatting?: string
+  pluspunten?: string[]
+  minpunten?: string[]
+  bezichtigingspunten?: string[]
+  extra?: Record<string, unknown>
+}
+
+export type Status =
+  | 'nieuw'
+  | 'interessant'
+  | 'gepland'
+  | 'bezichtigd'
+  | 'bod'
+  | 'gekocht'
+  | 'afgevallen'
+
+export type Mine = Partial<Fields> & {
+  status?: Status
+  favoriet?: boolean
+  cijfer?: number
+  aspecten?: Record<string, number>
+  notities?: string
+  bezichtiging?: string
+  bod?: number
+  checklist?: Record<string, CheckEntry>
+}
+
+export type HouseRecord = {
+  id: string
+  source: 'report-dir' | 'upload' | 'manual'
+  sourcePath: string | null
+  report: Fields
+  reportBody: string
+  mine: Mine
+  createdAt: string
+  updatedAt: string
+}
+
+export type House = Fields & {
+  id: string
+  record: HouseRecord
+  status: Status
+  favoriet: boolean
+  mine: Mine
+  prijsPerM2?: number
+}
+
+export const STATUSES: { id: Status; label: string; tone: string }[] = [
+  { id: 'nieuw', label: 'Nieuw', tone: 'neutral' },
+  { id: 'interessant', label: 'Interessant', tone: 'blue' },
+  { id: 'gepland', label: 'Bezichtiging gepland', tone: 'orange' },
+  { id: 'bezichtigd', label: 'Bezichtigd', tone: 'purple' },
+  { id: 'bod', label: 'Bod uitgebracht', tone: 'green' },
+  { id: 'gekocht', label: 'Gekocht', tone: 'green' },
+  { id: 'afgevallen', label: 'Afgevallen', tone: 'muted' },
+]
+
+export function statusInfo(status: Status) {
+  return STATUSES.find((s) => s.id === status) ?? STATUSES[0]
+}
+
+// Fields Bram may correct in the app. The report's value stays underneath.
+const EDITABLE: (keyof Fields)[] = [
+  'adres', 'postcode', 'plaats', 'wijk', 'vraagprijs', 'woonoppervlakte', 'perceel', 'kamers',
+  'slaapkamers', 'badkamers', 'bouwjaar', 'energielabel', 'woningtype', 'url', 'foto',
+]
+export { EDITABLE as EDITABLE_FIELDS }
+
+export function toHouse(record: HouseRecord): House {
+  const merged: Fields = { ...record.report }
+  for (const key of EDITABLE) {
+    const value = record.mine[key]
+    if (value !== undefined && value !== null && value !== '') {
+      ;(merged as Record<string, unknown>)[key] = value
+    }
+  }
+  const prijsPerM2 =
+    merged.vraagprijs && merged.woonoppervlakte
+      ? Math.round(merged.vraagprijs / merged.woonoppervlakte)
+      : undefined
+  return {
+    ...merged,
+    id: record.id,
+    record,
+    mine: record.mine,
+    status: record.mine.status ?? 'nieuw',
+    favoriet: Boolean(record.mine.favoriet),
+    prijsPerM2,
+  }
+}
+
+export function displayAddress(house: Fields): string {
+  return house.adres || house.titel || 'Naamloos huis'
+}
+
+export function place(house: Fields): string {
+  return [house.postcode, house.plaats].filter(Boolean).join(' ')
+}
+
+const euro = new Intl.NumberFormat('nl-NL', {
+  style: 'currency',
+  currency: 'EUR',
+  maximumFractionDigits: 0,
+})
+const number = new Intl.NumberFormat('nl-NL', { maximumFractionDigits: 1 })
+
+export function formatEuro(value?: number): string {
+  return value === undefined || value === null ? '–' : euro.format(value)
+}
+
+export function formatNumber(value?: number, unit = ''): string {
+  if (value === undefined || value === null) return '–'
+  return `${number.format(value)}${unit ? ` ${unit}` : ''}`
+}
+
+export function formatDateTime(value?: string): string {
+  if (!value) return ''
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return date.toLocaleString('nl-NL', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+export type SortKey = 'nieuwste' | 'prijs' | 'prijsm2' | 'oppervlakte' | 'score' | 'cijfer' | 'bezichtiging'
+
+export const SORTS: { id: SortKey; label: string }[] = [
+  { id: 'nieuwste', label: 'Nieuwste eerst' },
+  { id: 'prijs', label: 'Prijs (laag → hoog)' },
+  { id: 'prijsm2', label: 'Prijs per m²' },
+  { id: 'oppervlakte', label: 'Woonoppervlakte' },
+  { id: 'score', label: 'Score rapport' },
+  { id: 'cijfer', label: 'Mijn cijfer' },
+  { id: 'bezichtiging', label: 'Eerstvolgende bezichtiging' },
+]
+
+function missingLast(a: number | undefined, b: number | undefined, dir: 1 | -1) {
+  if (a === undefined && b === undefined) return 0
+  if (a === undefined) return 1
+  if (b === undefined) return -1
+  return (a - b) * dir
+}
+
+export function sortHouses(houses: House[], key: SortKey): House[] {
+  const list = [...houses]
+  const by: Record<SortKey, (a: House, b: House) => number> = {
+    nieuwste: (a, b) => b.record.createdAt.localeCompare(a.record.createdAt),
+    prijs: (a, b) => missingLast(a.vraagprijs, b.vraagprijs, 1),
+    prijsm2: (a, b) => missingLast(a.prijsPerM2, b.prijsPerM2, 1),
+    oppervlakte: (a, b) => missingLast(a.woonoppervlakte, b.woonoppervlakte, -1),
+    score: (a, b) => missingLast(a.score, b.score, -1),
+    cijfer: (a, b) => missingLast(a.mine.cijfer, b.mine.cijfer, -1),
+    bezichtiging: (a, b) =>
+      missingLast(
+        a.mine.bezichtiging ? Date.parse(a.mine.bezichtiging) : undefined,
+        b.mine.bezichtiging ? Date.parse(b.mine.bezichtiging) : undefined,
+        1,
+      ),
+  }
+  return list.sort((a, b) => Number(b.favoriet) - Number(a.favoriet) || by[key](a, b))
+}
+
+export function matchesSearch(house: House, query: string): boolean {
+  const q = query.trim().toLowerCase()
+  if (!q) return true
+  return [house.adres, house.titel, house.plaats, house.wijk, house.postcode, house.woningtype]
+    .filter(Boolean)
+    .some((v) => String(v).toLowerCase().includes(q))
+}

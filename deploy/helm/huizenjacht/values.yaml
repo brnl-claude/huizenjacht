@@ -1,0 +1,117 @@
+image:
+  repository: ghcr.io/brnl-claude/huizenjacht
+  # Every push to main publishes `latest` and `sha-<short commit>`. Pin a sha- tag so an
+  # upgrade is a change you can see (and so ArgoCD notices it).
+  tag: latest
+  # Empty lets Kubernetes decide: Always for `latest`, IfNotPresent for other tags.
+  pullPolicy: ""
+imagePullSecrets: []
+
+nameOverride: ""
+fullnameOverride: ""
+
+# The app has no login of its own: everyone who can reach it uses it. Put forward-auth
+# (such as Authelia annotations on the ingress) in front of it, or keep it internal, then
+# set this to true. Without it the chart refuses to render.
+auth:
+  acknowledgeNoLogin: false
+
+# Marks a test install, such as dev: a band with this label across the top of every page,
+# in this colour. Leave the label empty on the real one.
+environment:
+  label: ""
+  color: "#f0a020"
+
+# Addresses whose X-Forwarded-For and X-Forwarded-Proto headers the app trusts, such as
+# the pod network your ingress controller runs in ("10.42.0.0/16"); comma-separated IPs
+# or CIDRs. Empty trusts only 127.0.0.1. Never "*".
+forwardedAllowIps: ""
+
+# Extra environment variables for the app (list of name/value pairs).
+extraEnv: []
+
+# SQLite and uploaded files in /data. One ReadWriteOnce volume, hence one pod.
+persistence:
+  enabled: true
+  size: 1Gi
+  # Empty uses the cluster's default storage class.
+  storageClass: ""
+  # Use an existing PVC instead of creating one.
+  existingClaim: ""
+  # Keep the PVC when the release is uninstalled.
+  keep: true
+
+# Where the app imports report Markdown files from (HJ_REPORTS_DIR). Optional.
+reports:
+  # Sync from a private Git repository with a git-sync sidecar. Create the secret with a
+  # fine-grained, read-only personal access token (Contents: read on that repo only):
+  #   kubectl create secret generic huizenjacht-reports \
+  #     --from-literal=username=x-access-token --from-literal=password=github_pat_...
+  git:
+    enabled: false
+    repo: ""  # such as https://github.com/brnl-claude/huizenjacht_rapporten
+    ref: main
+    # git-sync polls this often and then has the app import at once.
+    period: 1m
+    image: registry.k8s.io/git-sync/git-sync:v4.4.0
+    # Existing Secret with the HTTPS credentials. Empty: no credentials (public repo).
+    existingSecret: ""
+    usernameKey: username
+    passwordKey: password
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        memory: 128Mi
+  # Alternative: an existing PVC with the reports, mounted read-only at /reports.
+  existingClaim: ""
+  # Optional: let something outside the pod, such as the reports repository's CI, trigger an
+  # import with POST /api/import/hook and "Authorization: Bearer <token>". Not needed with
+  # git-sync. The path must then be reachable past your login (forward-auth).
+  hook:
+    existingSecret: ""
+    existingSecretKey: token
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: false
+  className: ""
+  # Controller-specific annotations, such as forward-auth or a cert-manager issuer.
+  annotations: {}
+  host: huizenjacht.example.com
+  tls:
+    enabled: false
+    # Secret with the certificate; cert-manager creates it when its annotation is set.
+    secretName: ""
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    memory: 512Mi
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  runAsGroup: 10001
+  fsGroup: 10001
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: [ALL]
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

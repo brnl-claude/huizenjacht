@@ -1,0 +1,12 @@
+apiVersion: v2
+name: huizenjacht
+description: Huizenjacht, a house-hunting tracker with report import.
+type: application
+# Raise version with every chart change: CI publishes each version to
+# oci://ghcr.io/brnl-claude/charts once and never replaces it. Pull requests that change
+# the chart without a new version fail.
+version: 0.1.0
+appVersion: "0.1.0"
+home: https://github.com/brnl-claude/huizenjacht
+sources:
+  - https://github.com/brnl-claude/huizenjacht
