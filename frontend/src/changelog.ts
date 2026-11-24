@@ -19,6 +19,12 @@ export type Release = {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.7.1',
+    date: '2026-11-24',
+    title: 'Rustiger overzicht',
+    changes: ['De knop "Huis toevoegen" staat niet meer boven het overzicht: huizen komen binnen via de rapporten.'],
+  },
+  {
     version: '0.7.0',
     date: '2026-11-24',
     title: 'Android-app',
