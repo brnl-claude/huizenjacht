@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { checklistFor, DEFAULT_CHECKLIST, progress } from './checklist'
-import { sortHouses, toHouse, type HouseRecord } from './house'
+import { photoGalleryUrl, sortHouses, toHouse, type HouseRecord } from './house'
 import { CHANGELOG } from './changelog'
 
 const record = (id: string, report: HouseRecord['report'], mine: HouseRecord['mine'] = {}): HouseRecord => ({
@@ -45,5 +45,17 @@ describe('changelog', () => {
       const [a, b] = [nums[i - 1], nums[i]]
       expect(a[0] * 1e6 + a[1] * 1e3 + a[2]).toBeGreaterThan(b[0] * 1e6 + b[1] * 1e3 + b[2])
     }
+  })
+})
+
+describe('photoGalleryUrl', () => {
+  it('points a Funda listing at its photo gallery', () => {
+    const base = 'https://www.funda.nl/detail/koop/giesbeek/huis-de-geer-16/80887309'
+    expect(photoGalleryUrl(`${base}/`)).toBe(`${base}/media/fotos/`)
+    expect(photoGalleryUrl(`${base}?ref=x`)).toBe(`${base}/media/fotos/`)
+    expect(photoGalleryUrl(`${base}/media/fotos/`)).toBe(`${base}/media/fotos/`)
+  })
+  it('leaves other sites alone', () => {
+    expect(photoGalleryUrl('https://example.org/huis/12345678/')).toBe('https://example.org/huis/12345678/')
   })
 })

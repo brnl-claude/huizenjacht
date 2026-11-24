@@ -230,3 +230,15 @@ export function mapsUrl(house: Fields): string | null {
   if (!house.adres) return null
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(where)}`
 }
+
+/** Funda's photo gallery for a listing (…/80887309/media/fotos/), or the listing itself elsewhere. */
+export function photoGalleryUrl(url: string): string {
+  try {
+    const u = new URL(url)
+    const m = u.pathname.match(/^(\/detail\/.*\/\d{6,10})(?:\/|$)/)
+    if (!/(^|\.)funda\.nl$/.test(u.hostname) || !m) return url
+    return `${u.origin}${m[1]}/media/fotos/`
+  } catch {
+    return url
+  }
+}

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type MouseEvent } from 'react'
 import { AlertTriangle, ChevronLeft, ChevronRight, Download, ExternalLink, Images, Newspaper, RefreshCw, X } from 'lucide-react'
 import { api } from './api'
-import { displayAddress, photoUrls, type House, type Listing } from './house'
+import { displayAddress, photoGalleryUrl, photoUrls, type House, type Listing } from './house'
 import { errorText, useStore } from './store'
 
 /** A link that opens the overlay on a plain click, and stays a real link for Ctrl/Cmd/Shift
@@ -139,7 +139,7 @@ export function ListingOverlay({
             <Images size={16} /> Foto's {photos.length > 0 && <span className="muted">{photos.length}</span>}
           </button>
         </div>
-        <a className="btn btn-small btn-primary" href={url} target="_blank" rel="noreferrer">
+        <a className="btn btn-small btn-primary" href={tab === 'fotos' ? photoGalleryUrl(url) : url} target="_blank" rel="noreferrer">
           <ExternalLink size={16} /> <span className="hide-small">Open in nieuw tabblad</span>
         </a>
         <button className="icon-btn" aria-label="Sluiten" onClick={() => ref.current?.close()}>
