@@ -1,7 +1,7 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { api, ApiError } from './api'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { api, ApiError, CLIENT_ID } from './api'
 import { DEFAULT_CHECKLIST, type ChecklistCategory } from './checklist'
-import { toHouse, type House, type HouseRecord, type Mine } from './house'
+import { PERSONAL, toHouse, type House, type HouseRecord, type Mine, type Person } from './house'
 
 type Toast = { id: number; text: string; tone: 'info' | 'error' }
 
@@ -23,6 +23,10 @@ type Store = {
   clearCompare: () => void
   toasts: Toast[]
   notify: (text: string, tone?: Toast['tone']) => void
+  /** Your person key and everyone who has answers, each with a colour. */
+  me: string
+  people: Person[]
+  claimAnswers: () => Promise<void>
 }
 
 const StoreContext = createContext<Store | null>(null)
@@ -50,6 +54,22 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [withStandard, setWithStandardState] = useState(true)
   const [compare, setCompare] = useState<string[]>(readCompare)
   const [toasts, setToasts] = useState<Toast[]>([])
+  const [me, setMe] = useState('lokaal')
+  const [people, setPeople] = useState<Person[]>([])
+  const peopleRef = useRef(people)
+  useEffect(() => {
+    peopleRef.current = people
+  }, [people])
+
+  const loadPeople = useCallback(async () => {
+    try {
+      const r = await api.people()
+      setMe(r.me)
+      setPeople(r.people)
+    } catch {
+      // keep what we had
+    }
+  }, [])
 
   const notify = useCallback((text: string, tone: Toast['tone'] = 'info') => {
     const id = Date.now() + Math.random()
@@ -70,6 +90,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     void refresh()
+    void loadPeople()
     api
       .getSetting<ChecklistCategory[]>('checklist')
       .then((r) => r.value && setTemplate(r.value))
@@ -81,7 +102,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const onFocus = () => document.visibilityState === 'visible' && void refresh()
     document.addEventListener('visibilitychange', onFocus)
     return () => document.removeEventListener('visibilitychange', onFocus)
-  }, [refresh])
+  }, [refresh, loadPeople])
 
   useEffect(() => {
     try {
@@ -99,17 +120,53 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     )
   }, [])
 
+  // Live updates: another person or device changed something, so fetch it again.
+  useEffect(() => {
+    if (typeof EventSource === 'undefined') return
+    const source = new EventSource('/api/events')
+    source.onmessage = (e) => {
+      let event: { type: string; id?: string; from?: string | null }
+      try {
+        event = JSON.parse(e.data)
+      } catch {
+        return
+      }
+      if (event.from === CLIENT_ID) return
+      if (event.type === 'houses') {
+        void refresh()
+        void loadPeople()
+      } else if (event.type === 'removed' && event.id) {
+        setRecords((list) => list.filter((r) => r.id !== event.id))
+      } else if (event.type === 'house' && event.id) {
+        api
+          .house(event.id)
+          .then((record) => {
+            replace(record)
+            // Someone new answered: fetch their name and colour.
+            const keys = Object.keys(record.mine.personen ?? {})
+            if (keys.some((k) => !peopleRef.current.some((p) => p.key === k))) void loadPeople()
+          })
+          .catch(() => undefined)
+      }
+    }
+    return () => source.close()
+  }, [refresh, loadPeople, replace])
+
   const update = useCallback(
     async (id: string, changes: Partial<Record<keyof Mine, unknown>>) => {
-      // Show the change at once; the server's answer replaces it.
+      // Show the change at once; the server's answer replaces it. Your own answers sit under
+      // your person key, the rest is shared.
       setRecords((list) =>
         list.map((r) => {
           if (r.id !== id) return r
           const mine = { ...r.mine } as Record<string, unknown>
+          const own = { ...(r.mine.personen?.[me] ?? {}) } as Record<string, unknown>
           for (const [k, v] of Object.entries(changes)) {
-            if (v === null) delete mine[k]
-            else mine[k] = v
+            const target = (PERSONAL as readonly string[]).includes(k) ? own : mine
+            if (v === null) delete target[k]
+            else target[k] = v
           }
+          mine.personen = { ...r.mine.personen, [me]: own }
           return { ...r, mine: mine as Mine }
         }),
       )
@@ -120,8 +177,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         void refresh()
       }
     },
-    [notify, refresh, replace],
+    [notify, refresh, replace, me],
   )
+
+  const claimAnswers = useCallback(async () => {
+    try {
+      await api.claimAnswers()
+      await Promise.all([refresh(), loadPeople()])
+    } catch (e) {
+      notify(message(e), 'error')
+    }
+  }, [notify, refresh, loadPeople])
 
   const remove = useCallback(
     async (id: string) => {
@@ -170,7 +236,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [notify],
   )
 
-  const houses = useMemo(() => records.map(toHouse), [records])
+  const houses = useMemo(() => records.map((r) => toHouse(r, me, people)), [records, me, people])
   const value: Store = {
     houses,
     loading,
@@ -188,6 +254,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     clearCompare: () => setCompare([]),
     toasts,
     notify,
+    me,
+    people,
+    claimAnswers,
   }
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>
 }

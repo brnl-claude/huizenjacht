@@ -30,8 +30,11 @@ import {
   mapsUrl,
   photoUrls,
   place,
+  personInfo,
   STATUSES,
+  EARLIER,
   type CheckEntry,
+  type Other,
   type CheckState,
   type House,
   type Status,
@@ -39,12 +42,12 @@ import {
 import { ListingOverlay } from './ListingOverlay'
 import { Dialog, HouseForm } from './NewHouseDialog'
 import { useStore } from './store'
-import { EnergyLabel, FavoriteButton, Photo, ProgressBar, ScorePill } from './ui'
+import { EnergyLabel, FavoriteButton, personColor, PersonDot, Photo, ProgressBar, ScorePill } from './ui'
 
 const TABS = [
   { id: 'overzicht', label: 'Overzicht' },
-  { id: 'checklist', label: 'Checklist' },
   { id: 'rapport', label: 'Rapport' },
+  { id: 'checklist', label: 'Checklist' },
   { id: 'notities', label: 'Mijn beoordeling' },
 ] as const
 
@@ -367,6 +370,36 @@ const STATES: { id: CheckState; label: string; icon: typeof Check }[] = [
   { id: 'probleem', label: 'Probleem', icon: X },
 ]
 
+/** Who is who, shown when someone else has answered too. */
+function People({ house }: { house: House }) {
+  const { me, people, claimAnswers } = useStore()
+  if (!house.others.length) return null
+  const earlier = house.others.some((o) => o.key === EARLIER)
+  return (
+    <div className="people-legend">
+      <span className="person-tag">
+        <PersonDot person={personInfo(people, me)} you /> Jij
+      </span>
+      {house.others.map((o) => (
+        <span key={o.key} className="person-tag">
+          <PersonDot person={o} /> {o.naam}
+        </span>
+      ))}
+      {earlier && (
+        <button
+          className="btn btn-small btn-ghost"
+          onClick={() => {
+            if (confirm('Zijn de antwoorden van vóór deze versie van jou? Ze worden dan bij alle huizen jouw antwoorden.'))
+              void claimAnswers()
+          }}
+        >
+          Eerder ingevuld is van mij
+        </button>
+      )}
+    </div>
+  )
+}
+
 function Checklist({ house, categories }: { house: House; categories: ChecklistCategory[] }) {
   const { update, withStandard, setWithStandard } = useStore()
   const ownList = reportChecklist(house.record.reportBody ?? '').length > 0
@@ -401,6 +434,7 @@ function Checklist({ house, categories }: { house: House; categories: ChecklistC
           </label>
         )}
       </div>
+      <People house={house} />
       {ownList && (
         <p className="muted small checklist-source">
           De eerste onderdelen komen uit de afvinklijst en open punten van het rapport van dit huis.
@@ -425,6 +459,8 @@ function Checklist({ house, categories }: { house: House; categories: ChecklistC
                   key={item.id}
                   text={item.tekst}
                   entry={answers[item.id]}
+                  others={house.others}
+                  itemId={item.id}
                   onChange={(entry) => set(item.id, entry)}
                 />
               ))}
@@ -443,12 +479,20 @@ function Checklist({ house, categories }: { house: House; categories: ChecklistC
 function CheckRow({
   text,
   entry,
+  others,
+  itemId,
   onChange,
 }: {
   text: string
   entry?: CheckEntry
+  others: Other[]
+  itemId: string
   onChange: (entry: CheckEntry | null) => void
 }) {
+  const { me, people } = useStore()
+  const theirs = others
+    .map((o) => ({ person: o, entry: o.data.checklist?.[itemId] }))
+    .filter((t): t is { person: Other; entry: CheckEntry } => Boolean(t.entry?.s || t.entry?.n))
   const [noteOpen, setNoteOpen] = useState(Boolean(entry?.n))
   const [note, setNote] = useState(entry?.n ?? '')
   useEffect(() => setNote(entry?.n ?? ''), [entry?.n])
@@ -457,6 +501,7 @@ function CheckRow({
       <div className="check-main">
         <span className="check-text">{text}</span>
         <div className="check-buttons" role="group" aria-label={text}>
+          {others.length > 0 && <PersonDot person={personInfo(people, me)} you />}
           {STATES.map((s) => (
             <button
               key={s.id}
@@ -482,6 +527,24 @@ function CheckRow({
           </button>
         </div>
       </div>
+      {theirs.length > 0 && (
+        <ul className="check-others">
+          {theirs.map(({ person, entry: e }) => {
+            const state = STATES.find((s) => s.id === e.s)
+            return (
+              <li key={person.key} style={{ borderColor: personColor(person) }}>
+                <PersonDot person={person} />
+                {state && (
+                  <span className={`other-state ${state.id}`}>
+                    <state.icon size={14} /> {state.label}
+                  </span>
+                )}
+                {e.n && <span className="other-note">{e.n}</span>}
+              </li>
+            )
+          })}
+        </ul>
+      )}
       {noteOpen && (
         <textarea
           className="check-note"
@@ -528,6 +591,21 @@ function Report({ house }: { house: House }) {
 
 export const ASPECTS = ['Locatie', 'Ruimte en indeling', 'Staat van onderhoud', 'Licht', 'Buitenruimte', 'Prijs/kwaliteit']
 
+/** Other people's value for one thing, as small badges in their colour. */
+function TheirValues({ house, value }: { house: House; value: (o: Other) => string | undefined }) {
+  const shown = house.others.map((o) => ({ o, v: value(o) })).filter((x) => x.v !== undefined)
+  if (!shown.length) return null
+  return (
+    <span className="their-values">
+      {shown.map(({ o, v }) => (
+        <span key={o.key} className="their-value" style={{ borderColor: personColor(o) }}>
+          <PersonDot person={o} /> {v}
+        </span>
+      ))}
+    </span>
+  )
+}
+
 function MyReview({ house }: { house: House }) {
   const { update, remove } = useStore()
   const [notes, setNotes] = useState(house.mine.notities ?? '')
@@ -541,8 +619,12 @@ function MyReview({ house }: { house: House }) {
 
   return (
     <div className="review">
+      <People house={house} />
       <section className="panel">
-        <h2>Mijn cijfer</h2>
+        <h2>
+          Mijn cijfer
+          <TheirValues house={house} value={(o) => (o.data.cijfer ? String(o.data.cijfer) : undefined)} />
+        </h2>
         <div className="grade" role="radiogroup" aria-label="Mijn cijfer">
           {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
             <button
@@ -588,13 +670,21 @@ function MyReview({ house }: { house: House }) {
                   </button>
                 ))}
               </span>
+              {house.others.length > 0 && (
+                <span className="their-slot">
+                  <TheirValues house={house} value={(o) => (o.data.aspecten?.[a] ? `${o.data.aspecten[a]}★` : undefined)} />
+                </span>
+              )}
             </li>
           ))}
         </ul>
       </section>
 
       <section className="panel">
-        <h2>Bezichtiging en bod</h2>
+        <h2>
+          Bezichtiging en bod
+          {house.others.length > 0 && <small>samen</small>}
+        </h2>
         <div className="form-grid">
           <label>
             <span>Bezichtiging</span>
@@ -611,7 +701,7 @@ function MyReview({ house }: { house: House }) {
           </label>
           <label>
             <span>
-              Mijn bod <small>(€)</small>
+              Bod <small>(€)</small>
             </span>
             <input
               inputMode="numeric"
@@ -651,6 +741,16 @@ function MyReview({ house }: { house: House }) {
           onBlur={() => notes !== (house.mine.notities ?? '') && void update(house.id, { notities: notes || null })}
         />
         <p className="muted small">Wordt opgeslagen zodra je het veld verlaat.</p>
+        {house.others
+          .filter((o) => o.data.notities)
+          .map((o) => (
+            <div key={o.key} className="their-notes" style={{ borderColor: personColor(o) }}>
+              <div className="their-notes-head">
+                <PersonDot person={o} /> <b>{o.naam}</b>
+              </div>
+              <p>{o.data.notities}</p>
+            </div>
+          ))}
       </section>
 
       <section className="danger-zone">

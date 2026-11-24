@@ -217,6 +217,15 @@ function HouseCard({ house }: { house: House }) {
             ))}
             <EnergyLabel label={house.energielabel} />
           </p>
+        </div>
+      </a>
+      <FavoriteButton
+        active={house.favoriet}
+        onPhoto
+        onToggle={() => void update(house.id, { favoriet: house.favoriet ? null : true })}
+      />
+      <div className="card-foot">
+        <div className="card-foot-info">
           <div className="card-scores">
             <ScorePill value={house.score} label="Rapport" />
             <ScorePill value={house.mine.cijfer} label="Mijn cijfer" />
@@ -228,12 +237,6 @@ function HouseCard({ house }: { house: House }) {
           </div>
           {p.done > 0 && <ProgressBar done={p.done} total={p.total} problems={p.probleem} />}
         </div>
-      </a>
-      <div className="card-actions">
-        <FavoriteButton
-          active={house.favoriet}
-          onToggle={() => void update(house.id, { favoriet: house.favoriet ? null : true })}
-        />
         <button
           type="button"
           className={`btn btn-small ${selected ? 'btn-selected' : 'btn-ghost'}`}

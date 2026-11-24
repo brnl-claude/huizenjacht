@@ -68,3 +68,28 @@ def test_hook_needs_token(tmp_path):
         assert client.post("/api/import/hook").status_code == 401
         ok = client.post("/api/import/hook", headers={"Authorization": "Bearer geheim"})
         assert ok.status_code == 202
+
+
+def test_without_login_answers_are_kept_as_one_person(tmp_path):
+    with make_client(tmp_path) as client:
+        client.post("/api/houses", json={"adres": "Laan 1"})
+        client.patch("/api/houses/laan-1", json={"cijfer": 8, "favoriet": True})
+        mine = client.get("/api/houses/laan-1").json()["mine"]
+        assert mine == {"adres": "Laan 1", "favoriet": True, "personen": {"lokaal": {"cijfer": 8}}}
+        people = client.get("/api/people").json()
+        assert people == {"me": "lokaal", "people": [{"key": "lokaal", "naam": "Ik", "kleur": 0}]}
+
+
+def test_changes_are_sent_live(tmp_path):
+    with make_client(tmp_path) as client:
+        app = client.app
+        seen = []
+        app.state.events.publish = seen.append
+        client.post("/api/houses", json={"adres": "Laan 1"}, headers={"X-Client": "tab-1"})
+        client.patch("/api/houses/laan-1", json={"cijfer": 8})
+        client.delete("/api/houses/laan-1")
+        assert seen == [
+            {"type": "house", "id": "laan-1", "from": "tab-1"},
+            {"type": "house", "id": "laan-1", "from": None},
+            {"type": "removed", "id": "laan-1", "from": None},
+        ]

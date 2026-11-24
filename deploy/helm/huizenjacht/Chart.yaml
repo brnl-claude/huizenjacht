@@ -5,8 +5,8 @@ type: application
 # Raise version with every chart change: CI publishes each version to
 # oci://ghcr.io/brnl-claude/charts once and never replaces it. Pull requests that change
 # the chart without a new version fail.
-version: 0.5.2
-appVersion: "0.5.2"
+version: 0.6.0
+appVersion: "0.6.0"
 home: https://github.com/brnl-claude/huizenjacht
 sources:
   - https://github.com/brnl-claude/huizenjacht

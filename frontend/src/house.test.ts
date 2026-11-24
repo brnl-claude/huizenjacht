@@ -59,3 +59,20 @@ describe('photoGalleryUrl', () => {
     expect(photoGalleryUrl('https://example.org/huis/12345678/')).toBe('https://example.org/huis/12345678/')
   })
 })
+
+describe('answers per person', () => {
+  it('shows your own answers in mine and the others apart', () => {
+    const r = record('a', {}, {
+      status: 'bezichtigd',
+      personen: { me: { cijfer: 8 }, ander: { cijfer: 6, notities: 'Te klein' }, leeg: {} },
+    })
+    const people = [
+      { key: 'me', naam: 'Bram', kleur: 0 },
+      { key: 'ander', naam: 'Partner', kleur: 1 },
+    ]
+    const h = toHouse(r, 'me', people)
+    expect(h.mine.cijfer).toBe(8)
+    expect(h.status).toBe('bezichtigd')
+    expect(h.others).toEqual([{ key: 'ander', naam: 'Partner', kleur: 1, data: { cijfer: 6, notities: 'Te klein' } }])
+  })
+})
