@@ -1,12 +1,16 @@
-"""SQLite storage. One person uses the app, so one small file is plenty.
+"""SQLite storage. A household uses the app, so one small file is plenty.
 
-A house keeps what its report says (report) apart from what the person adds or changes in
-the app (mine). A newer report replaces `report` and never touches `mine`.
+A house keeps what its report says (report) apart from what the people add or change in the
+app (mine). A newer report replaces `report` and never touches `mine`. Status, favourite,
+viewing and offer in `mine` are shared; each person's own grade, ratings, notes and
+checklist answers sit under mine["personen"][<person key>].
 """
 
+import hashlib
 import json
 import sqlite3
 import threading
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -56,6 +60,26 @@ _SELECT = (
 )
 
 
+# Fields in `mine` that belong to one person.
+PERSONAL = ("cijfer", "aspecten", "notities", "checklist")
+# The person without a login (HJ_AUTH_MODE=none), and answers from before 0.6.0 whose owner
+# is not known yet.
+LOCAL = "lokaal"
+EARLIER = "eerder"
+# Setting with everyone who has logged in: key -> {naam, kleur}.
+PEOPLE = "personen"
+
+
+def person_key(subject: str) -> str:
+    """A short, stable key for a login, without its issuer and subject in every answer."""
+    return hashlib.sha256(subject.encode()).hexdigest()[:12]
+
+
+def first_name(user: dict[str, Any]) -> str | None:
+    name = (user.get("name") or "").strip() or (user.get("email") or "").split("@")[0]
+    return name.split()[0] if name else None
+
+
 def now() -> str:
     return datetime.now(UTC).isoformat(timespec="seconds")
 
@@ -66,9 +90,15 @@ class Database:
         self._conn = sqlite3.connect(path, check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
         self._lock = threading.Lock()
+        # Called after every change to a house: (house id or None for all, removed).
+        self.on_change: Callable[[str | None, bool], None] | None = None
         with self._lock:
             self._conn.execute("PRAGMA journal_mode=WAL")
             self._conn.executescript(SCHEMA)
+
+    def _changed(self, house_id: str | None, removed: bool = False) -> None:
+        if self.on_change:
+            self.on_change(house_id, removed)
 
     def close(self) -> None:
         self._conn.close()
@@ -156,6 +186,7 @@ class Database:
                     ),
                 )
             self._conn.commit()
+        self._changed(house_id)
         return "updated" if row else "created"
 
     def create_manual(self, house_id: str, mine: dict[str, Any]) -> dict[str, Any]:
@@ -167,34 +198,107 @@ class Database:
                 (house_id, json.dumps(mine), stamp, stamp),
             )
             self._conn.commit()
+        self._changed(house_id)
         house = self.get_house(house_id)
         assert house
         return house
 
-    def update_mine(self, house_id: str, changes: dict[str, Any]) -> dict[str, Any] | None:
-        """Merge changes into the person's own data. A null value removes that field."""
+    def update_mine(
+        self, house_id: str, changes: dict[str, Any], person: str = LOCAL
+    ) -> dict[str, Any] | None:
+        """Merge changes into the app's data. A null value removes that field.
+
+        Personal fields go to this person's own part; the rest is shared.
+        """
         with self._lock:
             row = self._conn.execute("SELECT mine FROM houses WHERE id = ?", (house_id,)).fetchone()
             if not row:
                 return None
             mine = json.loads(row["mine"])
+            people = mine.setdefault("personen", {})
+            own = people.setdefault(person, {})
             for key, value in changes.items():
+                if key == "personen":
+                    continue
+                target = own if key in PERSONAL else mine
                 if value is None:
-                    mine.pop(key, None)
+                    target.pop(key, None)
                 else:
-                    mine[key] = value
+                    target[key] = value
+            if not own:
+                people.pop(person, None)
+            if not people:
+                mine.pop("personen")
             self._conn.execute(
                 "UPDATE houses SET mine = ?, updated_at = ? WHERE id = ?",
                 (json.dumps(mine), now(), house_id),
             )
             self._conn.commit()
+        self._changed(house_id)
         return self.get_house(house_id)
+
+    # People
+
+    def people(self) -> dict[str, dict[str, Any]]:
+        return self.get_setting(PEOPLE, {})
+
+    def register_person(self, key: str, name: str | None) -> None:
+        people = self.people()
+        entry = people.get(key)
+        if entry and (not name or entry.get("naam") == name):
+            return
+        if entry:
+            entry["naam"] = name
+        else:
+            used = {p.get("kleur") for p in people.values()}
+            color = next(i for i in range(len(people) + 1) if i not in used)
+            people[key] = {"naam": name or "Iemand", "kleur": -1 if key == EARLIER else color}
+        self.set_setting(PEOPLE, people)
+
+    def login_subjects(self) -> set[str]:
+        with self._lock:
+            return {r["subject"] for r in self._conn.execute("SELECT subject FROM sessions")}
+
+    def legacy_answers(self) -> bool:
+        """Whether a house still has personal fields from before 0.6.0 outside any person."""
+        with self._lock:
+            rows = self._conn.execute("SELECT mine FROM houses").fetchall()
+        return any(set(PERSONAL) & json.loads(r["mine"]).keys() for r in rows)
+
+    def move_answers(self, to: str, *, legacy: bool = False, source: str | None = None) -> int:
+        """Give answers to a person: the old ones outside any person, or another person's.
+
+        Answers the person already has win. Returns the number of houses changed.
+        """
+        changed = 0
+        with self._lock:
+            rows = self._conn.execute("SELECT id, mine FROM houses").fetchall()
+            for row in rows:
+                mine = json.loads(row["mine"])
+                people = mine.setdefault("personen", {})
+                if legacy:
+                    found = {k: mine.pop(k) for k in PERSONAL if k in mine}
+                else:
+                    found = people.pop(source, None) or {}
+                if not found:
+                    continue
+                people[to] = {**found, **people.get(to, {})}
+                self._conn.execute(
+                    "UPDATE houses SET mine = ? WHERE id = ?", (json.dumps(mine), row["id"])
+                )
+                changed += 1
+            self._conn.commit()
+        if changed:
+            self._changed(None)
+        return changed
 
     def delete_house(self, house_id: str) -> bool:
         with self._lock:
             cur = self._conn.execute("DELETE FROM houses WHERE id = ?", (house_id,))
             self._conn.execute("DELETE FROM listings WHERE house_id = ?", (house_id,))
             self._conn.commit()
+        if cur.rowcount:
+            self._changed(house_id, True)
         return cur.rowcount > 0
 
     def ids(self) -> set[str]:
@@ -281,6 +385,7 @@ class Database:
                 (house_id, url, status, message, photos, int(has_page), title, description, now()),
             )
             self._conn.commit()
+        self._changed(house_id)
 
     # Login sessions (only with HJ_AUTH_MODE=oidc)
 
@@ -301,6 +406,7 @@ class Database:
                 ),
             )
             self._conn.commit()
+        self.register_person(person_key(user["subject"]), first_name(user))
 
     def find_session(self, token_hash: str) -> dict[str, Any] | None:
         with self._lock:
@@ -364,4 +470,5 @@ class Database:
                     "INSERT INTO settings (key, value) VALUES (?, ?)", (key, json.dumps(value))
                 )
             self._conn.commit()
+        self._changed(None)
         return len(houses)

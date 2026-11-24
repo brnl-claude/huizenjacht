@@ -15,6 +15,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from fastapi.testclient import TestClient
 
 from app.config import Settings
+from app.db import Database
 from app.main import create_app
 
 ISSUER = "https://auth.example.test"
@@ -64,7 +65,9 @@ class FakeOIDC:
             return httpx2.Response(200, json={"access_token": grant["sub"], "id_token": token})
         return httpx2.Response(404)
 
-    def log_in(self, client: TestClient, sub: str, groups: list[str], next: str = "/"):
+    def log_in(
+        self, client: TestClient, sub: str, groups: list[str], next: str = "/", name: str = "Bram"
+    ):
         start = client.get("/api/auth/login", params={"next": next}, follow_redirects=False)
         assert start.status_code == 303, start.text
         query = parse_qs(urlparse(start.headers["location"]).query)
@@ -76,7 +79,7 @@ class FakeOIDC:
         }
         self.users[sub] = {
             "sub": sub,
-            "name": "Bram",
+            "name": name,
             "preferred_username": sub,
             "email": f"{sub}@example.test",
             "groups": groups,
@@ -160,3 +163,65 @@ def test_unknown_login_is_retried_once(tmp_path):
         # After the error a new login may retry again.
         assert "hj_login_retry" not in client.cookies
         assert provider.log_in(client, "bram", []).status_code == 303
+
+
+def test_each_person_keeps_own_answers(tmp_path):
+    client, provider = make(tmp_path)
+    with client:
+        provider.log_in(client, "bram", [], name="Bram de Vries")
+        client.post("/api/houses", json={"adres": "Laan 1"})
+        client.patch("/api/houses/laan-1", json={"cijfer": 8, "status": "bezichtigd"})
+        bram = client.get("/api/people").json()["me"]
+        provider.log_in(client, "sanne", [], name="Sanne")
+        client.patch("/api/houses/laan-1", json={"cijfer": 6, "checklist": {"a": {"s": "ok"}}})
+        people = client.get("/api/people").json()
+        sanne = people["me"]
+        assert {p["naam"]: p["kleur"] for p in people["people"]} == {"Bram": 0, "Sanne": 1}
+        mine = client.get("/api/houses/laan-1").json()["mine"]
+        assert mine["status"] == "bezichtigd"
+        assert mine["personen"] == {
+            bram: {"cijfer": 8},
+            sanne: {"cijfer": 6, "checklist": {"a": {"s": "ok"}}},
+        }
+        client.patch("/api/houses/laan-1", json={"cijfer": None, "checklist": None})
+        assert client.get("/api/houses/laan-1").json()["mine"]["personen"] == {bram: {"cijfer": 8}}
+
+
+def old_version(tmp_path: Path, mine: dict) -> None:
+    """A house as a version before 0.6.0 stored it: personal fields at the top."""
+    database = Database(tmp_path / "huizenjacht.sqlite")
+    database.create_manual("laan-1", mine)
+    database.close()
+
+
+def test_old_answers_go_to_the_only_person_who_logged_in(tmp_path):
+    client, provider = make(tmp_path)
+    with client:
+        provider.log_in(client, "bram", [])
+        me = client.get("/api/people").json()["me"]
+    old_version(tmp_path, {"adres": "Laan 1", "cijfer": 7, "status": "nieuw"})
+    # Restart: the answers from before 0.6.0 are Bram's, the only login so far.
+    client, provider = make(tmp_path)
+    with client:
+        provider.log_in(client, "bram", [])
+        mine = client.get("/api/houses/laan-1").json()["mine"]
+        assert mine == {"adres": "Laan 1", "status": "nieuw", "personen": {me: {"cijfer": 7}}}
+
+
+def test_old_answers_of_unknown_owner_can_be_claimed(tmp_path):
+    client, provider = make(tmp_path)
+    with client:
+        provider.log_in(client, "bram", [])
+        provider.log_in(client, "sanne", [], name="Sanne")
+    old_version(tmp_path, {"adres": "Laan 1", "notities": "Mooi"})
+    client, provider = make(tmp_path)
+    with client:
+        provider.log_in(client, "sanne", [], name="Sanne")
+        people = client.get("/api/people").json()
+        assert "eerder" in [p["key"] for p in people["people"]]
+        mine = client.get("/api/houses/laan-1").json()["mine"]
+        assert mine["personen"] == {"eerder": {"notities": "Mooi"}}
+        assert client.post("/api/people/claim").json() == {"houses": 1}
+        mine = client.get("/api/houses/laan-1").json()["mine"]
+        assert mine["personen"] == {people["me"]: {"notities": "Mooi"}}
+        assert "eerder" not in [p["key"] for p in client.get("/api/people").json()["people"]]

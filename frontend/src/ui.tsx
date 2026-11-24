@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Home, Star } from 'lucide-react'
-import { photoUrls, statusInfo, type House, type Status } from './house'
+import { EARLIER, photoUrls, statusInfo, type House, type Person, type Status } from './house'
 
 export function StatusBadge({ status }: { status: Status }) {
   const info = statusInfo(status)
@@ -50,14 +50,17 @@ export function Photo({
 export function FavoriteButton({
   active,
   onToggle,
+  onPhoto = false,
 }: {
   active: boolean
   onToggle: () => void
+  /** Shown in the corner of a photo, as a round button that stands out. */
+  onPhoto?: boolean
 }) {
   return (
     <button
       type="button"
-      className={`icon-btn fav ${active ? 'on' : ''}`}
+      className={`icon-btn fav ${onPhoto ? 'fav-photo' : ''} ${active ? 'on' : ''}`}
       aria-pressed={active}
       aria-label={active ? 'Favoriet, klik om te verwijderen' : 'Maak favoriet'}
       onClick={(e) => {
@@ -94,5 +97,23 @@ export function ProgressBar({ done, total, problems }: { done: number; total: nu
         {problems > 0 && <b className="problems"> · {problems} probleem{problems === 1 ? '' : 'en'}</b>}
       </span>
     </div>
+  )
+}
+
+// One colour per person, the same on every device: blue, pink, green, purple. Grey for
+// answers whose owner is not known.
+const PERSON_COLORS = ['#1c7ed6', '#d6336c', '#2f9e44', '#7048e8']
+
+export function personColor(person: Person): string {
+  return person.kleur < 0 ? '#868e96' : PERSON_COLORS[person.kleur % PERSON_COLORS.length]
+}
+
+/** A round badge with the first letter of someone's name, in their colour. */
+export function PersonDot({ person, you = false }: { person: Person; you?: boolean }) {
+  const label = you ? `${person.naam} (jij)` : person.naam
+  return (
+    <span className="person-dot" style={{ background: personColor(person) }} title={label} aria-label={label}>
+      {person.key === EARLIER ? '?' : person.naam.charAt(0).toUpperCase()}
+    </span>
   )
 }

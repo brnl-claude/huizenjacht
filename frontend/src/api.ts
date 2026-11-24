@@ -1,4 +1,4 @@
-import type { HouseRecord, Mine } from './house'
+import type { HouseRecord, Mine, Person } from './house'
 
 export class ApiError extends Error {}
 
@@ -6,15 +6,19 @@ export class ApiError extends Error {}
 // overwrite each other's login cookie.
 let loggingIn = false
 
+/** This browser tab, so live updates can skip the changes it made itself. */
+export const CLIENT_ID = Math.random().toString(36).slice(2)
+
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   let response: Response
   try {
     response = await fetch(path, {
       ...init,
-      headers:
-        init.body && !(init.body instanceof FormData)
-          ? { 'Content-Type': 'application/json', ...init.headers }
-          : init.headers,
+      headers: {
+        'X-Client': CLIENT_ID,
+        ...(init.body && !(init.body instanceof FormData) ? { 'Content-Type': 'application/json' } : {}),
+        ...init.headers,
+      },
     })
   } catch {
     throw new ApiError('Geen verbinding met de server. Probeer het zo nog eens.')
@@ -79,6 +83,9 @@ export const api = {
   logout: () => request<unknown>('/api/auth/logout', { method: 'POST' }),
   health: () => request<Health>('/api/health'),
   houses: () => request<HouseRecord[]>('/api/houses'),
+  house: (id: string) => request<HouseRecord>(`/api/houses/${encodeURIComponent(id)}`),
+  people: () => request<{ me: string; people: Person[] }>('/api/people'),
+  claimAnswers: () => request<{ houses: number }>('/api/people/claim', { method: 'POST' }),
   createHouse: (mine: Mine) =>
     request<HouseRecord>('/api/houses', { method: 'POST', body: JSON.stringify(mine) }),
   updateHouse: (id: string, changes: Partial<Record<keyof Mine, unknown>>) =>

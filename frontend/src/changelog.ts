@@ -19,6 +19,19 @@ export type Release = {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.6.0',
+    date: '2026-11-24',
+    title: 'Ieders eigen antwoorden, live bijgewerkt',
+    changes: [
+      'Iedereen die inlogt, heeft een eigen checklist, cijfer, sterren en notities per huis. Status, favoriet, bezichtiging en bod zijn gedeeld.',
+      'In de checklist en bij Mijn beoordeling zie je de antwoorden van de ander eronder, met een eigen kleur en de eerste letter van de naam.',
+      'Wat de ander invult, verschijnt direct, zonder de pagina te verversen.',
+      'Je eerdere antwoorden blijven van jou. Kan de app niet zien van wie ze zijn, dan staan ze onder "Eerder ingevuld" en zet je ze met één knop op je naam.',
+      'De tabbladen van een huis staan nu in de volgorde Overzicht, Rapport, Checklist, Mijn beoordeling.',
+      'In het overzicht staat de favorietenster als rode knop rechtsboven in de foto, en de knop Vergelijk staat een regel hoger.',
+    ],
+  },
+  {
     version: '0.5.2',
     date: '2026-11-24',
     title: 'Fotogalerij van Funda',

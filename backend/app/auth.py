@@ -84,6 +84,12 @@ text-decoration:none;font-weight:650}}</style>
     return HTMLResponse(body, status_code=status)
 
 
+def user_of(request: Request) -> dict[str, Any] | None:
+    """The logged-in user of a request, or None without OIDC."""
+    current_user = getattr(request.app.state, "current_user", None)
+    return current_user(request) if current_user else None
+
+
 def install(app: FastAPI, settings: Settings, db: Any, transport: Any = None) -> None:
     """Add the login routes and the check on every API request."""
     if settings.auth_mode not in {"none", "oidc"}:
@@ -242,6 +248,7 @@ def install(app: FastAPI, settings: Settings, db: Any, transport: Any = None) ->
         return response
 
     app.include_router(router)
+    app.state.current_user = current_user if settings.auth_mode == "oidc" else None
 
     if settings.auth_mode != "oidc":
         return

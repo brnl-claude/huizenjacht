@@ -53,7 +53,20 @@ export type Mine = Partial<Fields> & {
   bezichtiging?: string
   bod?: number
   checklist?: Record<string, CheckEntry>
+  /** Each person's own grade, ratings, notes and checklist, by person key. */
+  personen?: Record<string, Personal>
 }
+
+/** Fields that belong to one person; the rest of `mine` is shared. */
+export const PERSONAL = ['cijfer', 'aspecten', 'notities', 'checklist'] as const
+export type Personal = Pick<Mine, (typeof PERSONAL)[number]>
+
+export type Person = { key: string; naam: string; kleur: number }
+/** Someone else's answers at a house. */
+export type Other = Person & { data: Personal }
+
+/** Answers from before 0.6.0 whose owner the app could not tell. */
+export const EARLIER = 'eerder'
 
 export type Listing = {
   url: string
@@ -81,7 +94,10 @@ export type House = Fields & {
   record: HouseRecord
   status: Status
   favoriet: boolean
+  /** Shared fields plus your own answers. */
   mine: Mine
+  /** Answers of the other people, in a fixed order. */
+  others: Other[]
   prijsPerM2?: number
 }
 
@@ -106,7 +122,7 @@ const EDITABLE: (keyof Fields)[] = [
 ]
 export { EDITABLE as EDITABLE_FIELDS }
 
-export function toHouse(record: HouseRecord): House {
+export function toHouse(record: HouseRecord, me = 'lokaal', people: Person[] = []): House {
   const merged: Fields = { ...record.report }
   for (const key of EDITABLE) {
     const value = record.mine[key]
@@ -122,7 +138,11 @@ export function toHouse(record: HouseRecord): House {
     ...merged,
     id: record.id,
     record,
-    mine: record.mine,
+    mine: { ...record.mine, ...(record.mine.personen?.[me] ?? {}) },
+    others: Object.entries(record.mine.personen ?? {})
+      .filter(([key, data]) => key !== me && PERSONAL.some((k) => data[k] !== undefined))
+      .map(([key, data]) => ({ ...personInfo(people, key), data }))
+      .sort((a, b) => a.kleur - b.kleur),
     status: record.mine.status ?? 'nieuw',
     favoriet: Boolean(record.mine.favoriet),
     prijsPerM2,
@@ -241,4 +261,11 @@ export function photoGalleryUrl(url: string): string {
   } catch {
     return url
   }
+}
+
+export function personInfo(people: Person[], key: string): Person {
+  return (
+    people.find((p) => p.key === key) ??
+    (key === EARLIER ? { key, naam: 'Eerder ingevuld', kleur: -1 } : { key, naam: 'Iemand', kleur: 9 })
+  )
 }

@@ -2,6 +2,7 @@
 
 import asyncio
 import contextlib
+import contextvars
 import json
 import logging
 import re
@@ -12,11 +13,17 @@ from typing import Any
 
 import httpx2
 from fastapi import Body, FastAPI, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
+from fastapi.responses import (
+    FileResponse,
+    JSONResponse,
+    RedirectResponse,
+    Response,
+    StreamingResponse,
+)
 
 from . import auth
 from .config import Settings, load_settings
-from .db import Database, now
+from .db import EARLIER, LOCAL, PEOPLE, PERSONAL, Database, first_name, now, person_key
 from .funda import (
     Blocked,
     NotAListing,
@@ -45,6 +52,32 @@ def listing_key(url: str) -> str:
     if match:
         return match.group(1)
     return url.split("?")[0].rstrip("/").lower().replace("://www.", "://")
+
+
+# The browser tab that made a change, so it can skip its own live update.
+client_id: contextvars.ContextVar[str | None] = contextvars.ContextVar("client_id", default=None)
+# Live updates: a stream ends after this long, the browser opens a new one at once.
+EVENT_STREAM_SECONDS = 300
+EVENT_PING_SECONDS = 20
+
+
+class Events:
+    """Sends every change to the browsers that have /api/events open."""
+
+    def __init__(self) -> None:
+        self.queues: set[asyncio.Queue[dict[str, Any]]] = set()
+        self.loop: asyncio.AbstractEventLoop | None = None
+
+    def publish(self, event: dict[str, Any]) -> None:
+        if not self.loop or self.loop.is_closed():
+            return
+        for queue in list(self.queues):
+            self.loop.call_soon_threadsafe(self._put, queue, event)
+
+    @staticmethod
+    def _put(queue: asyncio.Queue[dict[str, Any]], event: dict[str, Any]) -> None:
+        with contextlib.suppress(asyncio.QueueFull):
+            queue.put_nowait(event)
 
 
 # How often the app looks for listings that are new, changed or due for a retry.
@@ -174,9 +207,38 @@ def create_app(
                 return
             await asyncio.sleep(settings.reports_scan_interval)
 
+    events = Events()
+
+    def on_change(house_id: str | None, removed: bool) -> None:
+        if house_id is None:
+            events.publish({"type": "houses", "from": client_id.get()})
+        else:
+            kind = "removed" if removed else "house"
+            events.publish({"type": kind, "id": house_id, "from": client_id.get()})
+
+    def claim_old_answers(database: Database) -> None:
+        """Give the answers from before 0.6.0 to their owner, when that is clear."""
+        if settings.auth_mode != "oidc":
+            if LOCAL not in database.people():
+                database.register_person(LOCAL, "Ik")
+            database.move_answers(LOCAL, legacy=True)
+            return
+        if not database.legacy_answers():
+            return
+        subjects = database.login_subjects()
+        if len(subjects) == 1:
+            # Only one person has logged in so far: they filled them in.
+            database.move_answers(person_key(subjects.pop()), legacy=True)
+        else:
+            database.register_person(EARLIER, "Eerder ingevuld")
+            database.move_answers(EARLIER, legacy=True)
+
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         app.state.db = Database(settings.data_dir / "huizenjacht.sqlite")
+        events.loop = asyncio.get_running_loop()
+        claim_old_answers(app.state.db)
+        app.state.db.on_change = on_change
         tasks = [asyncio.create_task(scan_forever())]
         if settings.fetch_listings:
             tasks.append(asyncio.create_task(fetch_listings_forever()))
@@ -191,6 +253,16 @@ def create_app(
         return app.state.db
 
     auth.install(app, settings, db, oidc_transport)
+    app.state.events = events
+
+    @app.middleware("http")
+    async def remember_client(request: Request, call_next):
+        client_id.set(request.headers.get("x-client"))
+        return await call_next(request)
+
+    def person(request: Request) -> str:
+        user = auth.user_of(request)
+        return person_key(user["subject"]) if user else LOCAL
 
     def house_or_404(house_id: str) -> dict[str, Any]:
         house = db().get_house(house_id)
@@ -216,16 +288,21 @@ def create_app(
         return house_or_404(house_id)
 
     @app.post("/api/houses", status_code=201)
-    def create_house(mine: dict[str, Any] = Body(...)) -> dict[str, Any]:
+    def create_house(request: Request, mine: dict[str, Any] = Body(...)) -> dict[str, Any]:
         base = slugify(str(mine.get("adres") or "huis"))
         house_id, taken = base, db().ids()
         while house_id in taken:
             house_id = f"{base}-{secrets.token_hex(2)}"
-        return db().create_manual(house_id, mine)
+        own = {k: mine.pop(k) for k in PERSONAL if k in mine}
+        mine.pop("personen", None)
+        house = db().create_manual(house_id, mine)
+        return db().update_mine(house_id, own, person(request)) if own else house
 
     @app.patch("/api/houses/{house_id}")
-    def update_house(house_id: str, changes: dict[str, Any] = Body(...)) -> dict[str, Any]:
-        house = db().update_mine(house_id, changes)
+    def update_house(
+        request: Request, house_id: str, changes: dict[str, Any] = Body(...)
+    ) -> dict[str, Any]:
+        house = db().update_mine(house_id, changes, person(request))
         if not house:
             raise HTTPException(404, "Dit huis bestaat niet (meer).")
         return house
@@ -322,7 +399,7 @@ def create_app(
         if house is None:
             title = page_summary(html).get("title") or "Nieuw huis"
             adres = re.sub(r"^.*?te koop:\s*", "", str(title), flags=re.I).split(" [")[0].strip()
-            house = create_house({"adres": adres[:80] or "Nieuw huis", "url": url})
+            house = create_house(request, {"adres": adres[:80] or "Nieuw huis", "url": url})
         async with listing_lock:
             await asyncio.to_thread(fetch_one, house["id"], url, html)
         saved = house_or_404(house["id"])
@@ -456,10 +533,58 @@ def create_app(
 
     @app.put("/api/settings/{key}")
     def put_setting(key: str, value: Any = Body(..., embed=True)) -> dict[str, Any]:
-        if not re.fullmatch(r"[a-z][a-zA-Z0-9-]{0,40}", key):
+        valid = re.fullmatch(r"[a-z][a-zA-Z0-9-]{0,40}", key)
+        if not valid or key in {PEOPLE, BOOKMARKLET_TOKEN}:
             raise HTTPException(400, "Onbekende instelling.")
         db().set_setting(key, value)
         return {"value": value}
+
+    @app.get("/api/people")
+    def people(request: Request) -> dict[str, Any]:
+        """Everyone who has answers, with a colour, and which of them is you."""
+        me = person(request)
+        user = auth.user_of(request)
+        if user:
+            db().register_person(me, first_name(user))
+        return {
+            "me": me,
+            "people": [{"key": k, **v} for k, v in db().people().items()],
+        }
+
+    @app.post("/api/people/claim")
+    def claim(request: Request) -> dict[str, Any]:
+        """The answers from before 0.6.0 are yours."""
+        changed = db().move_answers(person(request), source=EARLIER)
+        everyone = db().people()
+        if everyone.pop(EARLIER, None):
+            db().set_setting(PEOPLE, everyone)
+        return {"houses": changed}
+
+    @app.get("/api/events")
+    async def live(request: Request) -> StreamingResponse:
+        queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue(maxsize=200)
+        events.queues.add(queue)
+
+        async def stream():
+            try:
+                yield "retry: 3000\n\n"
+                loop = asyncio.get_running_loop()
+                end = loop.time() + EVENT_STREAM_SECONDS
+                while loop.time() < end and not await request.is_disconnected():
+                    try:
+                        event = await asyncio.wait_for(queue.get(), EVENT_PING_SECONDS)
+                    except TimeoutError:
+                        yield ": ping\n\n"
+                        continue
+                    yield f"data: {json.dumps(event)}\n\n"
+            finally:
+                events.queues.discard(queue)
+
+        return StreamingResponse(
+            stream(),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        )
 
     @app.get("/api/backup")
     def backup() -> JSONResponse:
@@ -473,7 +598,9 @@ def create_app(
     def restore(backup: dict[str, Any] = Body(...)) -> dict[str, Any]:
         if backup.get("format") != "huizenjacht-backup":
             raise HTTPException(400, "Dit is geen Huizenjacht-back-up.")
-        return {"houses": db().restore(backup)}
+        count = db().restore(backup)
+        claim_old_answers(db())
+        return {"houses": count}
 
     @app.api_route("/api/{rest:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE"])
     def api_not_found(rest: str) -> None:
