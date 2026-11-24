@@ -87,7 +87,7 @@ intern.
 In [`android/`](android/README.md) staat een Android-app rond de PWA: hij vraagt bij de eerste
 start het adres van je server, opent Huizenjacht schermvullend (in Chrome als die er is) en
 wordt bij elke release als `huizenjacht.apk` aan de GitHub-release gehangen, zodat Obtainium
-hem bijwerkt. Voor het ondertekenen zijn vier repository-secrets nodig; zie de README daar.
+hem bijwerkt. Er is ook een F-Droid-repository (zie [`fdroid/`](fdroid/README.md)). Voor het ondertekenen zijn vier repository-secrets nodig; zie de README daar.
 
 ## Versies
 

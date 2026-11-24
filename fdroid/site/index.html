@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Huizenjacht voor Android</title>
+<link rel="icon" href="icon.png">
+<style>
+  :root { --bg: #f4f4f4; --surface: #fff; --text: #2b2b2b; --muted: #6b6b6b; --accent: #f7a100; --link: #0b6bb5; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #16191d; --surface: #20242a; --text: #e9eaec; --muted: #a9adb3; --link: #6db3f2; }
+  }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.5 system-ui, sans-serif; }
+  main { max-width: 640px; margin: 0 auto; padding: 24px 16px 48px; }
+  header { display: flex; align-items: center; gap: 16px; }
+  header img { width: 64px; height: 64px; border-radius: 16px; }
+  h1 { margin: 0; font-size: 28px; }
+  section { background: var(--surface); border-radius: 12px; padding: 20px; margin-top: 20px; }
+  h2 { margin: 0 0 8px; font-size: 20px; }
+  a { color: var(--link); }
+  .btn { display: inline-block; background: var(--accent); color: #fff; font-weight: 650; text-decoration: none;
+         padding: 10px 18px; border-radius: 8px; margin: 8px 0; }
+  code { font-size: 13px; overflow-wrap: anywhere; }
+  .muted { color: var(--muted); font-size: 14px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <img src="icon.png" alt="">
+    <div>
+      <h1>Huizenjacht voor Android</h1>
+      <div class="muted">Versie __VERSION__</div>
+    </div>
+  </header>
+
+  <section>
+    <h2>F-Droid</h2>
+    <p>Open deze pagina op je telefoon en tik op de knop. F-Droid, Droid-ify en Neo Store voegen de repository dan toe.</p>
+    <a class="btn" href="fdroidrepos://__REPO_HOST_PATH__?fingerprint=__FINGERPRINT__">Toevoegen aan F-Droid</a>
+    <p class="muted">Of voeg hem met de hand toe:<br>
+      Adres: <code>__REPO_URL__</code><br>
+      Vingerafdruk: <code>__FINGERPRINT__</code></p>
+  </section>
+
+  <section>
+    <h2>Obtainium</h2>
+    <p>Voeg in Obtainium <code>https://github.com/brnl-claude/huizenjacht</code> toe. Obtainium haalt elke nieuwe versie uit de GitHub-releases.</p>
+  </section>
+
+  <section>
+    <h2>Direct installeren</h2>
+    <a class="btn" href="https://github.com/brnl-claude/huizenjacht/releases/latest/download/huizenjacht.apk">huizenjacht.apk</a>
+    <p class="muted">Updates krijg je dan niet vanzelf. Alle versies staan in F-Droid en Obtainium met dezelfde ondertekening, dus je kunt later overstappen.</p>
+  </section>
+</main>
+</body>
+</html>
