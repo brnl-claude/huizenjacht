@@ -21,3 +21,12 @@ huizen/
 huizenjacht-*.json
 .env
 .env.*
+
+# Made by .github/scripts/build_fdroid.sh
+fdroid/config.yml
+fdroid/icon.png
+fdroid/repo/
+fdroid/archive/
+fdroid/tmp/
+*.p12
+fdroid/metadata/app.huizenjacht/

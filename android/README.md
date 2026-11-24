@@ -37,6 +37,11 @@ Obtainium: **Add App** met `https://github.com/brnl-claude/huizenjacht`. Obtaini
 GitHub-releases en installeert `huizenjacht.apk` uit de nieuwste. Eenmalig handmatig kan ook:
 <https://github.com/brnl-claude/huizenjacht/releases/latest/download/huizenjacht.apk>.
 
+F-Droid (of Droid-ify, Neo Store): open <https://brnl-claude.github.io/huizenjacht/> op je
+telefoon en tik op *Toevoegen aan F-Droid*. Die repository heeft dezelfde APK's als de releases,
+dus je kunt tussen Obtainium en F-Droid wisselen zonder opnieuw te installeren. Zie
+[`fdroid/`](../fdroid/README.md).
+
 De app heeft hetzelfde versienummer als de rest van Huizenjacht (de nieuwste versie in
 `frontend/src/changelog.ts`). De versiecode volgt daaruit: `1.2.3` wordt `1002003`, dus elke
 nieuwe versie installeert over de vorige. CI bouwt de app bij elke push naar `main` en hangt

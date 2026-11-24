@@ -518,6 +518,13 @@ function About({ health }: { health: Health | null }) {
           installeer hem één keer met de{' '}
           <a href="https://github.com/brnl-claude/huizenjacht/releases/latest/download/huizenjacht.apk">APK</a>.
         </p>
+        <p className="small">
+          Liever F-Droid? Open{' '}
+          <a href="https://brnl-claude.github.io/huizenjacht/" target="_blank" rel="noreferrer">
+            brnl-claude.github.io/huizenjacht
+          </a>{' '}
+          op je telefoon en tik op Toevoegen aan F-Droid.
+        </p>
       </section>
       <section className="panel">
         <h2>Wat is er nieuw</h2>
