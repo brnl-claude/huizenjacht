@@ -19,6 +19,17 @@ export type Release = {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.7.0',
+    date: '2026-11-24',
+    title: 'Android-app',
+    changes: [
+      'Huizenjacht is er nu als Android-app. Je vindt hem bij elke release op GitHub en houdt hem bij met Obtainium; zie Instellingen → Over.',
+      'De app vraagt de eerste keer op welk adres jouw Huizenjacht draait. Inloggen gaat in de app zoals in de browser.',
+      'Met Chrome op je telefoon opent de app Huizenjacht in Chrome, zonder adresbalk, en blijf je ingelogd zoals in Chrome. Zonder Chrome gebruikt hij een eigen venster.',
+      'Het serveradres wijzig je door het app-icoon ingedrukt te houden en Server wijzigen te kiezen.',
+    ],
+  },
+  {
     version: '0.6.0',
     date: '2026-11-24',
     title: 'Ieders eigen antwoorden, live bijgewerkt',

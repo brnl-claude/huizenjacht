@@ -82,6 +82,13 @@ Met `auth.oidc.allowedGroups` of `auth.oidc.allowedUsers` beperk je wie binnen m
 draaien kan ook (`auth.acknowledgeNoLogin=true`), bijvoorbeeld achter forward-auth of alleen
 intern.
 
+## Android-app
+
+In [`android/`](android/README.md) staat een Android-app rond de PWA: hij vraagt bij de eerste
+start het adres van je server, opent Huizenjacht schermvullend (in Chrome als die er is) en
+wordt bij elke release als `huizenjacht.apk` aan de GitHub-release gehangen, zodat Obtainium
+hem bijwerkt. Voor het ondertekenen zijn vier repository-secrets nodig; zie de README daar.
+
 ## Versies
 
 Semantic versioning. Elke wijziging die je in de app ziet, krijgt een regel in

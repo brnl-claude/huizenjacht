@@ -40,6 +40,10 @@ class Settings:
     session_days: int = 30
     # Fetch photos and a copy of each house's listing page (Funda) in the background.
     fetch_listings: bool = True
+    # The Android app (android/): its id and the SHA-256 fingerprints of its signing key, for
+    # /.well-known/assetlinks.json. Chrome then shows the app without an address bar.
+    android_package: str = "app.huizenjacht"
+    android_cert_fingerprints: tuple[str, ...] = ()
 
     @property
     def https(self) -> bool:
@@ -69,6 +73,10 @@ def load_settings() -> Settings:
         public_url=os.environ.get("HJ_PUBLIC_URL", "").rstrip("/"),
         session_days=int(os.environ.get("HJ_SESSION_DAYS", "30")),
         fetch_listings=os.environ.get("HJ_FETCH_LISTINGS", "true").lower() != "false",
+        android_package=os.environ.get("HJ_ANDROID_PACKAGE", "").strip() or "app.huizenjacht",
+        android_cert_fingerprints=tuple(
+            f.upper() for f in _split(os.environ.get("HJ_ANDROID_CERT_FINGERPRINTS", ""))
+        ),
     )
 
 

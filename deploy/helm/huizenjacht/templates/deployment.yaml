@@ -140,6 +140,12 @@ spec:
             - name: HJ_ENV_COLOR
               value: {{ $.Values.environment.color | quote }}
             {{- end }}
+            {{- with .Values.android.certFingerprints }}
+            - name: HJ_ANDROID_PACKAGE
+              value: {{ $.Values.android.packageName | quote }}
+            - name: HJ_ANDROID_CERT_FINGERPRINTS
+              value: {{ join "," . | quote }}
+            {{- end }}
             {{- with .Values.forwardedAllowIps }}
             - name: FORWARDED_ALLOW_IPS
               value: {{ . | quote }}

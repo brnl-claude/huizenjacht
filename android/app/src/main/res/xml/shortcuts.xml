@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Hold the app icon: Server wijzigen, also when the app opens in Chrome. -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutId="server"
+        android:shortcutLongLabel="@string/changeServer"
+        android:shortcutShortLabel="@string/changeServer">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetClass="app.huizenjacht.SetupActivity"
+            android:targetPackage="app.huizenjacht" />
+    </shortcut>
+</shortcuts>

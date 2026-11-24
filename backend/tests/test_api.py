@@ -93,3 +93,28 @@ def test_changes_are_sent_live(tmp_path):
             {"type": "house", "id": "laan-1", "from": None},
             {"type": "removed", "id": "laan-1", "from": None},
         ]
+
+
+def test_assetlinks_names_the_android_app(tmp_path):
+    with make_client(tmp_path) as client:
+        assert client.get("/.well-known/assetlinks.json").json() == []
+    settings = Settings(
+        data_dir=tmp_path / "data2",
+        reports_dir=None,
+        reports_scan_interval=0,
+        import_token="",
+        version="1.2.3",
+        commit_url="",
+        env_label="",
+        env_color="#000",
+        static_dir=tmp_path / "static",
+        android_cert_fingerprints=("AB:CD", "EF:01"),
+    )
+    with TestClient(create_app(settings)) as client:
+        [statement] = client.get("/.well-known/assetlinks.json").json()
+        assert statement["relation"] == ["delegate_permission/common.handle_all_urls"]
+        assert statement["target"] == {
+            "namespace": "android_app",
+            "package_name": "app.huizenjacht",
+            "sha256_cert_fingerprints": ["AB:CD", "EF:01"],
+        }

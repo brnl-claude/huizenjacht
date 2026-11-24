@@ -606,6 +606,22 @@ def create_app(
     def api_not_found(rest: str) -> None:
         raise HTTPException(404, "Onbekend adres.")
 
+    # The Android app (android/) may show this site full screen in Chrome: Chrome checks
+    # that the site names the app and its signing key here.
+    @app.get("/.well-known/assetlinks.json", include_in_schema=False)
+    def assetlinks() -> JSONResponse:
+        if not settings.android_cert_fingerprints:
+            return JSONResponse([], headers={"Cache-Control": "no-cache"})
+        statement = {
+            "relation": ["delegate_permission/common.handle_all_urls"],
+            "target": {
+                "namespace": "android_app",
+                "package_name": settings.android_package,
+                "sha256_cert_fingerprints": list(settings.android_cert_fingerprints),
+            },
+        }
+        return JSONResponse([statement], headers={"Cache-Control": "no-cache"})
+
     # The PWA: files from the build, index.html for every other path.
     static = settings.static_dir
 
