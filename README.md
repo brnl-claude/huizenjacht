@@ -40,19 +40,47 @@ Elke push naar `main` publiceert het image `ghcr.io/brnl-claude/huizenjacht` (ta
 ```bash
 kubectl create secret generic huizenjacht-reports \
   --from-literal=username=x-access-token --from-literal=password=github_pat_...
+kubectl create secret generic huizenjacht-oidc --from-literal=client-secret=...
 
 helm install huizenjacht oci://ghcr.io/brnl-claude/charts/huizenjacht \
-  --set auth.acknowledgeNoLogin=true \
+  --set auth.oidc.enabled=true \
+  --set auth.oidc.issuer=https://auth.example.com \
+  --set auth.oidc.existingSecret=huizenjacht-oidc \
+  --set auth.oidc.allowedUsers=bram \
+  --set auth.publicUrl=https://huizen.example.com \
   --set reports.git.enabled=true \
   --set reports.git.repo=https://github.com/brnl-claude/huizenjacht_rapporten \
   --set reports.git.existingSecret=huizenjacht-reports \
   --set ingress.enabled=true --set ingress.host=huizen.example.com
 ```
 
-De app heeft geen eigen login: zet er een forward-auth (zoals Authelia) voor via
-`ingress.annotations`. Gebruik voor het token een fine-grained personal access token met alleen
+Gebruik voor het rapporten-token een fine-grained personal access token met alleen
 *Contents: read* op de rapporten-repository. Zie `deploy/helm/huizenjacht/values.yaml` voor alle
 opties.
+
+### Inloggen met Authelia (OIDC)
+
+De app logt zelf in via OIDC (authorization code flow met PKCE). Voeg in Authelia een client toe:
+
+```yaml
+identity_providers:
+  oidc:
+    clients:
+      - client_id: huizenjacht
+        client_name: Huizenjacht
+        client_secret: '$pbkdf2-sha512$...'  # hash van het geheim in huizenjacht-oidc
+        authorization_policy: two_factor
+        require_pkce: true
+        pkce_challenge_method: S256
+        redirect_uris:
+          - https://huizen.example.com/api/auth/callback
+        scopes: [openid, profile, email, groups]
+        token_endpoint_auth_method: client_secret_basic
+```
+
+Met `auth.oidc.allowedGroups` of `auth.oidc.allowedUsers` beperk je wie binnen mag. Zonder login
+draaien kan ook (`auth.acknowledgeNoLogin=true`), bijvoorbeeld achter forward-auth of alleen
+intern.
 
 ## Versies
 

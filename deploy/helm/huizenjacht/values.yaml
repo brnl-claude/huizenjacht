@@ -10,11 +10,32 @@ imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
 
-# The app has no login of its own: everyone who can reach it uses it. Put forward-auth
-# (such as Authelia annotations on the ingress) in front of it, or keep it internal, then
-# set this to true. Without it the chart refuses to render.
+# Login. Choose one: oidc.enabled (Authelia, Authentik, Keycloak, ...) or
+# acknowledgeNoLogin (everyone who can reach the app uses it; keep it internal or put
+# forward-auth in front). With neither the chart refuses to render.
 auth:
   acknowledgeNoLogin: false
+  oidc:
+    enabled: false
+    # Issuer URL of the provider, such as https://auth.example.com for Authelia.
+    issuer: ""
+    clientId: huizenjacht
+    # Existing Secret with the client secret (create it yourself, see the README).
+    existingSecret: ""
+    existingSecretKey: client-secret
+    scopes: openid profile email groups
+    # Only these may log in, comma separated: groups, and user names or e-mail addresses.
+    # Both empty: everyone the provider lets log in.
+    allowedGroups: ""
+    allowedUsers: ""
+    # Extra CA certificates (PEM) when the provider uses a private CA.
+    caPem: ""
+  # The https address people open the app on, such as https://huizen.example.com. Required
+  # with oidc.enabled: the login redirect goes there, and with https the cookies get the
+  # __Host- prefix.
+  publicUrl: ""
+  # Days a login lasts.
+  sessionDays: 30
 
 # Marks a test install, such as dev: a band with this label across the top of every page,
 # in this colour. Leave the label empty on the real one.

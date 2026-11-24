@@ -15,6 +15,14 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   } catch {
     throw new ApiError('Geen verbinding met de server. Probeer het zo nog eens.')
   }
+  if (response.status === 401) {
+    // Not logged in (OIDC): go through the login and come back to the same page.
+    const body = await response.json().catch(() => ({}))
+    if (typeof body.login === 'string') {
+      location.assign(`${body.login}?next=${encodeURIComponent(`/${location.hash}`)}`)
+      throw new ApiError('Je wordt doorgestuurd naar de login…')
+    }
+  }
   if (!response.ok) {
     let detail = `Er ging iets mis (${response.status}).`
     try {
@@ -54,7 +62,14 @@ export type ImportStatus = {
   lastResult: ImportResult | null
 }
 
+export type Me = {
+  mode: 'none' | 'oidc'
+  user: { subject: string; name: string | null; email: string | null } | null
+}
+
 export const api = {
+  me: () => request<Me>('/api/auth/me'),
+  logout: () => request<unknown>('/api/auth/logout', { method: 'POST' }),
   health: () => request<Health>('/api/health'),
   houses: () => request<HouseRecord[]>('/api/houses'),
   createHouse: (mine: Mine) =>

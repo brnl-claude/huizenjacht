@@ -19,6 +19,16 @@ export type Release = {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.2.0',
+    date: '2026-11-24',
+    title: 'Inloggen met Authelia',
+    changes: [
+      'Huizenjacht kan nu zelf laten inloggen via OIDC, zoals met Authelia. Wie niet is ingelogd, gaat eerst naar de login en komt daarna terug op dezelfde pagina.',
+      'Alleen de groepen of gebruikers die je kiest krijgen toegang.',
+      'Onder Instellingen → Account zie je met welk account je bent ingelogd en kun je uitloggen.',
+    ],
+  },
+  {
     version: '0.1.1',
     date: '2026-11-24',
     title: 'Rapporten uit Huizen beoordelen netter getoond',
