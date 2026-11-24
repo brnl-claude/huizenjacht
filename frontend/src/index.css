@@ -977,6 +977,8 @@ pre {
 }
 .check-text {
   flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .check-row.is-ok .check-text {
   color: var(--muted);
@@ -1955,4 +1957,80 @@ textarea.code {
   color: var(--link);
   text-decoration: underline;
   cursor: pointer;
+}
+
+.badge-report {
+  margin-left: 8px;
+  font-size: 0.7rem;
+  vertical-align: middle;
+  background: var(--brand-soft);
+  color: var(--brand-strong);
+  box-shadow: none;
+}
+.checklist-source {
+  margin: -4px 0 0;
+}
+
+/* House page: address and tabs stay at the top while scrolling */
+.house-sticky {
+  position: sticky;
+  top: var(--topbar-h, 0px);
+  z-index: 15;
+  background: var(--bg);
+  margin: 0 -16px;
+  padding: 0 16px;
+}
+.house-sticky.stuck {
+  box-shadow: 0 6px 12px -10px rgb(0 0 0 / 35%);
+}
+.house-sticky-title {
+  display: none;
+  align-items: baseline;
+  gap: 10px;
+  padding: 10px 0 2px;
+  min-width: 0;
+}
+.house-sticky.stuck .house-sticky-title {
+  display: flex;
+}
+.house-sticky-title b {
+  font-size: 1.05rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.house-sticky-title span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 0.9rem;
+}
+@media (max-width: 720px) {
+  .house-sticky .tabs {
+    gap: 0;
+  }
+  .house-sticky .tabs a {
+    padding: 10px 8px;
+    font-size: 0.92rem;
+  }
+}
+
+.show-small {
+  display: none;
+}
+@media (max-width: 720px) {
+  .show-small {
+    display: inline;
+  }
+  /* Long points from a report get the full width, with the buttons under them. */
+  .check-main {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .check-text {
+    flex-basis: 100%;
+  }
+  .check-buttons {
+    margin-left: auto;
+  }
 }

@@ -135,8 +135,10 @@ function ChecklistEditor() {
   return (
     <>
       <p className="muted">
-        Deze punten staan bij elk huis. Punten uit een rapport (aandachtspunten voor de bezichtiging)
-        komen er per huis bovenop. Een punt verwijderen haalt ook de antwoorden daarop uit beeld.
+        Deze punten staan bij elk huis. Heeft het rapport van een huis een eigen afvinklijst (regels met
+        "- [ ]") of open punten, dan komen die er per huis bovenop. Zonder afvinklijst gebruikt de app de
+        aandachtspunten voor de bezichtiging uit het rapport. Een punt verwijderen haalt ook de antwoorden
+        daarop uit beeld.
       </p>
       {draft.map((cat, ci) => (
         <section key={cat.id} className="panel edit-category">
