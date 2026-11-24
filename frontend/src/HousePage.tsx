@@ -35,7 +35,7 @@ import {
   type House,
   type Status,
 } from './house'
-import { ListingOverlay, overlayClick } from './ListingOverlay'
+import { ListingOverlay } from './ListingOverlay'
 import { Dialog, HouseForm } from './NewHouseDialog'
 import { useStore } from './store'
 import { EnergyLabel, FavoriteButton, Photo, ProgressBar, ScorePill } from './ui'
@@ -140,7 +140,6 @@ export function HousePage({ id, tab }: { id: string; tab: string | null }) {
                 href={house.url}
                 target="_blank"
                 rel="noreferrer"
-                onClick={overlayClick(() => setOverlay({ tab: 'advertentie', photo: 0 }))}
               >
                 <ExternalLink size={16} /> Advertentie
               </a>

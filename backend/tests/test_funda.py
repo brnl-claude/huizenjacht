@@ -1,3 +1,4 @@
+import json
 from dataclasses import replace
 from pathlib import Path
 
@@ -147,3 +148,32 @@ def test_page_from_the_browser_is_kept(tmp_path):
             f"/api/houses/{house['id']}/listing/import", json={"url": URL, "html": captcha}
         ).json()["listing"]
         assert again["status"] == "blocked" and again["photos"] == 2  # old copy stays
+
+
+def test_bookmarklet_sends_a_page_in_the_background(tmp_path):
+    def handle(request: httpx2.Request) -> httpx2.Response:
+        return httpx2.Response(200, content=b"jpg", headers={"content-type": "image/jpeg"})
+
+    with make_custom(tmp_path, handle) as client:
+        house = client.post("/api/houses", json={"adres": "Laan 1", "url": URL}).json()
+        token = client.get("/api/bookmarklet").json()["token"]
+        page = {"token": token, "url": URL + "?utm=x", "html": PAGE}
+        sent = client.post(
+            "/api/bookmarklet/page",
+            content=json.dumps(page),
+            headers={"content-type": "text/plain", "origin": "https://www.funda.nl"},
+        )
+        assert sent.status_code == 200, sent.text
+        assert sent.headers["access-control-allow-origin"] == "*"
+        assert sent.json()["house"] == house["id"]
+        assert client.get(f"/api/houses/{house['id']}").json()["listing"]["photos"] == 2
+
+        other = {**page, "url": "https://www.funda.nl/detail/koop/x/huis-y/99999999/"}
+        new = client.post("/api/bookmarklet/page", content=json.dumps(other)).json()
+        assert new["message"].startswith("Nieuw huis") and new["house"] != house["id"]
+
+        wrong = client.post("/api/bookmarklet/page", content=json.dumps({**page, "token": "x"}))
+        assert wrong.status_code == 403
+        client.post("/api/bookmarklet/rotate")
+        old = client.post("/api/bookmarklet/page", content=json.dumps(page))
+        assert old.status_code == 403
