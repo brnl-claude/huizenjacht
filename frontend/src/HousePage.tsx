@@ -117,7 +117,7 @@ export function HousePage({ id, tab }: { id: string; tab: string | null }) {
             {house.prijsPerM2 && <small> {formatEuro(house.prijsPerM2)} per m²</small>}
           </p>
           <div className="hero-controls">
-            <label className="select status-select">
+            <label className="select status-select" data-tip="Status van dit huis">
               <span className="visually-hidden">Status</span>
               <select
                 value={house.status}
@@ -135,6 +135,7 @@ export function HousePage({ id, tab }: { id: string; tab: string | null }) {
               className={`btn btn-small ${selected ? 'btn-selected' : 'btn-ghost'}`}
               onClick={() => toggleCompare(house.id)}
               aria-pressed={selected}
+              data-tip={selected ? 'Haal dit huis uit Vergelijken' : 'Zet dit huis bij Vergelijken'}
             >
               {selected ? <Check size={16} /> : <Plus size={16} />} Vergelijk
             </button>
@@ -144,12 +145,19 @@ export function HousePage({ id, tab }: { id: string; tab: string | null }) {
                 href={house.url}
                 target="_blank"
                 rel="noreferrer"
+                data-tip="Open de advertentie in een nieuw tabblad"
               >
                 <ExternalLink size={16} /> Advertentie
               </a>
             )}
             {mapsUrl(house) && (
-              <a className="btn btn-small btn-ghost" href={mapsUrl(house)!} target="_blank" rel="noreferrer">
+              <a
+                className="btn btn-small btn-ghost"
+                href={mapsUrl(house)!}
+                target="_blank"
+                rel="noreferrer"
+                data-tip="Bekijk de ligging in Google Maps"
+              >
                 <MapPin size={16} /> Google Maps
               </a>
             )}
@@ -157,7 +165,7 @@ export function HousePage({ id, tab }: { id: string; tab: string | null }) {
               <a
                 className={`btn btn-small btn-ghost${house.record.listing ? ' listing-failed' : ''}`}
                 href="#/instellingen/bladwijzer"
-                title={
+                data-tip={
                   house.record.listing?.message ??
                   'De advertentie en foto\'s zijn nog niet opgehaald. Gebruik de bladwijzer op Funda.'
                 }
@@ -165,7 +173,11 @@ export function HousePage({ id, tab }: { id: string; tab: string | null }) {
                 {house.record.listing ? <AlertTriangle size={16} /> : <Bookmark size={16} />} Ophalen met bladwijzer
               </a>
             )}
-            <button className="btn btn-small btn-ghost" onClick={() => setEditing(true)}>
+            <button
+              className="btn btn-small btn-ghost"
+              data-tip="Adres, prijs en andere gegevens aanpassen"
+              onClick={() => setEditing(true)}
+            >
               <Pencil size={16} /> Gegevens
             </button>
           </div>
@@ -508,7 +520,6 @@ function CheckRow({
               type="button"
               className={`check-btn ${s.id} ${entry?.s === s.id ? 'on' : ''}`}
               aria-pressed={entry?.s === s.id}
-              title={s.label}
               aria-label={s.label}
               onClick={() => onChange({ ...entry, s: entry?.s === s.id ? undefined : s.id })}
             >
@@ -520,7 +531,6 @@ function CheckRow({
             className={`check-btn note ${entry?.n ? 'on' : ''}`}
             aria-expanded={noteOpen}
             aria-label="Notitie"
-            title="Notitie"
             onClick={() => setNoteOpen(!noteOpen)}
           >
             <MessageSquare size={18} />

@@ -19,6 +19,15 @@ export type Release = {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.7.2',
+    date: '2026-11-24',
+    title: 'Uitleg bij knoppen',
+    changes: [
+      'Houd je vinger op een knop om te zien wat hij doet; met de muis zie je dat als je even stilstaat. Het tikken zelf doet dan niets.',
+      'Op je telefoon staan zoeken en sorteren op één regel. Sorteren is een knop met pijltjes.',
+    ],
+  },
+  {
     version: '0.7.1',
     date: '2026-11-24',
     title: 'Rustiger overzicht',

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Calendar, Check, FileUp, Plus, Search, SlidersHorizontal } from 'lucide-react'
+import { ArrowDownUp, Calendar, Check, FileUp, Plus, Search } from 'lucide-react'
 import { checklistFor, progress } from './checklist'
 import {
   displayAddress,
@@ -126,8 +126,8 @@ export function HousesPage() {
                 onChange={(e) => setQuery(e.target.value)}
               />
             </label>
-            <label className="select">
-              <SlidersHorizontal size={16} aria-hidden="true" />
+            <label className="select sort" data-tip={`Sorteren: ${SORTS.find((s) => s.id === sort)?.label ?? ''}`}>
+              <ArrowDownUp size={18} aria-hidden="true" />
               <span className="visually-hidden">Sorteren</span>
               <select
                 value={sort}
@@ -238,6 +238,7 @@ function HouseCard({ house }: { house: House }) {
           type="button"
           className={`btn btn-small ${selected ? 'btn-selected' : 'btn-ghost'}`}
           aria-pressed={selected}
+          data-tip={selected ? 'Haal dit huis uit Vergelijken' : 'Zet dit huis bij Vergelijken'}
           onClick={() => toggleCompare(house.id)}
         >
           {selected ? <Check size={16} /> : <Plus size={16} />} Vergelijk
