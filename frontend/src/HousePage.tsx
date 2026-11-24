@@ -9,6 +9,7 @@ import {
   ChevronRight,
   Images,
   MapPin,
+  AlertTriangle,
   ExternalLink,
   HelpCircle,
   MessageSquare,
@@ -50,7 +51,11 @@ export function HousePage({ id, tab }: { id: string; tab: string | null }) {
   const { houses, loading, update, compare, toggleCompare, template } = useStore()
   const house = houses.find((h) => h.id === id)
   const [editing, setEditing] = useState(false)
-  const [overlay, setOverlay] = useState<{ tab: 'advertentie' | 'fotos'; photo: number } | null>(null)
+  const [overlayState, setOverlayState] = useState<{ house: string; tab: 'advertentie' | 'fotos'; photo: number } | null>(null)
+  // Belongs to one house: going to another house (back button, link) leaves it closed.
+  const overlay = overlayState?.house === id ? overlayState : null
+  const setOverlay = (next: { tab: 'advertentie' | 'fotos'; photo: number } | null) =>
+    setOverlayState(next && { ...next, house: id })
   const [heroPhoto, setHeroPhoto] = useState(0)
   if (loading) return <div className="loading">Laden…</div>
   if (!house) {
@@ -132,6 +137,15 @@ export function HousePage({ id, tab }: { id: string; tab: string | null }) {
               <a className="btn btn-small btn-ghost" href={mapsUrl(house)!} target="_blank" rel="noreferrer">
                 <MapPin size={16} /> Google Maps
               </a>
+            )}
+            {house.record.listing && house.record.listing.status !== 'ok' && (
+              <button
+                className="btn btn-small btn-ghost listing-failed"
+                title={house.record.listing.message ?? undefined}
+                onClick={() => setOverlay({ tab: 'advertentie', photo: 0 })}
+              >
+                <AlertTriangle size={16} /> Ophalen mislukt
+              </button>
             )}
             <button className="btn btn-small btn-ghost" onClick={() => setEditing(true)}>
               <Pencil size={16} /> Gegevens

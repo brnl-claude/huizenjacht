@@ -76,3 +76,53 @@ def test_captcha_is_reported(tmp_path):
         listing = client.post(f"/api/houses/{house['id']}/listing/refresh").json()["listing"]
         assert listing["status"] == "blocked" and "captcha" in listing["message"]
         assert client.get(f"/api/houses/{house['id']}/photos/0").status_code == 404
+
+
+def test_escaped_photo_addresses_are_found():
+    escaped = "https://cloud.funda.nl/valentina_media/1/2_720x480.jpg".replace("/", "\\u002F")
+    page = f'<script>{{"src":"{escaped}"}}</script>'
+    assert photo_urls(page, URL) == ["https://cloud.funda.nl/valentina_media/1/2_720x480.jpg"]
+
+
+def custom(page: str, photo_status: int = 200):
+    def handle(request: httpx2.Request) -> httpx2.Response:
+        if request.url.host == "www.funda.nl":
+            return httpx2.Response(200, text=page)
+        return httpx2.Response(photo_status, content=b"x", headers={"content-type": "image/jpeg"})
+
+    return handle
+
+
+def make_custom(tmp_path: Path, handle) -> TestClient:
+    settings = Settings(
+        data_dir=tmp_path,
+        reports_dir=None,
+        reports_scan_interval=0,
+        import_token="",
+        version="t",
+        commit_url="",
+        env_label="",
+        env_color="#000",
+        static_dir=tmp_path / "static",
+        fetch_listings=False,
+    )
+    return TestClient(create_app(settings, listing_transport=httpx2.MockTransport(handle)))
+
+
+def test_page_without_listing_is_an_error_and_kept_for_a_look(tmp_path):
+    page = "<html><head><title>Even geduld</title></head><body>" + "x" * 100_000 + "</body>"
+    with make_custom(tmp_path, custom(page)) as client:
+        house = client.post("/api/houses", json={"adres": "Laan 1", "url": URL}).json()
+        listing = client.post(f"/api/houses/{house['id']}/listing/refresh").json()["listing"]
+        assert listing["status"] == "error" and "Even geduld" in listing["message"]
+        raw = client.get(f"/api/houses/{house['id']}/listing/raw")
+        assert raw.status_code == 200 and "Even geduld" in raw.text
+        assert raw.headers["content-type"].startswith("text/plain")
+
+
+def test_failed_photos_are_reported(tmp_path):
+    with make_custom(tmp_path, custom(PAGE, photo_status=403)) as client:
+        house = client.post("/api/houses", json={"adres": "Laan 1", "url": URL}).json()
+        listing = client.post(f"/api/houses/{house['id']}/listing/refresh").json()["listing"]
+        assert listing["status"] == "ok" and listing["photos"] == 0
+        assert listing["message"] == "0 van 2 foto's opgehaald; mislukt: 2× HTTP 403."

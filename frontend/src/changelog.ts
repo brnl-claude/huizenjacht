@@ -19,6 +19,17 @@ export type Release = {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.3.2',
+    date: '2026-11-24',
+    title: 'Ophalen van advertenties zichtbaar',
+    changes: [
+      'In het advertentievenster zie je nu wanneer de advertentie is opgehaald, hoeveel foto\'s er zijn en wat er misging, met een knop Opnieuw ophalen.',
+      'Lukt het ophalen niet, dan staat er een waarschuwing op de huispagina. Met "Wat de site stuurde" kun je de pagina downloaden die de site teruggaf.',
+      'Een pagina zonder advertentie of foto\'s (zoals een blokkade) telt niet meer als gelukt.',
+      'Nieuwe huizen worden binnen vijf minuten opgehaald, en de serverlog laat elke poging zien.',
+    ],
+  },
+  {
     version: '0.3.1',
     date: '2026-11-24',
     title: 'Inloggen probeert het opnieuw',
