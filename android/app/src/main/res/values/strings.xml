@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="nl">
+    <string name="appName">Huizenjacht</string>
+    <string name="downloading">%1$s wordt gedownload</string>
+    <string name="noAppForLink">Geen app kan deze link openen</string>
+    <string name="changeServer">Server wijzigen</string>
+
+    <!-- SetupActivity: the server address. -->
+    <string name="setupTitle">Huizenjacht</string>
+    <string name="setupIntro">Op welk adres draait jouw Huizenjacht? Hetzelfde adres dat je in de browser opent.</string>
+    <string name="setupHint">huizen.voorbeeld.nl</string>
+    <string name="setupConnect">Verbinden</string>
+    <string name="setupChecking">Controleren…</string>
+    <string name="setupUseAnyway">Toch dit adres gebruiken</string>
+    <string name="setupInvalid">Vul een adres in, zoals huizen.voorbeeld.nl.</string>
+    <string name="setupNotHuizenjacht">%1$s antwoordt, maar het lijkt geen Huizenjacht te zijn.</string>
+    <string name="setupUnreachable">%1$s is niet bereikbaar: %2$s</string>
+    <string name="setupFound">Huizenjacht %1$s gevonden.</string>
+    <string name="setupNote">Inloggen doe je daarna in de app zelf, net als in de browser. Het adres wijzig je later door het app-icoon ingedrukt te houden.</string>
+
+    <!-- The screen shown when Huizenjacht can't be loaded in the WebView. -->
+    <string name="errorRetry">Opnieuw proberen</string>
+    <string name="errorOpenInBrowser">Open in browser</string>
+    <string name="errorNetworkSettings">Netwerkinstellingen</string>
+    <string name="errorAppSettings">App-instellingen</string>
+    <string name="errorAutoRetry">De app probeert het vanzelf opnieuw als het netwerk terugkomt of verandert.</string>
+    <string name="errorHostTitle">Server niet gevonden</string>
+    <string name="errorHostMessage">Dit apparaat kan %1$s niet opzoeken.</string>
+    <string name="errorHostTips">• Staat wifi of mobiele data aan?\n• Is de server alleen thuis of via een VPN bereikbaar? Maak dan eerst die verbinding.\n• Klopt het adres? Tik op Server wijzigen.\n• Een privé-DNS-instelling, adblocker of privacy-app kan de app blokkeren. Open in browser laat zien of de browser er wel bij kan.</string>
+    <string name="errorConnectTitle">Server niet bereikbaar</string>
+    <string name="errorConnectMessage">%1$s antwoordt niet. Misschien staat hij uit of start hij opnieuw op.</string>
+    <string name="errorConnectTips">• Probeer het over een minuut opnieuw.\n• Staat wifi of mobiele data aan, en de VPN die je nodig hebt?</string>
+    <string name="errorServerTitle">De server heeft een probleem</string>
+    <string name="errorServerMessage">%1$s antwoordde met fout %2$d.</string>
+    <string name="errorServerTips">• Probeer het over een minuut opnieuw; de server start misschien opnieuw op.</string>
+    <string name="errorCertTitle">De verbinding is niet veilig</string>
+    <string name="errorCertMessage">%1$s gaf een certificaat dat dit apparaat niet vertrouwt, dus de app is gestopt.</string>
+    <string name="errorCertTips">• Controleer de datum en tijd op dit apparaat.\n• Een server met een eigen certificaatautoriteit heeft die CA op het apparaat nodig.</string>
+    <string name="errorBlockedTitle">Android blokkeert het netwerk van deze app</string>
+    <string name="errorBlockedMessage">Dit apparaat is online, maar Android laat deze app het netwerk niet gebruiken, dus hij kan %1$s niet bereiken.</string>
+    <string name="errorBlockedTips">• Tik op App-instellingen en dan Mobiele data en wifi (of Netwerktoegang).\n• Zet netwerktoegang, wifi en mobiele data aan voor deze app.</string>
+    <string name="errorBlockedRetry">De app probeert het opnieuw als je terugkomt uit de instellingen.</string>
+    <string name="errorOtherTitle">Pagina laden mislukt</string>
+    <string name="errorOtherMessage">%1$s laden is mislukt.</string>
+    <string name="errorOtherTips">• Staat wifi of mobiele data aan? Probeer het opnieuw.</string>
+</resources>

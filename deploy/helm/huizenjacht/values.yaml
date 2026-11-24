@@ -43,6 +43,14 @@ environment:
   label: ""
   color: "#f0a020"
 
+# The Android app (android/ in the repository). With the SHA-256 fingerprint of its signing
+# key here, the server names the app in /.well-known/assetlinks.json and Chrome shows it
+# without an address bar. CI prints the fingerprint in the summary of each build.
+android:
+  packageName: app.huizenjacht
+  certFingerprints: []
+  #  - "AB:CD:EF:…"
+
 # Addresses whose X-Forwarded-For and X-Forwarded-Proto headers the app trusts, such as
 # the pod network your ingress controller runs in ("10.42.0.0/16"); comma-separated IPs
 # or CIDRs. Empty trusts only 127.0.0.1. Never "*".

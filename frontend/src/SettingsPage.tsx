@@ -456,6 +456,8 @@ function About({ health }: { health: Health | null }) {
   const [checking, setChecking] = useState(false)
   useEffect(() => markChangelogSeen(), [])
   const server = health?.version
+  // The app's own WebView says so in its user agent (android/, WebViewActivity).
+  const androidApp = /HuizenjachtAndroid\/(\S+)/.exec(navigator.userAgent)?.[1]
   return (
     <>
       <section className="panel about">
@@ -503,6 +505,19 @@ function About({ health }: { health: Health | null }) {
             <RefreshCw size={16} className={checking ? 'spin' : ''} /> Zoeken naar updates
           </button>
         )}
+      </section>
+      <section className="panel">
+        <h2>Android-app</h2>
+        {androidApp && <p className="muted small">Je gebruikt nu de Android-app {androidApp}.</p>}
+        <p className="small">
+          Huizenjacht staat ook als app op je telefoon, met dit adres als server. Voeg in{' '}
+          <a href="https://obtainium.imranr.dev/" target="_blank" rel="noreferrer">
+            Obtainium
+          </a>{' '}
+          de link <code>github.com/brnl-claude/huizenjacht</code> toe, dan krijg je elke nieuwe versie vanzelf. Of
+          installeer hem één keer met de{' '}
+          <a href="https://github.com/brnl-claude/huizenjacht/releases/latest/download/huizenjacht.apk">APK</a>.
+        </p>
       </section>
       <section className="panel">
         <h2>Wat is er nieuw</h2>

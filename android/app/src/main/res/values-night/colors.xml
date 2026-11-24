@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="themeColor">@color/barColorDark</color>
+    <color name="textColor">#e9eaec</color>
+    <color name="mutedText">#a9adb3</color>
+</resources>

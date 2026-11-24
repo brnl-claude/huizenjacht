@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The PWA's colours (frontend/src/index.css): the page surface for the status and
+         navigation bars, and the orange accent. -->
+    <color name="barColor">#ffffff</color>
+    <color name="barColorDark">#20242a</color>
+    <color name="themeColor">@color/barColor</color>
+    <color name="accent">#f7a100</color>
+    <color name="textColor">#2b2b2b</color>
+    <color name="mutedText">#6b6b6b</color>
+    <color name="iconBackground">#f7a100</color>
+</resources>
