@@ -15,6 +15,9 @@ type Store = {
   remove: (id: string) => Promise<void>
   template: ChecklistCategory[]
   saveTemplate: (template: ChecklistCategory[]) => Promise<void>
+  /** Show the standard checklist also at houses whose report has its own checklist. */
+  withStandard: boolean
+  setWithStandard: (on: boolean) => void
   compare: string[]
   toggleCompare: (id: string) => void
   clearCompare: () => void
@@ -44,6 +47,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [template, setTemplate] = useState<ChecklistCategory[]>(DEFAULT_CHECKLIST)
+  const [withStandard, setWithStandardState] = useState(true)
   const [compare, setCompare] = useState<string[]>(readCompare)
   const [toasts, setToasts] = useState<Toast[]>([])
 
@@ -69,6 +73,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     api
       .getSetting<ChecklistCategory[]>('checklist')
       .then((r) => r.value && setTemplate(r.value))
+      .catch(() => undefined)
+    api
+      .getSetting<boolean>('checklistStandaard')
+      .then((r) => typeof r.value === 'boolean' && setWithStandardState(r.value))
       .catch(() => undefined)
     const onFocus = () => document.visibilityState === 'visible' && void refresh()
     document.addEventListener('visibilitychange', onFocus)
@@ -154,6 +162,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [notify],
   )
 
+  const setWithStandard = useCallback(
+    (on: boolean) => {
+      setWithStandardState(on)
+      api.putSetting('checklistStandaard', on).catch((e) => notify(`Niet opgeslagen: ${message(e)}`, 'error'))
+    },
+    [notify],
+  )
+
   const houses = useMemo(() => records.map(toHouse), [records])
   const value: Store = {
     houses,
@@ -165,6 +181,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     remove,
     template,
     saveTemplate,
+    withStandard,
+    setWithStandard,
     compare: compare.filter((id) => loading || records.some((r) => r.id === id)),
     toggleCompare,
     clearCompare: () => setCompare([]),

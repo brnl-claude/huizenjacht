@@ -93,6 +93,8 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ url, html }),
     }),
+  bookmarklet: () => request<{ token: string }>('/api/bookmarklet'),
+  bookmarkletRotate: () => request<{ token: string }>('/api/bookmarklet/rotate', { method: 'POST' }),
   deleteHouse: (id: string) =>
     request<void>(`/api/houses/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   importStatus: () => request<ImportStatus>('/api/import'),

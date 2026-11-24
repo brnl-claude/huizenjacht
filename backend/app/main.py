@@ -21,6 +21,7 @@ from .funda import (
     Blocked,
     NotAListing,
     fetch_listing,
+    page_summary,
     photo_files,
     remote_photos,
     save_page,
@@ -29,6 +30,23 @@ from .reports import REPORT_SUFFIXES, digest, find_reports, parse_report, slugif
 
 MAX_UPLOAD = 5 * 1024 * 1024
 MAX_LISTING_PAGE = 8 * 1024 * 1024
+BOOKMARKLET_TOKEN = "bookmarkletToken"
+# The bookmarklet posts from the listing site; it carries a token and no cookies.
+CORS = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type",
+}
+
+
+def listing_key(url: str) -> str:
+    """The Funda number in a listing address, or the address without query and slash."""
+    match = re.search(r"/(\d{6,10})(?:/|$|\?)", url)
+    if match:
+        return match.group(1)
+    return url.split("?")[0].rstrip("/").lower().replace("://www.", "://")
+
+
 # How often the app looks for listings that are new, changed or due for a retry.
 LISTING_CHECK_SECONDS = 300
 
@@ -245,6 +263,80 @@ def create_app(
         async with listing_lock:
             await asyncio.to_thread(fetch_one, house_id, url, html)
         return house_or_404(house_id)
+
+    def bookmarklet_token(rotate: bool = False) -> str:
+        token = db().get_setting(BOOKMARKLET_TOKEN)
+        if rotate or not isinstance(token, str) or len(token) < 20:
+            token = secrets.token_urlsafe(24)
+            db().set_setting(BOOKMARKLET_TOKEN, token)
+        return token
+
+    @app.get("/api/bookmarklet")
+    def bookmarklet() -> dict[str, str]:
+        """The token in Bram's bookmarklet; only shown to someone who is logged in."""
+        return {"token": bookmarklet_token()}
+
+    @app.post("/api/bookmarklet/rotate")
+    def bookmarklet_rotate() -> dict[str, str]:
+        return {"token": bookmarklet_token(rotate=True)}
+
+    @app.options("/api/bookmarklet/page")
+    def bookmarklet_preflight() -> Response:
+        return Response(status_code=204, headers=CORS)
+
+    @app.post("/api/bookmarklet/page")
+    async def bookmarklet_page(request: Request) -> JSONResponse:
+        """A listing page sent from the site itself by the bookmarklet, in the background.
+
+        It comes from another site, so there is no session cookie: the token in the bookmarklet
+        is the proof. Sent as text/plain, so the browser needs no preflight."""
+
+        def answer(status: int, message: str, **extra: Any) -> JSONResponse:
+            return JSONResponse({"message": message, **extra}, status_code=status, headers=CORS)
+
+        body = await request.body()
+        if len(body) > MAX_LISTING_PAGE:
+            return answer(413, "Deze pagina is te groot.")
+        try:
+            data = json.loads(body)
+            token, url, html = str(data["token"]), str(data["url"]), str(data["html"])
+        except (ValueError, KeyError, TypeError):
+            return answer(400, "Stuur token, url en html mee.")
+        expected = db().get_setting(BOOKMARKLET_TOKEN)
+        if not isinstance(expected, str) or not secrets.compare_digest(token, expected):
+            return answer(
+                403, "Deze bladwijzer is verlopen. Zet hem opnieuw neer vanuit Huizenjacht."
+            )
+        if not url.startswith(("http://", "https://")):
+            return answer(400, "Dit is geen webadres.")
+        key = listing_key(url)
+        house = next(
+            (
+                h
+                for h in db().list_houses()
+                if listing_key(str(h["mine"].get("url") or h["report"].get("url") or "")) == key
+            ),
+            None,
+        )
+        created = house is None
+        if house is None:
+            title = page_summary(html).get("title") or "Nieuw huis"
+            adres = re.sub(r"^.*?te koop:\s*", "", str(title), flags=re.I).split(" [")[0].strip()
+            house = create_house({"adres": adres[:80] or "Nieuw huis", "url": url})
+        async with listing_lock:
+            await asyncio.to_thread(fetch_one, house["id"], url, html)
+        saved = house_or_404(house["id"])
+        listing = saved.get("listing") or {}
+        name = saved["mine"].get("adres") or saved["report"].get("adres") or saved["id"]
+        if listing.get("status") != "ok":
+            return answer(422, listing.get("message") or "De pagina kon niet worden opgeslagen.")
+        photos = listing.get("photos", 0)
+        return answer(
+            200,
+            f"{'Nieuw huis' if created else 'Opgeslagen'}: {name}, {photos} foto's.",
+            house=saved["id"],
+            link=f"{settings.public_url or ''}/#/huis/{saved['id']}",
+        )
 
     @app.get("/api/houses/{house_id}/photos/{number}", response_model=None)
     def photo(house_id: str, number: int) -> FileResponse | RedirectResponse:

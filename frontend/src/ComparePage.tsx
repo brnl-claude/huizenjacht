@@ -15,7 +15,7 @@ type Row = {
 const LABEL_ORDER = ['A+++++', 'A++++', 'A+++', 'A++', 'A+', 'A', 'B', 'C', 'D', 'E', 'F', 'G']
 
 export function ComparePage() {
-  const { houses, compare, toggleCompare, clearCompare, template } = useStore()
+  const { houses, compare, toggleCompare, clearCompare, template, withStandard } = useStore()
   const chosen = compare.map((id) => houses.find((h) => h.id === id)).filter(Boolean) as House[]
 
   const rows: Row[] = [
@@ -41,11 +41,11 @@ export function ComparePage() {
     {
       label: 'Checklist: problemen',
       value: (h) => {
-        const p = progress(checklistFor(h, template), h.mine.checklist)
+        const p = progress(checklistFor(h, template, withStandard), h.mine.checklist)
         return p.done ? p.probleem : undefined
       },
       show: (h) => {
-        const p = progress(checklistFor(h, template), h.mine.checklist)
+        const p = progress(checklistFor(h, template, withStandard), h.mine.checklist)
         return p.done ? `${p.probleem} van ${p.done} bekeken` : 'Nog niet ingevuld'
       },
       best: 'low',

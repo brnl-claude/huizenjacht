@@ -19,6 +19,20 @@ export type Release = {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.5.0',
+    date: '2026-11-24',
+    title: 'Checklist uit het rapport, vaste kop en bladwijzer op de achtergrond',
+    changes: [
+      'De checklist van een huis begint nu met de afvinklijst en open vragen uit het rapport van dat huis, per onderdeel zoals in het rapport (bij de bezichtiging, vóór het bieden).',
+      'Met "Ook de standaardlijst" kies je of de algemene punten er daarna nog bij staan.',
+      'Bij het scrollen op de pagina van een huis blijven het adres en de tabbladen bovenin staan, ook op je telefoon.',
+      'Op een telefoon staan lange checklistpunten over de volle breedte, met de knoppen eronder.',
+      'De knop Advertentie opent Funda weer direct in een nieuw tabblad.',
+      'De bladwijzer stuurt de pagina op de achtergrond naar Huizenjacht en laat rechtsonder op Funda zien of het gelukt is; je blijft op Funda. Een huis dat nog niet in de app staat, wordt toegevoegd.',
+      'Zet de bladwijzer opnieuw in je bladwijzerbalk: hij bevat nu een eigen sleutel, die je in Instellingen kunt vernieuwen.',
+    ],
+  },
+  {
     version: '0.4.0',
     date: '2026-11-24',
     title: 'Bladwijzer voor Funda',

@@ -3,7 +3,7 @@
 import type { CheckEntry, House } from './house'
 
 export type ChecklistItem = { id: string; tekst: string }
-export type ChecklistCategory = { id: string; titel: string; items: ChecklistItem[] }
+export type ChecklistCategory = { id: string; titel: string; items: ChecklistItem[]; fromReport?: boolean }
 
 const c = (id: string, titel: string, items: string[]): ChecklistCategory => ({
   id,
@@ -62,22 +62,88 @@ export const DEFAULT_CHECKLIST: ChecklistCategory[] = [
 
 export const REPORT_CATEGORY_ID = 'rapport'
 
-/** The template plus a category with the points the report asks to check at this house. */
-export function checklistFor(house: House, template: ChecklistCategory[]): ChecklistCategory[] {
+/** Inline Markdown to plain text: no bold, italics, code or link syntax. */
+function plain(text: string): string {
+  return text
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/(\*\*|__|\*|_|`)(.+?)\1/g, '$2')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+/**
+ * The house's own checklist from the report body: every task item (`- [ ] ...`), grouped by
+ * the bold line or heading above it, and the open questions under a heading such as
+ * "Open punten" or "Vragen".
+ */
+export function reportChecklist(body: string): ChecklistCategory[] {
+  const groups = new Map<string, string[]>()
+  let heading = ''
+  let sub = ''
+  let questions = false
+  for (const raw of body.split('\n')) {
+    const line = raw.trim()
+    const h = line.match(/^#{1,6}\s+(.*)$/)
+    if (h) {
+      heading = plain(h[1])
+      sub = ''
+      questions = /open punten|open vragen|^vragen|vragen aan|vragen voor/i.test(heading)
+      continue
+    }
+    const bold = line.match(/^(\*\*|__)(.+?)\1:?$/)
+    if (bold) {
+      sub = plain(bold[2]).replace(/:$/, '')
+      continue
+    }
+    const task = line.match(/^[-*+]\s+\[[ xX]\]\s+(.+)$/)
+    const bullet = questions && !task ? line.match(/^[-*+]\s+(.+)$/) : null
+    const text = task?.[1] ?? bullet?.[1]
+    if (!text) continue
+    const group = task ? sub || heading || 'Uit het rapport' : 'Open vragen uit het rapport'
+    groups.set(group, [...(groups.get(group) ?? []), plain(text)])
+  }
+  const used = new Set<string>()
+  return [...groups].map(([titel, texts]) => ({
+    id: `${REPORT_CATEGORY_ID}-${slug(titel)}`,
+    titel,
+    fromReport: true,
+    items: texts.map((tekst) => {
+      const base = `${REPORT_CATEGORY_ID}-${slug(tekst, 60)}`
+      let id = base
+      for (let n = 2; used.has(id); n++) id = `${base}-${n}`
+      used.add(id)
+      return { id, tekst }
+    }),
+  }))
+}
+
+/**
+ * The checklist for one house. A report with its own checklist comes first, with the
+ * standard template after it unless `withStandard` is off. Without one, the short
+ * aandachtspunten from the front matter come first.
+ */
+export function checklistFor(
+  house: House,
+  template: ChecklistCategory[],
+  withStandard = true,
+): ChecklistCategory[] {
+  const own = reportChecklist(house.record.reportBody ?? '')
+  if (own.length) return withStandard ? [...own, ...template] : own
   const points = house.record.report.bezichtigingspunten ?? []
   if (!points.length) return template
   return [
     {
       id: REPORT_CATEGORY_ID,
       titel: 'Uit het rapport',
+      fromReport: true,
       items: points.map((tekst) => ({ id: `${REPORT_CATEGORY_ID}-${slug(tekst)}`, tekst })),
     },
     ...template,
   ]
 }
 
-function slug(text: string): string {
-  return text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40)
+function slug(text: string, length = 40): string {
+  return text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, length)
 }
 
 export type Progress = { total: number; done: number; ok: number; twijfel: number; probleem: number }

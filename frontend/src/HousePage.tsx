@@ -21,7 +21,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react'
-import { checklistFor, progress, type ChecklistCategory } from './checklist'
+import { checklistFor, progress, reportChecklist, type ChecklistCategory } from './checklist'
 import {
   displayAddress,
   formatEuro,
@@ -35,7 +35,7 @@ import {
   type House,
   type Status,
 } from './house'
-import { ListingOverlay, overlayClick } from './ListingOverlay'
+import { ListingOverlay } from './ListingOverlay'
 import { Dialog, HouseForm } from './NewHouseDialog'
 import { useStore } from './store'
 import { EnergyLabel, FavoriteButton, Photo, ProgressBar, ScorePill } from './ui'
@@ -48,7 +48,7 @@ const TABS = [
 ] as const
 
 export function HousePage({ id, tab }: { id: string; tab: string | null }) {
-  const { houses, loading, update, compare, toggleCompare, template } = useStore()
+  const { houses, loading, update, compare, toggleCompare, template, withStandard } = useStore()
   const house = houses.find((h) => h.id === id)
   const [editing, setEditing] = useState(false)
   const [overlayState, setOverlayState] = useState<{ house: string; tab: 'advertentie' | 'fotos'; photo: number } | null>(null)
@@ -57,6 +57,18 @@ export function HousePage({ id, tab }: { id: string; tab: string | null }) {
   const setOverlay = (next: { tab: 'advertentie' | 'fotos'; photo: number } | null) =>
     setOverlayState(next && { ...next, house: id })
   const [heroPhoto, setHeroPhoto] = useState(0)
+  // Once the hero has scrolled under the top bar, the sticky tab bar also shows the address.
+  const [hero, setHero] = useState<HTMLElement | null>(null)
+  const [heroGone, setHeroGone] = useState(false)
+  useEffect(() => {
+    if (!hero) return
+    const top = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--topbar-h')) || 0
+    const observer = new IntersectionObserver(([e]) => setHeroGone(!e.isIntersecting && e.boundingClientRect.top < top), {
+      rootMargin: `-${Math.round(top)}px 0px 0px 0px`,
+    })
+    observer.observe(hero)
+    return () => observer.disconnect()
+  }, [hero])
   if (loading) return <div className="loading">Laden…</div>
   if (!house) {
     return (
@@ -69,7 +81,7 @@ export function HousePage({ id, tab }: { id: string; tab: string | null }) {
     )
   }
   const active = TABS.find((t) => t.id === tab)?.id ?? 'overzicht'
-  const categories = checklistFor(house, template)
+  const categories = checklistFor(house, template, withStandard)
   const p = progress(categories, house.mine.checklist)
   const selected = compare.includes(house.id)
 
@@ -78,7 +90,7 @@ export function HousePage({ id, tab }: { id: string; tab: string | null }) {
       <a href="#/" className="back">
         <ArrowLeft size={18} /> Alle huizen
       </a>
-      <section className={`hero ${active === 'overzicht' ? '' : 'compact'}`}>
+      <section ref={setHero} className={`hero ${active === 'overzicht' ? '' : 'compact'}`}>
         <HeroPhoto
           house={house}
           index={heroPhoto}
@@ -128,7 +140,6 @@ export function HousePage({ id, tab }: { id: string; tab: string | null }) {
                 href={house.url}
                 target="_blank"
                 rel="noreferrer"
-                onClick={overlayClick(() => setOverlay({ tab: 'advertentie', photo: 0 }))}
               >
                 <ExternalLink size={16} /> Advertentie
               </a>
@@ -154,6 +165,11 @@ export function HousePage({ id, tab }: { id: string; tab: string | null }) {
         </div>
       </section>
 
+      <div className={`house-sticky${heroGone ? ' stuck' : ''}`}>
+        <div className="house-sticky-title" aria-hidden={!heroGone}>
+          <b>{displayAddress(house)}</b>
+          <span className="muted">{[house.plaats, house.vraagprijs ? formatEuro(house.vraagprijs) : null].filter(Boolean).join(' · ')}</span>
+        </div>
       <nav className="tabs" aria-label="Onderdelen van dit huis">
         {TABS.map((t) => (
           <a
@@ -162,7 +178,14 @@ export function HousePage({ id, tab }: { id: string; tab: string | null }) {
             className={active === t.id ? 'active' : ''}
             aria-current={active === t.id ? 'page' : undefined}
           >
-            {t.label}
+            {t.id === 'notities' ? (
+              <>
+                <span className="hide-small">{t.label}</span>
+                <span className="show-small">Beoordeling</span>
+              </>
+            ) : (
+              t.label
+            )}
             {t.id === 'checklist' && p.done > 0 && (
               <span className="count">
                 {p.done}/{p.total}
@@ -171,6 +194,7 @@ export function HousePage({ id, tab }: { id: string; tab: string | null }) {
           </a>
         ))}
       </nav>
+      </div>
 
       {active === 'overzicht' && <Overview house={house} />}
       {active === 'checklist' && <Checklist house={house} categories={categories} />}
@@ -340,7 +364,8 @@ const STATES: { id: CheckState; label: string; icon: typeof Check }[] = [
 ]
 
 function Checklist({ house, categories }: { house: House; categories: ChecklistCategory[] }) {
-  const { update } = useStore()
+  const { update, withStandard, setWithStandard } = useStore()
+  const ownList = reportChecklist(house.record.reportBody ?? '').length > 0
   const answers = house.mine.checklist ?? {}
   const [onlyOpen, setOnlyOpen] = useState(false)
   const p = progress(categories, answers)
@@ -365,7 +390,18 @@ function Checklist({ house, categories }: { house: House; categories: ChecklistC
           <input type="checkbox" checked={onlyOpen} onChange={(e) => setOnlyOpen(e.target.checked)} />
           Alleen open punten
         </label>
+        {ownList && (
+          <label className="switch">
+            <input type="checkbox" checked={withStandard} onChange={(e) => setWithStandard(e.target.checked)} />
+            Ook de standaardlijst
+          </label>
+        )}
       </div>
+      {ownList && (
+        <p className="muted small checklist-source">
+          De eerste onderdelen komen uit de afvinklijst en open punten van het rapport van dit huis.
+        </p>
+      )}
       {categories.map((category) => {
         const items = category.items.filter((i) => !onlyOpen || !answers[i.id]?.s)
         if (!items.length) return null
@@ -374,6 +410,7 @@ function Checklist({ house, categories }: { house: House; categories: ChecklistC
           <section key={category.id} className="panel check-category">
             <h2>
               {category.titel}
+              {category.fromReport && <span className="badge badge-report">Rapport</span>}
               <small>
                 {cp.done}/{cp.total}
               </small>

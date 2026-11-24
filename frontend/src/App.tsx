@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Columns3, Home, Settings } from 'lucide-react'
 import { api, type Health } from './api'
 import { useUpdateReady, applyUpdate } from './appUpdate'
@@ -41,6 +41,17 @@ function useRoute(): Route {
 
 export function App() {
   const route = useRoute()
+  const topbar = useRef<HTMLElement>(null)
+  // Sticky bars below the top bar (such as the tabs of a house) start at its height.
+  useEffect(() => {
+    const el = topbar.current
+    if (!el) return
+    const set = () => document.documentElement.style.setProperty('--topbar-h', `${el.offsetHeight}px`)
+    set()
+    const observer = new ResizeObserver(set)
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
   const { compare, toasts } = useStore()
   const updateReady = useUpdateReady()
   const [health, setHealth] = useState<Health | null>(null)
@@ -68,7 +79,7 @@ export function App() {
           {env.label}
         </div>
       )}
-      <header className="topbar">
+      <header className="topbar" ref={topbar}>
         <div className="topbar-inner">
           <a href="#/" className="brand" aria-label="Huizenjacht, naar het overzicht">
             <Logo />

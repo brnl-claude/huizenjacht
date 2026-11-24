@@ -185,8 +185,8 @@ export function HousesPage() {
 }
 
 function HouseCard({ house }: { house: House }) {
-  const { update, template, compare, toggleCompare } = useStore()
-  const p = progress(checklistFor(house, template), house.mine.checklist)
+  const { update, template, compare, toggleCompare, withStandard } = useStore()
+  const p = progress(checklistFor(house, template, withStandard), house.mine.checklist)
   const selected = compare.includes(house.id)
   const facts = [
     house.woonoppervlakte && `${formatNumber(house.woonoppervlakte)} m²`,

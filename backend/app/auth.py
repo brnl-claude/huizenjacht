@@ -32,7 +32,8 @@ RETRY_COOKIE = "hj_login_retry"
 RETRY_TTL = 120
 # A login must come back from the provider within this many seconds.
 LOGIN_TTL = 600
-OPEN_PATHS = ("/api/health", "/api/auth/", "/api/import/hook")
+# The bookmarklet page endpoint checks its own token (the browser sends no cookie there).
+OPEN_PATHS = ("/api/health", "/api/auth/", "/api/import/hook", "/api/bookmarklet/page")
 
 
 def _hash(token: str) -> str:

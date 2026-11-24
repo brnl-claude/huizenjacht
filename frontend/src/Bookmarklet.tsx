@@ -1,26 +1,38 @@
 import { useEffect, useRef, useState } from 'react'
-import { Bookmark, Check, Copy, Download, Plus } from 'lucide-react'
+import { Bookmark, Check, Copy, Download, Plus, RotateCcw } from 'lucide-react'
 import { api, ApiError } from './api'
 import { displayAddress, type House } from './house'
 import { errorText, useStore } from './store'
 
 /*
  * Funda shows servers a captcha, so the app cannot fetch a listing itself. The bookmarklet
- * takes the page as Bram's browser shows it: it opens #/ontvang in this app and hands the page
- * over with postMessage. The app saves it only after Bram confirms, so another site cannot
- * slip a page in.
+ * takes the page as Bram's browser shows it and posts it, with a secret token, to
+ * /api/bookmarklet/page in the background. When the site blocks that request, it opens
+ * #/ontvang in this app instead and hands the page over with postMessage; there the app saves
+ * it only after Bram confirms, so another site cannot slip a page in.
  */
 
 type Page = { type: 'huizenjacht-page'; url: string; html: string }
 
-export function bookmarkletCode(origin: string): string {
+export function bookmarkletCode(origin: string, token: string): string {
   const app = JSON.stringify(origin)
+  const key = JSON.stringify(token)
+  // Sends the page in the background and shows a note on the page itself. Only when the site
+  // blocks that request does it fall back to opening Huizenjacht in a new tab.
   return (
-    `javascript:(()=>{const a=${app};const w=window.open(a+'/#/ontvang','huizenjacht');` +
-    `if(!w){alert('Sta pop-ups toe voor deze site om naar Huizenjacht te sturen.');return}` +
-    `const d={type:'huizenjacht-page',url:location.href,html:document.documentElement.outerHTML};` +
-    `const f=e=>{if(e.source===w&&e.origin===a&&e.data&&e.data.type==='huizenjacht-ready'){` +
-    `w.postMessage(d,a);removeEventListener('message',f)}};addEventListener('message',f)})()`
+    `javascript:(()=>{const a=${app},d={token:${key},url:location.href,html:document.documentElement.outerHTML};` +
+    `const e=document.createElement('div');` +
+    `e.style.cssText='position:fixed;z-index:2147483647;right:16px;bottom:16px;max-width:380px;padding:12px 16px;border-radius:10px;font:15px/1.4 system-ui,sans-serif;color:#fff;background:#2b2b2b;box-shadow:0 6px 24px rgba(0,0,0,.3)';` +
+    `const say=(m,bad,h)=>{e.textContent='Huizenjacht: '+m;e.style.background=bad?'#c0392b':'#2b2b2b';` +
+    `if(h){const l=document.createElement('a');l.href=a+'/#/huis/'+encodeURIComponent(h);l.target='_blank';l.textContent='Bekijk';` +
+    `l.style.cssText='color:#f7a100;font-weight:700;margin-left:8px';e.append(l)}};` +
+    `document.body.append(e);say('bezig met opslaan…');` +
+    `fetch(a+'/api/bookmarklet/page',{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify(d)})` +
+    `.then(r=>r.json().then(j=>{say(j.message,!r.ok,r.ok&&j.house);setTimeout(()=>e.remove(),r.ok?6000:12000)}))` +
+    `.catch(()=>{say('deze site houdt het versturen tegen, Huizenjacht opent in een nieuw tabblad.',true);` +
+    `const w=window.open(a+'/#/ontvang','huizenjacht');if(!w)return;` +
+    `const f=v=>{if(v.source===w&&v.origin===a&&v.data&&v.data.type==='huizenjacht-ready'){` +
+    `w.postMessage({type:'huizenjacht-page',url:d.url,html:d.html},a);removeEventListener('message',f)}};addEventListener('message',f)})})()`
   )
 }
 
@@ -173,13 +185,25 @@ export function ReceivePage() {
 
 export function BookmarkletPanel() {
   const link = useRef<HTMLAnchorElement>(null)
-  const code = bookmarkletCode(location.origin)
+  const [token, setToken] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const code = token ? bookmarkletCode(location.origin, token) : ''
   const [copied, setCopied] = useState(false)
+
+  useEffect(() => {
+    api
+      .bookmarklet()
+      .then((r) => setToken(r.token))
+      .catch((e) => setError(errorText(e)))
+  }, [])
 
   // React refuses javascript: addresses in href, so it is set on the element itself.
   useEffect(() => {
-    link.current?.setAttribute('href', code)
+    if (code) link.current?.setAttribute('href', code)
   }, [code])
+
+  if (error) return <div className="notice notice-error">{error}</div>
+  if (!token) return <p className="muted">Laden…</p>
 
   return (
     <>
@@ -187,7 +211,7 @@ export function BookmarkletPanel() {
         <h2>Advertenties naar Huizenjacht sturen</h2>
         <p>
           Funda laat de app de advertenties niet zelf ophalen: servers krijgen een captcha. Met deze bladwijzer stuur je
-          de pagina die jij op Funda ziet naar Huizenjacht, met de foto's.
+          de pagina die jij op Funda ziet op de achtergrond naar Huizenjacht, met de foto's. Je blijft gewoon op Funda.
         </p>
         <ol className="steps">
           <li>
@@ -197,11 +221,14 @@ export function BookmarkletPanel() {
             </a>
           </li>
           <li>Open een huis op Funda en klik op de bladwijzer.</li>
-          <li>Huizenjacht opent in een nieuw tabblad. Kies het huis en klik op Opslaan.</li>
+          <li>
+            Rechtsonder op de pagina zie je of het gelukt is. Het huis wordt herkend aan het Funda-nummer; een huis dat
+            nog niet in de app staat, wordt toegevoegd.
+          </li>
         </ol>
         <p className="muted small">
-          Sta pop-ups toe voor funda.nl als je browser het nieuwe tabblad tegenhoudt. Op een telefoon kun je een bladwijzer
-          maken met de code hieronder als adres.
+          De bladwijzer bevat een eigen sleutel, zodat alleen jij pagina's naar je app kunt sturen. Deel hem dus niet. Op
+          een telefoon maak je een bladwijzer met de code hieronder als adres.
         </p>
       </section>
       <section className="panel">
@@ -215,6 +242,16 @@ export function BookmarkletPanel() {
           }}
         >
           {copied ? <Check size={16} /> : <Copy size={16} />} {copied ? 'Gekopieerd' : 'Kopieer code'}
+        </button>{' '}
+        <button
+          className="btn btn-ghost"
+          onClick={async () => {
+            if (!confirm('Een nieuwe sleutel maken? De bladwijzer die je nu hebt, werkt daarna niet meer.')) return
+            setToken((await api.bookmarkletRotate()).token)
+            setCopied(false)
+          }}
+        >
+          <RotateCcw size={16} /> Nieuwe sleutel
         </button>
       </section>
     </>
