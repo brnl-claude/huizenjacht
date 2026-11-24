@@ -1,0 +1,142 @@
+"""OIDC login against a small in-memory provider standing in for Authelia."""
+
+import base64
+import hashlib
+import json
+import secrets
+import time
+from dataclasses import replace
+from pathlib import Path
+from urllib.parse import parse_qs, urlparse
+
+import httpx2
+import jwt
+from cryptography.hazmat.primitives.asymmetric import rsa
+from fastapi.testclient import TestClient
+
+from app.config import Settings
+from app.main import create_app
+
+ISSUER = "https://auth.example.test"
+
+
+class FakeOIDC:
+    def __init__(self) -> None:
+        self.key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        self.codes: dict[str, dict] = {}
+        self.users: dict[str, dict] = {}
+
+    def handle(self, request: httpx2.Request) -> httpx2.Response:
+        path = request.url.path
+        if path == "/.well-known/openid-configuration":
+            return httpx2.Response(
+                200,
+                json={
+                    "issuer": ISSUER,
+                    "authorization_endpoint": f"{ISSUER}/authorize",
+                    "token_endpoint": f"{ISSUER}/token",
+                    "userinfo_endpoint": f"{ISSUER}/userinfo",
+                    "jwks_uri": f"{ISSUER}/jwks.json",
+                },
+            )
+        if path == "/jwks.json":
+            jwk = json.loads(jwt.algorithms.RSAAlgorithm.to_jwk(self.key.public_key()))
+            return httpx2.Response(200, json={"keys": [{**jwk, "kid": "k1", "use": "sig"}]})
+        if path == "/userinfo":
+            sub = request.headers["authorization"].removeprefix("Bearer ")
+            return httpx2.Response(200, json=self.users[sub])
+        if path == "/token":
+            form = parse_qs(request.content.decode())
+            grant = self.codes.pop(form["code"][0])
+            verifier = form["code_verifier"][0].encode()
+            challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier).digest()).rstrip(b"=")
+            assert challenge.decode() == grant["challenge"]
+            now = int(time.time())
+            claims = {
+                "iss": ISSUER,
+                "sub": grant["sub"],
+                "aud": "huizenjacht",
+                "iat": now,
+                "exp": now + 300,
+                "nonce": grant["nonce"],
+            }
+            token = jwt.encode(claims, self.key, algorithm="RS256", headers={"kid": "k1"})
+            return httpx2.Response(200, json={"access_token": grant["sub"], "id_token": token})
+        return httpx2.Response(404)
+
+    def log_in(self, client: TestClient, sub: str, groups: list[str], next: str = "/"):
+        start = client.get("/api/auth/login", params={"next": next}, follow_redirects=False)
+        assert start.status_code == 303, start.text
+        query = parse_qs(urlparse(start.headers["location"]).query)
+        code = secrets.token_urlsafe(8)
+        self.codes[code] = {
+            "sub": sub,
+            "nonce": query["nonce"][0],
+            "challenge": query["code_challenge"][0],
+        }
+        self.users[sub] = {
+            "sub": sub,
+            "name": "Bram",
+            "preferred_username": sub,
+            "email": f"{sub}@example.test",
+            "groups": groups,
+        }
+        return client.get(
+            "/api/auth/callback",
+            params={"code": code, "state": query["state"][0]},
+            follow_redirects=False,
+        )
+
+
+def make(tmp_path: Path, **overrides) -> tuple[TestClient, FakeOIDC]:
+    provider = FakeOIDC()
+    settings = Settings(
+        data_dir=tmp_path,
+        reports_dir=None,
+        reports_scan_interval=0,
+        import_token="",
+        version="t",
+        commit_url="",
+        env_label="",
+        env_color="#000",
+        static_dir=tmp_path / "static",
+        auth_mode="oidc",
+        oidc_issuer=ISSUER,
+        oidc_client_id="huizenjacht",
+        oidc_client_secret="geheim",
+        public_url="http://testserver",
+    )
+    settings = replace(settings, **overrides)
+    app = create_app(settings, oidc_transport=httpx2.MockTransport(provider.handle))
+    return TestClient(app), provider
+
+
+def test_api_needs_login_and_login_works(tmp_path):
+    client, provider = make(tmp_path)
+    with client:
+        assert client.get("/api/health").status_code == 200
+        assert client.get("/api/houses").status_code == 401
+        assert client.get("/api/auth/me").json() == {"mode": "oidc", "user": None}
+        done = provider.log_in(client, "bram", [], next="/#/vergelijk")
+        assert done.status_code == 303 and done.headers["location"] == "/#/vergelijk"
+        assert client.get("/api/houses").status_code == 200
+        assert client.get("/api/auth/me").json()["user"]["name"] == "Bram"
+        client.post("/api/auth/logout")
+        assert client.get("/api/houses").status_code == 401
+
+
+def test_only_allowed_groups(tmp_path):
+    client, provider = make(tmp_path, allowed_groups=("huizen",))
+    with client:
+        assert provider.log_in(client, "gast", ["anders"]).status_code == 403
+        assert client.get("/api/houses").status_code == 401
+        assert provider.log_in(client, "bram", ["huizen"]).status_code == 303
+        assert client.get("/api/houses").status_code == 200
+
+
+def test_next_stays_on_this_site_and_state_is_checked(tmp_path):
+    client, provider = make(tmp_path)
+    with client:
+        assert provider.log_in(client, "bram", [], next="//evil.example").headers["location"] == "/"
+        bad = client.get("/api/auth/callback", params={"code": "x", "state": "nope"})
+        assert bad.status_code == 400

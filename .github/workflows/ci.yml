@@ -103,6 +103,10 @@ jobs:
             kubeconform -strict -summary -kubernetes-version 1.37.0 -schema-location default
           }
           helm template hj "$chart" --set auth.acknowledgeNoLogin=true | validate
+          helm template hj "$chart" --set auth.oidc.enabled=true \
+            --set auth.oidc.issuer=https://auth.example.com --set auth.oidc.existingSecret=hj-oidc \
+            --set auth.publicUrl=https://huizen.example.com --set auth.oidc.allowedGroups=huizen \
+            | validate
           helm template hj "$chart" --set auth.acknowledgeNoLogin=true \
             --set ingress.enabled=true --set ingress.tls.enabled=true \
             --set environment.label=dev \

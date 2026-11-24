@@ -7,7 +7,7 @@ the app (mine). A newer report replaces `report` and never touches `mine`.
 import json
 import sqlite3
 import threading
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -22,6 +22,14 @@ CREATE TABLE IF NOT EXISTS houses (
     mine TEXT NOT NULL DEFAULT '{}',
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS sessions (
+    token_hash TEXT PRIMARY KEY,
+    subject TEXT NOT NULL,
+    name TEXT,
+    email TEXT,
+    created_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS settings (
     key TEXT PRIMARY KEY,
@@ -178,6 +186,41 @@ class Database:
                 " ON CONFLICT(key) DO UPDATE SET value = excluded.value",
                 (key, json.dumps(value)),
             )
+            self._conn.commit()
+
+    # Login sessions (only with HJ_AUTH_MODE=oidc)
+
+    def create_session(self, token_hash: str, user: dict[str, Any], days: int) -> None:
+        stamp = datetime.now(UTC)
+        with self._lock:
+            self._conn.execute("DELETE FROM sessions WHERE expires_at < ?", (now(),))
+            self._conn.execute(
+                "INSERT INTO sessions (token_hash, subject, name, email, created_at, expires_at)"
+                " VALUES (?, ?, ?, ?, ?, ?)",
+                (
+                    token_hash,
+                    user["subject"],
+                    user.get("name"),
+                    user.get("email"),
+                    now(),
+                    (stamp + timedelta(days=days)).isoformat(timespec="seconds"),
+                ),
+            )
+            self._conn.commit()
+
+    def find_session(self, token_hash: str) -> dict[str, Any] | None:
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT subject, name, email, expires_at FROM sessions WHERE token_hash = ?",
+                (token_hash,),
+            ).fetchone()
+        if not row or row["expires_at"] <= now():
+            return None
+        return {"subject": row["subject"], "name": row["name"], "email": row["email"]}
+
+    def end_session(self, token_hash: str) -> None:
+        with self._lock:
+            self._conn.execute("DELETE FROM sessions WHERE token_hash = ?", (token_hash,))
             self._conn.commit()
 
     # Backup

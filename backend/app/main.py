@@ -11,6 +11,7 @@ from typing import Any
 from fastapi import Body, FastAPI, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, Response
 
+from . import auth
 from .config import Settings, load_settings
 from .db import Database, now
 from .reports import REPORT_SUFFIXES, digest, find_reports, parse_report, slugify
@@ -46,7 +47,7 @@ def import_folder(db: Database, folder: Path) -> dict[str, Any]:
     return result
 
 
-def create_app(settings: Settings | None = None) -> FastAPI:
+def create_app(settings: Settings | None = None, oidc_transport: Any = None) -> FastAPI:
     settings = settings or load_settings()
     state = ImportState()
 
@@ -79,6 +80,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     def db() -> Database:
         return app.state.db
+
+    auth.install(app, settings, db, oidc_transport)
 
     def house_or_404(house_id: str) -> dict[str, Any]:
         house = db().get_house(house_id)

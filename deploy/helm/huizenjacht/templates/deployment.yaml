@@ -1,5 +1,5 @@
-{{- if not .Values.auth.acknowledgeNoLogin }}
-{{- fail "The app has no login of its own. Put forward-auth (such as Authelia) in front of the ingress, or keep it internal, then set auth.acknowledgeNoLogin=true" }}
+{{- if and (not .Values.auth.acknowledgeNoLogin) (not .Values.auth.oidc.enabled) }}
+{{- fail "Choose a login: set auth.oidc.enabled (with issuer, existingSecret and auth.publicUrl), or auth.acknowledgeNoLogin=true to run without one" }}
 {{- end }}
 {{- if and .Values.reports.git.enabled .Values.reports.existingClaim }}
 {{- fail "Set either reports.git.enabled or reports.existingClaim, not both" }}
@@ -96,6 +96,33 @@ spec:
           env:
             - name: HJ_DATA_DIR
               value: /data
+            {{- if .Values.auth.oidc.enabled }}
+            - name: HJ_AUTH_MODE
+              value: oidc
+            - name: HJ_OIDC_ISSUER
+              value: {{ required "Set auth.oidc.issuer" .Values.auth.oidc.issuer | quote }}
+            - name: HJ_OIDC_CLIENT_ID
+              value: {{ .Values.auth.oidc.clientId | quote }}
+            - name: HJ_OIDC_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required "Set auth.oidc.existingSecret" .Values.auth.oidc.existingSecret }}
+                  key: {{ .Values.auth.oidc.existingSecretKey }}
+            - name: HJ_OIDC_SCOPES
+              value: {{ .Values.auth.oidc.scopes | quote }}
+            - name: HJ_PUBLIC_URL
+              value: {{ required "Set auth.publicUrl" .Values.auth.publicUrl | quote }}
+            - name: HJ_ALLOWED_GROUPS
+              value: {{ .Values.auth.oidc.allowedGroups | quote }}
+            - name: HJ_ALLOWED_USERS
+              value: {{ .Values.auth.oidc.allowedUsers | quote }}
+            - name: HJ_SESSION_DAYS
+              value: {{ .Values.auth.sessionDays | quote }}
+            {{- with .Values.auth.oidc.caPem }}
+            - name: HJ_OIDC_CA_PEM
+              value: {{ . | quote }}
+            {{- end }}
+            {{- end }}
             {{- with include "hj.reportsDir" . }}
             - name: HJ_REPORTS_DIR
               value: {{ . | quote }}

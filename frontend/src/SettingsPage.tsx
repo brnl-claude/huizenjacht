@@ -8,6 +8,8 @@ import {
   Download,
   FileUp,
   Info,
+  LogOut,
+  UserRound,
   ListChecks,
   Palette,
   Plus,
@@ -17,7 +19,7 @@ import {
   Upload,
   type LucideIcon,
 } from 'lucide-react'
-import { api, type Health, type ImportResult, type ImportStatus } from './api'
+import { api, type Health, type ImportResult, type ImportStatus, type Me } from './api'
 import { applyUpdate, checkForUpdate, useUpdateReady } from './appUpdate'
 import { CHANGELOG, currentVersion, formatReleaseDate, markChangelogSeen } from './changelog'
 import { DEFAULT_CHECKLIST, newId, type ChecklistCategory } from './checklist'
@@ -29,12 +31,19 @@ type Section = { id: string; title: string; icon: LucideIcon; summary: string }
 
 export function SettingsPage({ section, health }: { section: string | null; health: Health | null }) {
   const { template, houses } = useStore()
+  const [me, setMe] = useState<Me | null>(null)
+  useEffect(() => {
+    api.me().then(setMe).catch(() => undefined)
+  }, [])
   const items = template.reduce((n, c) => n + c.items.length, 0)
   const sections: Section[] = [
     { id: 'weergave', title: 'Weergave', icon: Palette, summary: THEMES.find((t) => t.id === rememberedTheme())!.label },
     { id: 'checklist', title: 'Checklist', icon: ListChecks, summary: `${template.length} onderdelen, ${items} punten` },
     { id: 'rapporten', title: 'Rapporten importeren', icon: FileUp, summary: 'Uit de rapporten-repo of uploaden' },
     { id: 'gegevens', title: 'Gegevens en back-up', icon: Database, summary: `${houses.length} huizen` },
+    ...(me?.mode === 'oidc'
+      ? [{ id: 'account', title: 'Account', icon: UserRound, summary: me.user?.name || me.user?.email || 'Ingelogd' }]
+      : []),
     { id: 'over', title: 'Over Huizenjacht', icon: Info, summary: `Versie ${currentVersion()}` },
   ]
   const shown = sections.find((s) => s.id === section)
@@ -73,6 +82,7 @@ export function SettingsPage({ section, health }: { section: string | null; heal
       {shown.id === 'checklist' && <ChecklistEditor />}
       {shown.id === 'rapporten' && <Reports />}
       {shown.id === 'gegevens' && <Data />}
+      {shown.id === 'account' && me && <Account me={me} />}
       {shown.id === 'over' && <About health={health} />}
     </div>
   )
@@ -410,6 +420,28 @@ function Data() {
         />
       </section>
     </>
+  )
+}
+
+function Account({ me }: { me: Me }) {
+  return (
+    <section className="panel">
+      <h2>Ingelogd</h2>
+      <p>
+        <b>{me.user?.name || 'Onbekend'}</b>
+        {me.user?.email && <span className="muted"> · {me.user.email}</span>}
+      </p>
+      <p className="muted small">Je blijft ingelogd tot je uitlogt, of na 30 dagen niet gebruiken.</p>
+      <button
+        className="btn btn-ghost"
+        onClick={async () => {
+          await api.logout().catch(() => undefined)
+          location.assign('/api/auth/login')
+        }}
+      >
+        <LogOut size={16} /> Uitloggen
+      </button>
+    </section>
   )
 }
 
