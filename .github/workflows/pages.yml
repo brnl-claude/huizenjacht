@@ -1,0 +1,103 @@
+name: F-Droid
+
+# Builds an F-Droid repository of the three newest releases that have huizenjacht.apk, with a
+# page that explains how to add it (see fdroid/README.md), and publishes it with GitHub Pages at
+# https://<owner>.github.io/<repository>/: after each CI run on main (which attaches the APK to
+# the release), or by hand. Pull requests that touch it only build it, with a throwaway key.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  pull_request:
+    paths: ['fdroid/**', '.github/workflows/pages.yml', '.github/scripts/build_fdroid.sh']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    concurrency:
+      group: fdroid-${{ github.event_name == 'pull_request' && github.ref || 'main' }}
+      cancel-in-progress: true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The workflow_run event checks out main as it is now.
+          ref: ${{ github.event_name == 'workflow_run' && 'main' || '' }}
+      - name: Download the newest releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/apks"
+          tags=$(gh release list -R "$GITHUB_REPOSITORY" --limit 30 --json tagName,createdAt \
+            --jq 'sort_by(.createdAt) | reverse | .[].tagName')
+          count=0
+          for tag in $tags; do
+            if gh release download "$tag" -R "$GITHUB_REPOSITORY" -p huizenjacht.apk \
+                -O "$RUNNER_TEMP/apks/huizenjacht-$tag.apk" 2>/dev/null; then
+              count=$((count + 1))
+              [ "$count" -ge 3 ] && break
+            fi
+          done
+          ls -l "$RUNNER_TEMP/apks"
+          if [ "$count" -eq 0 ]; then
+            echo "::error::No release has huizenjacht.apk yet."
+            exit 1
+          fi
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      # The index signing key from the secrets; pull requests get a throwaway one.
+      - name: Index signing key
+        env:
+          KEYSTORE_BASE64: ${{ github.event_name != 'pull_request' && secrets.FDROID_KEYSTORE_BASE64 || '' }}
+          KEYSTORE_PASSWORD: ${{ github.event_name != 'pull_request' && secrets.FDROID_KEYSTORE_PASSWORD || '' }}
+        run: |
+          key="$RUNNER_TEMP/fdroid.p12"
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > "$key"
+            password="$KEYSTORE_PASSWORD"
+          elif [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+            password=$(openssl rand -hex 16)
+            keytool -genkeypair -keystore "$key" -storetype PKCS12 -alias huizenjacht-fdroid \
+              -keyalg RSA -keysize 2048 -validity 1 -storepass "$password" -dname CN=test
+          else
+            echo "::error::The FDROID_KEYSTORE_BASE64 secret is missing (see fdroid/README.md)."
+            exit 1
+          fi
+          echo "::add-mask::$password"
+          {
+            echo "FDROID_KEYSTORE=$key"
+            echo "FDROID_KEYSTORE_PASSWORD=$password"
+          } >> "$GITHUB_ENV"
+      - name: Build the F-Droid repository
+        run: |
+          pip install fdroidserver==2.4.5
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          name="${GITHUB_REPOSITORY#*/}"
+          .github/scripts/build_fdroid.sh "https://$owner.github.io/$name" \
+            "$RUNNER_TEMP/apks" "$RUNNER_TEMP/site"
+          rm -f "$RUNNER_TEMP/fdroid.p12"
+      - uses: actions/upload-pages-artifact@v5
+        if: github.event_name != 'pull_request'
+        with:
+          path: ${{ runner.temp }}/site
+
+  # Needs Settings → Pages → Source: GitHub Actions.
+  deploy:
+    needs: build
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5

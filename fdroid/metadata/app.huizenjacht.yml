@@ -1,0 +1,20 @@
+Categories:
+  - Internet
+License: Proprietary
+AuthorName: Bram
+SourceCode: https://github.com/brnl-claude/huizenjacht
+IssueTracker: https://github.com/brnl-claude/huizenjacht/issues
+Changelog: https://github.com/brnl-claude/huizenjacht/releases
+
+AutoName: Huizenjacht
+Name: Huizenjacht
+Summary: Houd je zoektocht naar een huis bij, op je eigen server
+Description: |-
+  De Android-app van Huizenjacht: een overzicht van de huizen die je overweegt, een
+  bezichtigingschecklist per huis en vergelijkingen naast elkaar.
+
+  * Opent Huizenjacht op je eigen server schermvullend, in Chrome als die er is
+  * Inloggen via je eigen OIDC-provider, zoals Authelia
+  * Het serveradres stel je in de app in
+
+  De app toont wat je server serveert, dus nieuwe functies komen meestal zonder update.

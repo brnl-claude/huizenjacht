@@ -19,6 +19,14 @@ export type Release = {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.7.3',
+    date: '2026-11-24',
+    title: 'Android-app via F-Droid',
+    changes: [
+      'De Android-app staat nu ook in een eigen F-Droid-repository, voor F-Droid, Droid-ify en Neo Store. Hoe je die toevoegt, staat in Instellingen → Over.',
+    ],
+  },
+  {
     version: '0.7.2',
     date: '2026-11-24',
     title: 'Uitleg bij knoppen',
