@@ -7,10 +7,14 @@ import android.content.pm.ResolveInfo;
 import android.net.Uri;
 
 import androidx.annotation.Nullable;
+import androidx.browser.trusted.TrustedWebActivityIntentBuilder;
+import androidx.browser.trusted.sharing.ShareData;
+import androidx.browser.trusted.sharing.ShareTarget;
 
 import com.google.androidbrowserhelper.trusted.TwaLauncher;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -36,6 +40,8 @@ public class LauncherActivity extends com.google.androidbrowserhelper.trusted.La
 
     @Nullable
     private String mBrowser;
+    @Nullable
+    private TwaLauncher mShareLauncher;
 
     @Override
     protected void launchTwa() {
@@ -46,12 +52,50 @@ public class LauncherActivity extends com.google.androidbrowserhelper.trusted.La
             return;
         }
         mBrowser = trustedBrowser();
+        Shared shared = Shared.from(getIntent());
         if (mBrowser == null) {
-            startActivity(new Intent(this, WebViewActivity.class));
+            Intent page = new Intent(this, WebViewActivity.class);
+            if (shared != null) {
+                // The WebView sends it to the server itself; it may read the shared files.
+                page = new Intent(getIntent()).setClass(this, WebViewActivity.class)
+                        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            }
+            startActivity(page);
             finish();
             return;
         }
+        if (shared != null) {
+            shareInBrowser(shared);
+            return;
+        }
         super.launchTwa();
+    }
+
+    /**
+     * Something shared from another app (Delen → Huizenjacht): the browser posts it to the
+     * PWA's share target, /api/share on the saved server, with its own login cookie, and shows
+     * the page where you pick the house. The share target is built here rather than in the
+     * manifest, because the server is only known at run time.
+     */
+    private void shareInBrowser(Shared shared) {
+        ShareTarget target = new ShareTarget(
+                Server.url(this) + Shared.SHARE_PATH,
+                ShareTarget.METHOD_POST,
+                ShareTarget.ENCODING_TYPE_MULTIPART,
+                new ShareTarget.Params("title", "text", Collections.singletonList(
+                        new ShareTarget.FileFormField("files", Arrays.asList(Shared.FILE_TYPES)))));
+        ShareData data = new ShareData(shared.title, shared.text, shared.files);
+        TrustedWebActivityIntentBuilder builder =
+                new TrustedWebActivityIntentBuilder(getLaunchingUrl())
+                        .setShareParams(target, data);
+        mShareLauncher = createTwaLauncher();
+        mShareLauncher.launch(builder, null, null, this::finish);
+    }
+
+    @Override
+    protected void onDestroy() {
+        if (mShareLauncher != null) mShareLauncher.destroy();
+        super.onDestroy();
     }
 
     @Override

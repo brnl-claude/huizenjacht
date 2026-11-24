@@ -1,11 +1,14 @@
 package app.huizenjacht;
 
+import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.DownloadManager;
 import android.content.ActivityNotFoundException;
+import android.content.ClipData;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.content.pm.ResolveInfo;
 import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.Insets;
@@ -17,11 +20,13 @@ import android.net.http.SslError;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
+import android.provider.MediaStore;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowInsets;
 import android.view.WindowManager;
 import android.webkit.CookieManager;
+import android.webkit.PermissionRequest;
 import android.webkit.RenderProcessGoneDetail;
 import android.webkit.SslErrorHandler;
 import android.webkit.URLUtil;
@@ -38,12 +43,16 @@ import android.widget.Toast;
 import android.window.OnBackInvokedCallback;
 import android.window.OnBackInvokedDispatcher;
 
+import androidx.core.content.FileProvider;
 import androidx.webkit.WebViewCompat;
 import androidx.webkit.WebViewFeature;
 
+import java.io.File;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -54,9 +63,15 @@ import java.util.Set;
  * Pages of your server stay in the app, and so do the login pages (Authelia or another OIDC
  * provider) it redirects to. Every other link, such as a listing on Funda, opens in the
  * browser or the app it belongs to.
+ *
+ * The page may take photos and videos (a file input with capture) and record voice memos (the
+ * microphone); Android asks for the camera and microphone the first time. Something shared from
+ * another app is sent to the server's /api/share here (ShareUpload).
  */
 public class WebViewActivity extends Activity {
     private static final int REQUEST_FILE = 1;
+    private static final int REQUEST_PAGE_PERMISSION = 2;
+    private static final int REQUEST_CAMERA_FOR_CAPTURE = 3;
 
     // A pull at the top of the page refreshes it, unless it starts in a part of the page that
     // scrolls on its own and isn't at its top yet.
@@ -81,6 +96,11 @@ public class WebViewActivity extends Activity {
     private PullToRefreshLayout mRefresh;
     private boolean mInnerScrolled;
     private ValueCallback<Uri[]> mFileCallback;
+    private WebChromeClient.FileChooserParams mFileParams;
+    // The files the camera app writes a photo or video to, for a file input with capture.
+    private final List<File> mCaptureFiles = new ArrayList<>();
+    private final List<Uri> mCaptureUris = new ArrayList<>();
+    private PermissionRequest mPendingPermission;
     private boolean mPageEngineGone;
     private LoadErrorScreen mErrorScreen;
     // The page being loaded, to tell its certificate errors from those of other requests.
@@ -126,7 +146,43 @@ public class WebViewActivity extends Activity {
             mWebView.restoreState(savedInstanceState);
         } else {
             mWebView.loadUrl(mServer + "/");
+            share(getIntent());
         }
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        share(intent);
+    }
+
+    /** Something shared from another app: send it to the server, then pick the house there. */
+    private void share(Intent intent) {
+        Shared shared = Shared.from(intent);
+        if (shared == null) return;
+        // Only once, also when the activity is recreated.
+        intent.setAction(null);
+        Toast.makeText(this, R.string.shareSending, Toast.LENGTH_SHORT).show();
+        String server = mServer;
+        new Thread(() -> {
+            ShareUpload.Result result = ShareUpload.send(this, server, shared);
+            runOnUiThread(() -> {
+                if (isFinishing() || isDestroyed()) return;
+                if (result.page != null) {
+                    String page = result.page.startsWith("/") ? server + result.page : result.page;
+                    mWebView.loadUrl(page);
+                } else if (result.status == 401 || result.status == 403) {
+                    mWebView.loadUrl(server + "/");
+                    Toast.makeText(this, R.string.shareLogin, Toast.LENGTH_LONG).show();
+                } else if (result.status == 404) {
+                    Toast.makeText(this, R.string.shareUnsupported, Toast.LENGTH_LONG).show();
+                } else {
+                    Toast.makeText(this, getString(R.string.shareFailed, result.error),
+                            Toast.LENGTH_LONG).show();
+                }
+            });
+        }, "share-upload").start();
     }
 
     /** The app's version, such as 0.7.0. */
@@ -253,20 +309,32 @@ public class WebViewActivity extends Activity {
         });
 
         mWebView.setWebChromeClient(new WebChromeClient() {
-            // Uploading a report or a saved listing page, and restoring a back-up.
+            // Taking a photo or video (capture), or picking files: photos, a report, a saved
+            // listing page, a back-up.
             @Override
             public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> callback,
                     FileChooserParams params) {
                 if (mFileCallback != null) mFileCallback.onReceiveValue(null);
                 mFileCallback = callback;
-                try {
-                    startActivityForResult(Intent.createChooser(params.createIntent(), null),
-                            REQUEST_FILE);
-                } catch (ActivityNotFoundException e) {
-                    mFileCallback.onReceiveValue(null);
-                    mFileCallback = null;
+                mFileParams = params;
+                if (params.isCaptureEnabled() && !hasPermission(Manifest.permission.CAMERA)) {
+                    requestPermissions(new String[] {Manifest.permission.CAMERA},
+                            REQUEST_CAMERA_FOR_CAPTURE);
+                } else {
+                    chooseFile();
                 }
                 return true;
+            }
+
+            // Voice memos ask for the microphone; only Huizenjacht's own pages may have it.
+            @Override
+            public void onPermissionRequest(PermissionRequest request) {
+                runOnUiThread(() -> askPagePermission(request));
+            }
+
+            @Override
+            public void onPermissionRequestCanceled(PermissionRequest request) {
+                if (request == mPendingPermission) mPendingPermission = null;
             }
         });
 
@@ -293,12 +361,163 @@ public class WebViewActivity extends Activity {
         });
     }
 
+    private boolean hasPermission(String permission) {
+        return checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED;
+    }
+
+    /**
+     * With capture (Opnemen), the camera app straight away: photo, video or a choice of both,
+     * as the page accepts. Without, the file picker, with several files when the page allows.
+     */
+    private void chooseFile() {
+        mCaptureFiles.clear();
+        mCaptureUris.clear();
+        Intent intent;
+        if (mFileParams.isCaptureEnabled() && hasPermission(Manifest.permission.CAMERA)) {
+            List<Intent> cameras = new ArrayList<>();
+            if (accepts("image/")) {
+                cameras.add(captureIntent(MediaStore.ACTION_IMAGE_CAPTURE, "photo", ".jpg"));
+            }
+            if (accepts("video/")) {
+                cameras.add(captureIntent(MediaStore.ACTION_VIDEO_CAPTURE, "video", ".mp4"));
+            }
+            intent = cameras.size() == 1 ? cameras.get(0) : Intent.createChooser(cameras.get(0), null)
+                    .putExtra(Intent.EXTRA_INITIAL_INTENTS,
+                            cameras.subList(1, cameras.size()).toArray(new Intent[0]));
+        } else {
+            Intent pick = mFileParams.createIntent();
+            if (mFileParams.getMode() == WebChromeClient.FileChooserParams.MODE_OPEN_MULTIPLE) {
+                pick.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
+            }
+            intent = Intent.createChooser(pick, null);
+        }
+        try {
+            startActivityForResult(intent, REQUEST_FILE);
+        } catch (ActivityNotFoundException e) {
+            mFileCallback.onReceiveValue(null);
+            mFileCallback = null;
+        }
+    }
+
+    /** True when the file input takes this kind of file (image/ or video/), or anything. */
+    private boolean accepts(String kind) {
+        String[] types = mFileParams.getAcceptTypes();
+        if (types == null || types.length == 0) return true;
+        for (String type : types) {
+            for (String one : type.split(",")) {
+                String t = one.trim();
+                if (t.isEmpty() || t.equals("*/*") || t.startsWith(kind)) return true;
+            }
+        }
+        return false;
+    }
+
+    private Intent captureIntent(String action, String name, String extension) {
+        File folder = new File(getCacheDir(), "capture");
+        folder.mkdirs();
+        File file = new File(folder, name + "-" + System.currentTimeMillis() + extension);
+        Uri uri = FileProvider.getUriForFile(this, getPackageName() + ".files", file);
+        mCaptureFiles.add(file);
+        mCaptureUris.add(uri);
+        Intent capture = new Intent(action)
+                .putExtra(MediaStore.EXTRA_OUTPUT, uri)
+                .addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                        | Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        // A chooser starts the camera app itself, so give every camera app the file up front.
+        for (ResolveInfo camera
+                : getPackageManager().queryIntentActivities(capture, 0)) {
+            grantUriPermission(camera.activityInfo.packageName, uri,
+                    Intent.FLAG_GRANT_WRITE_URI_PERMISSION | Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        }
+        return capture;
+    }
+
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode != REQUEST_FILE || mFileCallback == null) return;
-        mFileCallback.onReceiveValue(WebChromeClient.FileChooserParams.parseResult(resultCode, data));
+        List<Uri> files = new ArrayList<>();
+        if (resultCode == RESULT_OK) {
+            // A photo or video the camera app wrote to our file.
+            for (int i = 0; i < mCaptureFiles.size(); i++) {
+                if (mCaptureFiles.get(i).length() > 0) files.add(mCaptureUris.get(i));
+            }
+            if (files.isEmpty() && data != null) {
+                ClipData clip = data.getClipData();
+                if (clip != null) {
+                    for (int i = 0; i < clip.getItemCount(); i++) {
+                        Uri uri = clip.getItemAt(i).getUri();
+                        if (uri != null) files.add(uri);
+                    }
+                }
+                if (files.isEmpty() && data.getData() != null) files.add(data.getData());
+            }
+        }
+        mFileCallback.onReceiveValue(files.isEmpty() ? null : files.toArray(new Uri[0]));
         mFileCallback = null;
+    }
+
+    // The microphone (voice memos) and camera for the page. Android asks the person once per
+    // permission; after that the page gets what Android allows.
+
+    private void askPagePermission(PermissionRequest request) {
+        List<String> wanted = new ArrayList<>();
+        for (String resource : request.getResources()) {
+            if (PermissionRequest.RESOURCE_VIDEO_CAPTURE.equals(resource)
+                    || PermissionRequest.RESOURCE_AUDIO_CAPTURE.equals(resource)) {
+                wanted.add(resource);
+            }
+        }
+        if (wanted.isEmpty() || !isServerPage(request.getOrigin())) {
+            request.deny();
+            return;
+        }
+        List<String> missing = new ArrayList<>();
+        for (String resource : wanted) {
+            String permission = androidPermission(resource);
+            if (!hasPermission(permission)) missing.add(permission);
+        }
+        if (missing.isEmpty()) {
+            grantAllowed(request);
+            return;
+        }
+        if (mPendingPermission != null) mPendingPermission.deny();
+        mPendingPermission = request;
+        requestPermissions(missing.toArray(new String[0]), REQUEST_PAGE_PERMISSION);
+    }
+
+    private static String androidPermission(String resource) {
+        return PermissionRequest.RESOURCE_AUDIO_CAPTURE.equals(resource)
+                ? Manifest.permission.RECORD_AUDIO
+                : Manifest.permission.CAMERA;
+    }
+
+    /** Grants the camera and microphone as far as Android allows them; nothing at all denies. */
+    private void grantAllowed(PermissionRequest request) {
+        List<String> allowed = new ArrayList<>();
+        for (String resource : request.getResources()) {
+            if ((PermissionRequest.RESOURCE_VIDEO_CAPTURE.equals(resource)
+                            || PermissionRequest.RESOURCE_AUDIO_CAPTURE.equals(resource))
+                    && hasPermission(androidPermission(resource))) {
+                allowed.add(resource);
+            }
+        }
+        if (allowed.isEmpty()) {
+            request.deny();
+        } else {
+            request.grant(allowed.toArray(new String[0]));
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] results) {
+        if (requestCode == REQUEST_PAGE_PERMISSION && mPendingPermission != null) {
+            grantAllowed(mPendingPermission);
+            mPendingPermission = null;
+        } else if (requestCode == REQUEST_CAMERA_FOR_CAPTURE && mFileCallback != null) {
+            // Without the camera, the file picker instead.
+            chooseFile();
+        }
     }
 
     private void showError(LoadErrorScreen.Kind kind, String url, int status, CharSequence detail) {

@@ -11,6 +11,13 @@ De app vraagt de eerste keer op welk adres jouw Huizenjacht draait (bijvoorbeeld
 onthoudt het. Wijzigen: houd het app-icoon ingedrukt en kies **Server wijzigen** (ook op het
 foutscherm als de server niet bereikbaar is). Zo werkt één APK voor elke server.
 
+## Delen naar Huizenjacht
+
+Huizenjacht staat in het deelmenu van Android voor foto's, video's en spraakmemo's (ook
+meerdere tegelijk). De app stuurt ze naar `/api/share` op je server, het share target van de
+PWA; daar kies je bij welk huis (en checklistpunt) ze horen. Met Chrome doet Chrome dat met zijn
+eigen login; in de WebView verstuurt de app ze zelf met de login van de app.
+
 ## Chrome of de eigen WebView
 
 Met Chrome op het toestel (of Edge of Samsung Internet; standaardbrowser hoeft niet) opent de
@@ -28,6 +35,8 @@ WebView:
   sites (zoals Funda) openen in de browser.
 - Omlaag trekken bovenaan een pagina laadt hem opnieuw.
 - De back-up downloadt naar Downloads; uploaden en terugzetten kiezen een bestand.
+- Opnemen opent meteen de camera (foto of video); bij kiezen kun je meerdere bestanden pakken.
+  Spraakmemo's gebruiken de microfoon. De eerste keer vraagt Android toestemming.
 - Kan een pagina niet laden, dan zegt de app waarom en wat je kunt doen, en probeert hij het
   opnieuw als het netwerk terugkomt.
 

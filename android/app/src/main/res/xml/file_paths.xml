@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Photos and videos taken for a file input in the WebView (WebViewActivity). -->
+<paths>
+    <cache-path name="capture" path="capture/" />
+</paths>
