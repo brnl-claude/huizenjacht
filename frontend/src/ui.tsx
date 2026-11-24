@@ -11,7 +11,7 @@ export function EnergyLabel({ label }: { label?: string }) {
   if (!label) return null
   const letter = label.replace(/\+/g, '').charAt(0).toUpperCase()
   return (
-    <span className={`energy energy-${letter}`} title={`Energielabel ${label}`}>
+    <span className={`energy energy-${letter}`} data-tip={`Energielabel ${label}`}>
       {label}
     </span>
   )
@@ -78,7 +78,7 @@ export function ScorePill({ value, label }: { value?: number; label: string }) {
   if (value === undefined || value === null) return null
   const tone = value >= 7.5 ? 'good' : value >= 6 ? 'ok' : 'bad'
   return (
-    <span className={`score score-${tone}`} title={label}>
+    <span className={`score score-${tone}`} data-tip={label}>
       <small>{label}</small>
       {value.toLocaleString('nl-NL', { maximumFractionDigits: 1 })}
     </span>
@@ -88,7 +88,7 @@ export function ScorePill({ value, label }: { value?: number; label: string }) {
 export function ProgressBar({ done, total, problems }: { done: number; total: number; problems: number }) {
   const pct = total ? Math.round((done / total) * 100) : 0
   return (
-    <div className="progress" title={`${done} van ${total} punten bekeken`}>
+    <div className="progress" data-tip={`${done} van ${total} punten bekeken`}>
       <div className="progress-track">
         <div className="progress-fill" style={{ width: `${pct}%` }} />
       </div>
@@ -112,7 +112,7 @@ export function personColor(person: Person): string {
 export function PersonDot({ person, you = false }: { person: Person; you?: boolean }) {
   const label = you ? `${person.naam} (jij)` : person.naam
   return (
-    <span className="person-dot" style={{ background: personColor(person) }} title={label} aria-label={label}>
+    <span className="person-dot" style={{ background: personColor(person) }} data-tip={label} aria-label={label}>
       {person.key === EARLIER ? '?' : person.naam.charAt(0).toUpperCase()}
     </span>
   )

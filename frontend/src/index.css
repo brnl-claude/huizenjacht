@@ -2187,3 +2187,93 @@ textarea.code {
   margin: 6px 0 0;
   white-space: pre-wrap;
 }
+
+/* Tooltips, see tooltip.ts: a dark line on a light page and the other way around. */
+.tooltip {
+  position: fixed;
+  inset: auto;
+  left: 0;
+  top: 0;
+  z-index: 100;
+  box-sizing: border-box;
+  max-width: min(20rem, calc(100vw - 1rem));
+  margin: 0;
+  padding: 0.4rem 0.7rem;
+  overflow: visible;
+  border: none;
+  border-radius: var(--radius-small);
+  background: var(--text);
+  color: var(--bg);
+  box-shadow: 0 0.25rem 0.9rem rgb(0 0 0 / 0.25);
+  font-size: 0.85rem;
+  font-weight: 500;
+  line-height: 1.35;
+  text-align: center;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+
+.tooltip.shown {
+  opacity: 1;
+}
+
+.tooltip::after {
+  content: '';
+  position: absolute;
+  left: var(--arrow, 50%);
+  width: 0.6rem;
+  height: 0.6rem;
+  background: inherit;
+  transform: translateX(-50%) rotate(45deg);
+}
+
+.tooltip[data-side='above']::after {
+  bottom: -0.3rem;
+}
+
+.tooltip[data-side='below']::after {
+  top: -0.3rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tooltip {
+    transition: none;
+  }
+}
+
+/* Holding a finger on something with a tip shows the tip, not the browser's menu for links
+   or a text selection. */
+[data-tip],
+button[aria-label],
+a[aria-label],
+[role='radio'][aria-label] {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+
+/* Mobile: search and sort on one line, sorting as an icon only. */
+@media (max-width: 720px) {
+  .toolbar {
+    flex-wrap: nowrap;
+  }
+  .search {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .sort {
+    flex: none;
+    width: 46px;
+    padding: 0;
+    justify-content: center;
+    color: var(--text);
+  }
+  .sort select {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    opacity: 0;
+  }
+}
