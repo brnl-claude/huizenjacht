@@ -19,6 +19,15 @@ export type Release = {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.3.1',
+    date: '2026-11-24',
+    title: 'Inloggen probeert het opnieuw',
+    changes: [
+      'Komt een login terug die in een ander tabblad of een andere browsercontainer begon, dan probeert de app het eerst zelf nog één keer voordat je een foutmelding ziet.',
+      'Een oude login-link terwijl je al bent ingelogd brengt je gewoon terug naar de app.',
+    ],
+  },
+  {
     version: '0.3.0',
     date: '2026-11-24',
     title: "Foto's en advertentie in de app",

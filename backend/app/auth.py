@@ -13,6 +13,7 @@ import secrets
 import threading
 import time
 from typing import Any
+from urllib.parse import quote
 
 from fastapi import APIRouter, FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
@@ -25,6 +26,10 @@ log = logging.getLogger("huizenjacht.auth")
 
 SESSION_COOKIE = "hj_session"
 STATE_COOKIE = "hj_login"
+# Set while the app retries a login that came back without a matching start (another tab,
+# another browser container, a restart): it retries once, then shows the error.
+RETRY_COOKIE = "hj_login_retry"
+RETRY_TTL = 120
 # A login must come back from the provider within this many seconds.
 LOGIN_TTL = 600
 OPEN_PATHS = ("/api/health", "/api/auth/", "/api/import/hook")
@@ -156,7 +161,31 @@ def install(app: FastAPI, settings: Settings, db: Any, transport: Any = None) ->
             or not secrets.compare_digest(cookie, attempt.state)
             or attempt.created < time.monotonic() - LOGIN_TTL
         ):
-            return error_page("expired")
+            if current_user(request) is not None:
+                # Already logged in, say from an old tab or the back button.
+                return RedirectResponse(attempt.next if attempt else "/", status_code=303)
+            retry_cookie = cookie_name(RETRY_COOKIE, settings)
+            if request.cookies.get(retry_cookie):
+                failed = error_page("expired")
+                failed.delete_cookie(retry_cookie, path="/")
+                return failed
+            # Start the login once more in this browser; the provider usually still knows
+            # the user, so this is a quick round trip without a question.
+            log.info("Login came back without a matching start; trying once more")
+            again = RedirectResponse(
+                f"/api/auth/login?next={quote(attempt.next if attempt else '/', safe='')}",
+                status_code=303,
+            )
+            again.set_cookie(
+                retry_cookie,
+                "1",
+                max_age=RETRY_TTL,
+                path="/",
+                httponly=True,
+                secure=settings.https,
+                samesite="lax",
+            )
+            return again
         if error or not code:
             log.warning("The provider returned no code: %s", error)
             return error_page("denied" if error == "access_denied" else "provider", 403)
@@ -193,6 +222,7 @@ def install(app: FastAPI, settings: Settings, db: Any, transport: Any = None) ->
             samesite="lax",
         )
         response.delete_cookie(cookie_name(STATE_COOKIE, settings), path="/")
+        response.delete_cookie(cookie_name(RETRY_COOKIE, settings), path="/")
         return response
 
     @router.post("/logout")
