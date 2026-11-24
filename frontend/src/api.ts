@@ -2,6 +2,10 @@ import type { HouseRecord, Mine } from './house'
 
 export class ApiError extends Error {}
 
+// Several requests can answer 401 at once; start the login only once, so the attempts do not
+// overwrite each other's login cookie.
+let loggingIn = false
+
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   let response: Response
   try {
@@ -19,7 +23,10 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     // Not logged in (OIDC): go through the login and come back to the same page.
     const body = await response.json().catch(() => ({}))
     if (typeof body.login === 'string') {
-      location.assign(`${body.login}?next=${encodeURIComponent(`/${location.hash}`)}`)
+      if (!loggingIn) {
+        loggingIn = true
+        location.assign(`${body.login}?next=${encodeURIComponent(`/${location.hash}`)}`)
+      }
       throw new ApiError('Je wordt doorgestuurd naar de login…')
     }
   }

@@ -138,5 +138,25 @@ def test_next_stays_on_this_site_and_state_is_checked(tmp_path):
     client, provider = make(tmp_path)
     with client:
         assert provider.log_in(client, "bram", [], next="//evil.example").headers["location"] == "/"
-        bad = client.get("/api/auth/callback", params={"code": "x", "state": "nope"})
-        assert bad.status_code == 400
+        # A stray callback while logged in (old tab, back button) goes back to the app.
+        stray = client.get(
+            "/api/auth/callback", params={"code": "x", "state": "nope"}, follow_redirects=False
+        )
+        assert stray.status_code == 303 and stray.headers["location"] == "/"
+
+
+def test_unknown_login_is_retried_once(tmp_path):
+    client, provider = make(tmp_path)
+    with client:
+        first = client.get(
+            "/api/auth/callback", params={"code": "x", "state": "nope"}, follow_redirects=False
+        )
+        assert first.status_code == 303
+        assert first.headers["location"].startswith("/api/auth/login")
+        again = client.get(
+            "/api/auth/callback", params={"code": "x", "state": "nope"}, follow_redirects=False
+        )
+        assert again.status_code == 400 and "duurde te lang" in again.text
+        # After the error a new login may retry again.
+        assert "hj_login_retry" not in client.cookies
+        assert provider.log_in(client, "bram", []).status_code == 303
