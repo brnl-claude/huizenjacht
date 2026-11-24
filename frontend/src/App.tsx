@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Columns3, Home, Settings } from 'lucide-react'
 import { api, type Health } from './api'
 import { useUpdateReady, applyUpdate } from './appUpdate'
+import { ReceivePage } from './Bookmarklet'
 import { ComparePage } from './ComparePage'
 import { HousePage } from './HousePage'
 import { HousesPage } from './HousesPage'
@@ -14,11 +15,13 @@ export type Route =
   | { page: 'house'; id: string; tab: string | null }
   | { page: 'compare' }
   | { page: 'settings'; section: string | null }
+  | { page: 'receive' }
 
 export function parseRoute(hash: string): Route {
   const parts = hash.replace(/^#\/?/, '').split('/').filter(Boolean).map(decodeURIComponent)
   if (parts[0] === 'huis' && parts[1]) return { page: 'house', id: parts[1], tab: parts[2] ?? null }
   if (parts[0] === 'vergelijk') return { page: 'compare' }
+  if (parts[0] === 'ontvang') return { page: 'receive' }
   if (parts[0] === 'instellingen') return { page: 'settings', section: parts[1] ?? null }
   return { page: 'houses' }
 }
@@ -94,6 +97,7 @@ export function App() {
         {route.page === 'house' && <HousePage id={route.id} tab={route.tab} />}
         {route.page === 'compare' && <ComparePage />}
         {route.page === 'settings' && <SettingsPage section={route.section} health={health} />}
+        {route.page === 'receive' && <ReceivePage />}
       </main>
       <nav className="tabbar" aria-label="Hoofdmenu">
         {nav.map((item) => (

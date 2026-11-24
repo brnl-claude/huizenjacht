@@ -2,6 +2,7 @@
 
 import asyncio
 import contextlib
+import json
 import logging
 import re
 import secrets
@@ -11,15 +12,23 @@ from typing import Any
 
 import httpx2
 from fastapi import Body, FastAPI, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 
 from . import auth
 from .config import Settings, load_settings
 from .db import Database, now
-from .funda import Blocked, NotAListing, fetch_listing, photo_files
+from .funda import (
+    Blocked,
+    NotAListing,
+    fetch_listing,
+    photo_files,
+    remote_photos,
+    save_page,
+)
 from .reports import REPORT_SUFFIXES, digest, find_reports, parse_report, slugify
 
 MAX_UPLOAD = 5 * 1024 * 1024
+MAX_LISTING_PAGE = 8 * 1024 * 1024
 # How often the app looks for listings that are new, changed or due for a retry.
 LISTING_CHECK_SECONDS = 300
 
@@ -78,11 +87,15 @@ def create_app(
     def listing_folder(house_id: str) -> Path:
         return settings.data_dir / "listings" / slugify(house_id)
 
-    def fetch_one(house_id: str, url: str) -> None:
-        """Fetch a house's listing page and photos; record how it went."""
+    def fetch_one(house_id: str, url: str, html: str | None = None) -> None:
+        """Fetch a house's listing page and photos, or keep `html` that the browser sent;
+        record how it went."""
         with httpx2.Client(transport=listing_transport) as client:
             try:
-                result = fetch_listing(url, listing_folder(house_id), client)
+                if html is None:
+                    result = fetch_listing(url, listing_folder(house_id), client)
+                else:
+                    result = save_page(html, url, listing_folder(house_id), client)
             except Blocked as exc:
                 log.warning("Listing of %s blocked: %s", house_id, exc)
                 db().save_listing(house_id, url, "blocked", str(exc))
@@ -214,12 +227,36 @@ def create_app(
             await asyncio.to_thread(fetch_one, house_id, url)
         return house_or_404(house_id)
 
-    @app.get("/api/houses/{house_id}/photos/{number}")
-    def photo(house_id: str, number: int) -> FileResponse:
-        files = photo_files(listing_folder(house_id))
-        if not 0 <= number < len(files):
-            raise HTTPException(404, "Deze foto is er niet.")
-        return FileResponse(files[number], headers={"Cache-Control": "private, max-age=86400"})
+    @app.post("/api/houses/{house_id}/listing/import")
+    async def import_listing(house_id: str, request: Request) -> dict[str, Any]:
+        """A listing page as Bram's browser shows it, sent by the bookmarklet."""
+        body = await request.body()
+        if len(body) > MAX_LISTING_PAGE:
+            raise HTTPException(413, "Deze pagina is te groot.")
+        try:
+            data = json.loads(body)
+            url, html = str(data["url"]), str(data["html"])
+        except (ValueError, KeyError, TypeError) as exc:
+            raise HTTPException(400, "Stuur url en html mee.") from exc
+        if not url.startswith(("http://", "https://")):
+            raise HTTPException(400, "Dit is geen webadres.")
+        if not db().get_house(house_id):
+            raise HTTPException(404, "Dit huis bestaat niet (meer).")
+        async with listing_lock:
+            await asyncio.to_thread(fetch_one, house_id, url, html)
+        return house_or_404(house_id)
+
+    @app.get("/api/houses/{house_id}/photos/{number}", response_model=None)
+    def photo(house_id: str, number: int) -> FileResponse | RedirectResponse:
+        folder = listing_folder(house_id)
+        files = photo_files(folder)
+        if 0 <= number < len(files):
+            return FileResponse(files[number], headers={"Cache-Control": "private, max-age=86400"})
+        remote = remote_photos(folder)
+        if not files and 0 <= number < len(remote):
+            # The photo server refused the app; the browser fetches it itself.
+            return RedirectResponse(remote[number], status_code=302)
+        raise HTTPException(404, "Deze foto is er niet.")
 
     @app.get("/api/houses/{house_id}/listing/raw")
     def listing_raw(house_id: str) -> Response:

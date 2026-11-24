@@ -1900,3 +1900,59 @@ pre {
 .btn.listing-failed {
   color: var(--bad);
 }
+
+/* Bookmarklet */
+.page.narrow {
+  max-width: 640px;
+}
+.receive h2 {
+  margin: 0 0 14px;
+}
+.receive label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+  font-weight: 600;
+}
+.receive select {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-small);
+  background: var(--surface);
+  font-weight: 400;
+}
+.steps {
+  padding-left: 22px;
+  line-height: 1.7;
+}
+.steps li + li {
+  margin-top: 8px;
+}
+.btn.bookmarklet {
+  cursor: grab;
+  vertical-align: middle;
+}
+textarea.code {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: ui-monospace, monospace;
+  font-size: 0.8rem;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-small);
+  background: var(--surface-2);
+  margin-bottom: 10px;
+  word-break: break-all;
+}
+.overlay-hint {
+  max-width: 480px;
+  margin: 6px 0 0;
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+.link-button {
+  color: var(--link);
+  text-decoration: underline;
+  cursor: pointer;
+}
