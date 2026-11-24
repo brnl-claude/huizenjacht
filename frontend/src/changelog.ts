@@ -19,6 +19,14 @@ export type Release = {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.5.1',
+    date: '2026-11-24',
+    title: 'Link naar de bladwijzer bij een huis',
+    changes: [
+      'Zijn de advertentie en foto\'s van een huis nog niet opgehaald, dan staat bij dat huis de knop "Ophalen met bladwijzer". Die brengt je naar de bladwijzer in Instellingen.',
+    ],
+  },
+  {
     version: '0.5.0',
     date: '2026-11-24',
     title: 'Checklist uit het rapport, vaste kop en bladwijzer op de achtergrond',

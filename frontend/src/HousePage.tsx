@@ -3,6 +3,7 @@ import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import {
   ArrowLeft,
+  Bookmark,
   Check,
   ChevronDown,
   ChevronLeft,
@@ -149,14 +150,17 @@ export function HousePage({ id, tab }: { id: string; tab: string | null }) {
                 <MapPin size={16} /> Google Maps
               </a>
             )}
-            {house.record.listing && house.record.listing.status !== 'ok' && (
-              <button
-                className="btn btn-small btn-ghost listing-failed"
-                title={house.record.listing.message ?? undefined}
-                onClick={() => setOverlay({ tab: 'advertentie', photo: 0 })}
+            {house.url && house.record.listing?.status !== 'ok' && (
+              <a
+                className={`btn btn-small btn-ghost${house.record.listing ? ' listing-failed' : ''}`}
+                href="#/instellingen/bladwijzer"
+                title={
+                  house.record.listing?.message ??
+                  'De advertentie en foto\'s zijn nog niet opgehaald. Gebruik de bladwijzer op Funda.'
+                }
               >
-                <AlertTriangle size={16} /> Ophalen mislukt
-              </button>
+                {house.record.listing ? <AlertTriangle size={16} /> : <Bookmark size={16} />} Ophalen met bladwijzer
+              </a>
             )}
             <button className="btn btn-small btn-ghost" onClick={() => setEditing(true)}>
               <Pencil size={16} /> Gegevens
