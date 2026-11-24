@@ -19,6 +19,12 @@ export type Release = {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.5.2',
+    date: '2026-11-24',
+    title: 'Fotogalerij van Funda',
+    changes: ['"Open in nieuw tabblad" bij de foto\'s opent de fotogalerij van de advertentie op Funda.'],
+  },
+  {
     version: '0.5.1',
     date: '2026-11-24',
     title: 'Link naar de bladwijzer bij een huis',
