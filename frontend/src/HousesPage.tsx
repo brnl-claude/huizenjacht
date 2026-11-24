@@ -87,9 +87,6 @@ export function HousesPage() {
             {counts.actief} actief{counts.favoriet ? ` · ${counts.favoriet} favoriet` : ''}
           </p>
         </div>
-        <button className="btn btn-primary" onClick={() => setAdding(true)}>
-          <Plus size={18} /> Huis toevoegen
-        </button>
       </div>
 
       {error && (
