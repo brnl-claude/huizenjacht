@@ -19,6 +19,16 @@ export type Release = {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.8.1',
+    date: '2026-11-24',
+    title: "Foto's, video's en memo's in de Android-app",
+    changes: [
+      "In de Android-app staat Huizenjacht nu in het deelmenu: deel foto's, video's of spraakmemo's vanuit je galerij of een andere app, en kies daarna het huis.",
+      "Zonder Chrome opent de app voor Opnemen meteen de camera (foto of video) en kun je meerdere bestanden tegelijk kiezen.",
+      'Zonder Chrome vraagt de app de eerste keer toestemming voor de camera en de microfoon, voor foto\'s en spraakmemo\'s.',
+    ],
+  },
+  {
     version: '0.8.0',
     date: '2026-11-24',
     title: "Foto's, video's en spraakmemo's",

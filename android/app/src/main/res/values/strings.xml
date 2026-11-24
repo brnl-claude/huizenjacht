@@ -4,6 +4,10 @@
     <string name="downloading">%1$s wordt gedownload</string>
     <string name="noAppForLink">Geen app kan deze link openen</string>
     <string name="changeServer">Server wijzigen</string>
+    <string name="shareSending">Versturen naar Huizenjacht…</string>
+    <string name="shareLogin">Log eerst in en deel het daarna opnieuw.</string>
+    <string name="shareUnsupported">Je Huizenjacht-server kan nog geen gedeelde bestanden ontvangen. Werk de server bij.</string>
+    <string name="shareFailed">Delen is mislukt: %1$s</string>
 
     <!-- SetupActivity: the server address. -->
     <string name="setupTitle">Huizenjacht</string>
