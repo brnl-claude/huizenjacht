@@ -38,6 +38,8 @@ class Settings:
     # The https address people open the app on. The login redirect goes there.
     public_url: str = ""
     session_days: int = 30
+    # Fetch photos and a copy of each house's listing page (Funda) in the background.
+    fetch_listings: bool = True
 
     @property
     def https(self) -> bool:
@@ -66,6 +68,7 @@ def load_settings() -> Settings:
         allowed_users=_split(os.environ.get("HJ_ALLOWED_USERS", "")),
         public_url=os.environ.get("HJ_PUBLIC_URL", "").rstrip("/"),
         session_days=int(os.environ.get("HJ_SESSION_DAYS", "30")),
+        fetch_listings=os.environ.get("HJ_FETCH_LISTINGS", "true").lower() != "false",
     )
 
 

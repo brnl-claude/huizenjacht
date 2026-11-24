@@ -8,12 +8,14 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
+import httpx2
 from fastapi import Body, FastAPI, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, Response
 
 from . import auth
 from .config import Settings, load_settings
 from .db import Database, now
+from .funda import Blocked, fetch_listing, photo_files
 from .reports import REPORT_SUFFIXES, digest, find_reports, parse_report, slugify
 
 MAX_UPLOAD = 5 * 1024 * 1024
@@ -47,9 +49,48 @@ def import_folder(db: Database, folder: Path) -> dict[str, Any]:
     return result
 
 
-def create_app(settings: Settings | None = None, oidc_transport: Any = None) -> FastAPI:
+def create_app(
+    settings: Settings | None = None,
+    oidc_transport: Any = None,
+    listing_transport: Any = None,
+) -> FastAPI:
     settings = settings or load_settings()
     state = ImportState()
+    listing_lock = asyncio.Lock()
+
+    def listing_folder(house_id: str) -> Path:
+        return settings.data_dir / "listings" / slugify(house_id)
+
+    def fetch_one(house_id: str, url: str) -> None:
+        """Fetch a house's listing page and photos; record how it went."""
+        with httpx2.Client(transport=listing_transport) as client:
+            try:
+                result = fetch_listing(url, listing_folder(house_id), client)
+            except Blocked as exc:
+                db().save_listing(house_id, url, "blocked", str(exc))
+                return
+            except Exception as exc:
+                db().save_listing(house_id, url, "error", f"Ophalen mislukt: {exc}")
+                return
+        db().save_listing(
+            house_id,
+            url,
+            "ok",
+            photos=result["photos"],
+            has_page=True,
+            title=result.get("title"),
+            description=result.get("description"),
+        )
+
+    async def fetch_listings_forever() -> None:
+        while True:
+            with contextlib.suppress(Exception):
+                for house_id, url in db().listing_due():
+                    async with listing_lock:
+                        await asyncio.to_thread(fetch_one, house_id, url)
+                    # Be gentle with the site.
+                    await asyncio.sleep(3)
+            await asyncio.sleep(1800)
 
     async def scan() -> dict[str, Any]:
         folder = settings.reports_dir
@@ -71,9 +112,12 @@ def create_app(settings: Settings | None = None, oidc_transport: Any = None) -> 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         app.state.db = Database(settings.data_dir / "huizenjacht.sqlite")
-        task = asyncio.create_task(scan_forever())
+        tasks = [asyncio.create_task(scan_forever())]
+        if settings.fetch_listings:
+            tasks.append(asyncio.create_task(fetch_listings_forever()))
         yield
-        task.cancel()
+        for task in tasks:
+            task.cancel()
         app.state.db.close()
 
     app = FastAPI(title="Huizenjacht", lifespan=lifespan, docs_url=None, redoc_url=None)
@@ -126,6 +170,41 @@ def create_app(settings: Settings | None = None, oidc_transport: Any = None) -> 
         if not db().delete_house(house_id):
             raise HTTPException(404, "Dit huis bestaat niet (meer).")
         return Response(status_code=204)
+
+    @app.post("/api/houses/{house_id}/listing/refresh")
+    async def refresh_listing(house_id: str) -> dict[str, Any]:
+        url = db().house_url(house_id)
+        if not url:
+            raise HTTPException(404, "Dit huis heeft geen link naar een advertentie.")
+        async with listing_lock:
+            await asyncio.to_thread(fetch_one, house_id, url)
+        return house_or_404(house_id)
+
+    @app.get("/api/houses/{house_id}/photos/{number}")
+    def photo(house_id: str, number: int) -> FileResponse:
+        files = photo_files(listing_folder(house_id))
+        if not 0 <= number < len(files):
+            raise HTTPException(404, "Deze foto is er niet.")
+        return FileResponse(files[number], headers={"Cache-Control": "private, max-age=86400"})
+
+    @app.get("/api/houses/{house_id}/listing/page")
+    def listing_page(house_id: str) -> Response:
+        page = listing_folder(house_id) / "page.html"
+        if not page.is_file():
+            raise HTTPException(404, "Er is nog geen kopie van de advertentie.")
+        # Shown in a frame: no scripts, no access to this app, links open in a new tab.
+        return Response(
+            page.read_text(encoding="utf-8"),
+            media_type="text/html",
+            headers={
+                "Content-Security-Policy": (
+                    "sandbox allow-popups allow-popups-to-escape-sandbox; script-src 'none';"
+                    " frame-ancestors 'self'"
+                ),
+                "Cache-Control": "private, max-age=3600",
+                "X-Content-Type-Options": "nosniff",
+            },
+        )
 
     @app.get("/api/import")
     def import_status() -> dict[str, Any]:

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Home, Star } from 'lucide-react'
-import { statusInfo, type House, type Status } from './house'
+import { photoUrls, statusInfo, type House, type Status } from './house'
 
 export function StatusBadge({ status }: { status: Status }) {
   const info = statusInfo(status)
@@ -17,17 +17,26 @@ export function EnergyLabel({ label }: { label?: string }) {
   )
 }
 
-export function Photo({ house, className = '' }: { house: House; className?: string }) {
-  const [failed, setFailed] = useState(false)
-  if (house.foto && !failed) {
+export function Photo({
+  house,
+  className = '',
+  index = 0,
+}: {
+  house: House
+  className?: string
+  index?: number
+}) {
+  const [failed, setFailed] = useState<string | null>(null)
+  const src = photoUrls(house)[index]
+  if (src && failed !== src) {
     return (
       <img
         className={`photo ${className}`}
-        src={house.foto}
+        src={src}
         alt=""
         loading="lazy"
         referrerPolicy="no-referrer"
-        onError={() => setFailed(true)}
+        onError={() => setFailed(src)}
       />
     )
   }
