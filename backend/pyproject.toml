@@ -5,6 +5,7 @@ description = "Backend API for Huizenjacht."
 readme = "../README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "beautifulsoup4>=4.12",
     "fastapi>=0.115",
     "httpx2>=2.13",
     "pyjwt[crypto]>=2.9",

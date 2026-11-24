@@ -79,6 +79,8 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify(changes),
     }),
+  refreshListing: (id: string) =>
+    request<HouseRecord>(`/api/houses/${encodeURIComponent(id)}/listing/refresh`, { method: 'POST' }),
   deleteHouse: (id: string) =>
     request<void>(`/api/houses/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   importStatus: () => request<ImportStatus>('/api/import'),

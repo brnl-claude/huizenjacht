@@ -19,6 +19,17 @@ export type Release = {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.3.0',
+    date: '2026-11-24',
+    title: "Foto's en advertentie in de app",
+    changes: [
+      "De app haalt zelf de foto's en een kopie van de advertentie op, en bewaart ze. Bekijk alle foto's op de huispagina of in de fotogalerij.",
+      'Nieuwe knop Google Maps naast Advertentie.',
+      'De advertentie opent in een venster binnen de app, met een knop om hem toch in een nieuw tabblad te openen. Ctrl+klik of middelste muisknop opent meteen een nieuw tabblad.',
+      'Lukt het ophalen niet, dan zie je waarom en kun je het met "Nu ophalen" opnieuw proberen.',
+    ],
+  },
+  {
     version: '0.2.0',
     date: '2026-11-24',
     title: 'Inloggen met Authelia',

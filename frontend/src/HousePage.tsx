@@ -5,6 +5,10 @@ import {
   ArrowLeft,
   Check,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Images,
+  MapPin,
   ExternalLink,
   HelpCircle,
   MessageSquare,
@@ -21,6 +25,8 @@ import {
   displayAddress,
   formatEuro,
   formatNumber,
+  mapsUrl,
+  photoUrls,
   place,
   STATUSES,
   type CheckEntry,
@@ -28,6 +34,7 @@ import {
   type House,
   type Status,
 } from './house'
+import { ListingOverlay, overlayClick } from './ListingOverlay'
 import { Dialog, HouseForm } from './NewHouseDialog'
 import { useStore } from './store'
 import { EnergyLabel, FavoriteButton, Photo, ProgressBar, ScorePill } from './ui'
@@ -43,6 +50,8 @@ export function HousePage({ id, tab }: { id: string; tab: string | null }) {
   const { houses, loading, update, compare, toggleCompare, template } = useStore()
   const house = houses.find((h) => h.id === id)
   const [editing, setEditing] = useState(false)
+  const [overlay, setOverlay] = useState<{ tab: 'advertentie' | 'fotos'; photo: number } | null>(null)
+  const [heroPhoto, setHeroPhoto] = useState(0)
   if (loading) return <div className="loading">Laden…</div>
   if (!house) {
     return (
@@ -65,7 +74,12 @@ export function HousePage({ id, tab }: { id: string; tab: string | null }) {
         <ArrowLeft size={18} /> Alle huizen
       </a>
       <section className={`hero ${active === 'overzicht' ? '' : 'compact'}`}>
-        <Photo house={house} className="hero-photo" />
+        <HeroPhoto
+          house={house}
+          index={heroPhoto}
+          onIndex={setHeroPhoto}
+          onOpen={() => house.url && setOverlay({ tab: 'fotos', photo: heroPhoto })}
+        />
         <div className="hero-body">
           <div className="hero-top">
             <div>
@@ -104,8 +118,19 @@ export function HousePage({ id, tab }: { id: string; tab: string | null }) {
               {selected ? <Check size={16} /> : <Plus size={16} />} Vergelijk
             </button>
             {house.url && (
-              <a className="btn btn-small btn-ghost" href={house.url} target="_blank" rel="noreferrer">
+              <a
+                className="btn btn-small btn-ghost"
+                href={house.url}
+                target="_blank"
+                rel="noreferrer"
+                onClick={overlayClick(() => setOverlay({ tab: 'advertentie', photo: 0 }))}
+              >
                 <ExternalLink size={16} /> Advertentie
+              </a>
+            )}
+            {mapsUrl(house) && (
+              <a className="btn btn-small btn-ghost" href={mapsUrl(house)!} target="_blank" rel="noreferrer">
+                <MapPin size={16} /> Google Maps
               </a>
             )}
             <button className="btn btn-small btn-ghost" onClick={() => setEditing(true)}>
@@ -138,6 +163,15 @@ export function HousePage({ id, tab }: { id: string; tab: string | null }) {
       {active === 'rapport' && <Report house={house} />}
       {active === 'notities' && <MyReview house={house} />}
 
+      {overlay && (
+        <ListingOverlay
+          house={house}
+          initialTab={overlay.tab}
+          initialPhoto={overlay.photo}
+          onClose={() => setOverlay(null)}
+        />
+      )}
+
       {editing && (
         <Dialog title="Gegevens aanpassen" onClose={() => setEditing(false)}>
           {house.record.source !== 'manual' && (
@@ -148,6 +182,41 @@ export function HousePage({ id, tab }: { id: string; tab: string | null }) {
           )}
           <HouseForm house={house} onCancel={() => setEditing(false)} onDone={() => setEditing(false)} />
         </Dialog>
+      )}
+    </div>
+  )
+}
+
+function HeroPhoto({
+  house,
+  index,
+  onIndex,
+  onOpen,
+}: {
+  house: House
+  index: number
+  onIndex: (n: number) => void
+  onOpen: () => void
+}) {
+  const count = photoUrls(house).length
+  const at = count ? index % count : 0
+  return (
+    <div className="hero-photo-wrap">
+      <button className="hero-photo-button" onClick={onOpen} disabled={!count || !house.url} aria-label="Foto's bekijken">
+        <Photo house={house} index={at} className="hero-photo" />
+      </button>
+      {count > 1 && (
+        <>
+          <button className="hero-nav prev" aria-label="Vorige foto" onClick={() => onIndex((at - 1 + count) % count)}>
+            <ChevronLeft size={22} />
+          </button>
+          <button className="hero-nav next" aria-label="Volgende foto" onClick={() => onIndex((at + 1) % count)}>
+            <ChevronRight size={22} />
+          </button>
+          <span className="hero-count">
+            <Images size={14} /> {at + 1} / {count}
+          </span>
+        </>
       )}
     </div>
   )

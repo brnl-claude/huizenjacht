@@ -23,6 +23,17 @@ CREATE TABLE IF NOT EXISTS houses (
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS listings (
+    house_id TEXT PRIMARY KEY,       -- the page behind the house's link (Funda)
+    url TEXT NOT NULL,
+    status TEXT NOT NULL,            -- ok, blocked or error
+    message TEXT,
+    photos INTEGER NOT NULL DEFAULT 0,
+    has_page INTEGER NOT NULL DEFAULT 0,
+    title TEXT,
+    description TEXT,
+    fetched_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS sessions (
     token_hash TEXT PRIMARY KEY,
     subject TEXT NOT NULL,
@@ -36,6 +47,13 @@ CREATE TABLE IF NOT EXISTS settings (
     value TEXT NOT NULL
 );
 """
+
+
+_SELECT = (
+    "SELECT h.*, l.url AS l_url, l.status AS l_status, l.message AS l_message,"
+    " l.photos AS l_photos, l.has_page AS l_has_page, l.fetched_at AS l_fetched_at"
+    " FROM houses h LEFT JOIN listings l ON l.house_id = h.id"
+)
 
 
 def now() -> str:
@@ -68,16 +86,26 @@ class Database:
             "mine": json.loads(row["mine"]),
             "createdAt": row["created_at"],
             "updatedAt": row["updated_at"],
+            "listing": None
+            if row["l_status"] is None
+            else {
+                "url": row["l_url"],
+                "status": row["l_status"],
+                "message": row["l_message"],
+                "photos": row["l_photos"],
+                "hasPage": bool(row["l_has_page"]),
+                "fetchedAt": row["l_fetched_at"],
+            },
         }
 
     def list_houses(self) -> list[dict[str, Any]]:
         with self._lock:
-            rows = self._conn.execute("SELECT * FROM houses ORDER BY created_at").fetchall()
+            rows = self._conn.execute(_SELECT + " ORDER BY h.created_at").fetchall()
         return [self._house(r) for r in rows]
 
     def get_house(self, house_id: str) -> dict[str, Any] | None:
         with self._lock:
-            row = self._conn.execute("SELECT * FROM houses WHERE id = ?", (house_id,)).fetchone()
+            row = self._conn.execute(_SELECT + " WHERE h.id = ?", (house_id,)).fetchone()
         return self._house(row) if row else None
 
     def source_hash(self, house_id: str) -> str | None:
@@ -165,6 +193,7 @@ class Database:
     def delete_house(self, house_id: str) -> bool:
         with self._lock:
             cur = self._conn.execute("DELETE FROM houses WHERE id = ?", (house_id,))
+            self._conn.execute("DELETE FROM listings WHERE house_id = ?", (house_id,))
             self._conn.commit()
         return cur.rowcount > 0
 
@@ -185,6 +214,67 @@ class Database:
                 "INSERT INTO settings (key, value) VALUES (?, ?)"
                 " ON CONFLICT(key) DO UPDATE SET value = excluded.value",
                 (key, json.dumps(value)),
+            )
+            self._conn.commit()
+
+    # Listings (photos and a copy of the page behind the house's link)
+
+    def listing_due(self) -> list[tuple[str, str]]:
+        """(house id, url) of houses whose listing is missing, outdated or worth retrying."""
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT h.id, h.report, h.mine, l.url AS l_url, l.status AS l_status,"
+                " l.fetched_at AS l_fetched FROM houses h"
+                " LEFT JOIN listings l ON l.house_id = h.id"
+            ).fetchall()
+        due = []
+        stamp = datetime.now(UTC)
+        for row in rows:
+            url = json.loads(row["mine"]).get("url") or json.loads(row["report"]).get("url")
+            if not url or not str(url).startswith(("http://", "https://")):
+                continue
+            if row["l_status"] is None or row["l_url"] != url:
+                due.append((row["id"], url))
+                continue
+            age = stamp - datetime.fromisoformat(row["l_fetched"])
+            retry = timedelta(days=7) if row["l_status"] == "ok" else timedelta(hours=6)
+            if age >= retry:
+                due.append((row["id"], url))
+        return due
+
+    def house_url(self, house_id: str) -> str | None:
+        house = self.get_house(house_id)
+        if not house:
+            return None
+        return house["mine"].get("url") or house["report"].get("url")
+
+    def save_listing(
+        self,
+        house_id: str,
+        url: str,
+        status: str,
+        message: str | None = None,
+        photos: int = 0,
+        has_page: bool = False,
+        title: str | None = None,
+        description: str | None = None,
+    ) -> None:
+        with self._lock:
+            old = self._conn.execute(
+                "SELECT status, photos, has_page FROM listings WHERE house_id = ?", (house_id,)
+            ).fetchone()
+            # A failed retry keeps the photos and page of an earlier good fetch.
+            if status != "ok" and old and old["photos"]:
+                photos, has_page = old["photos"], bool(old["has_page"])
+            self._conn.execute(
+                "INSERT INTO listings (house_id, url, status, message, photos, has_page, title,"
+                " description, fetched_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                " ON CONFLICT(house_id) DO UPDATE SET url = excluded.url,"
+                " status = excluded.status, message = excluded.message,"
+                " photos = excluded.photos, has_page = excluded.has_page,"
+                " title = excluded.title, description = excluded.description,"
+                " fetched_at = excluded.fetched_at",
+                (house_id, url, status, message, photos, int(has_page), title, description, now()),
             )
             self._conn.commit()
 

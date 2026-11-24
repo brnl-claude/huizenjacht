@@ -55,6 +55,15 @@ export type Mine = Partial<Fields> & {
   checklist?: Record<string, CheckEntry>
 }
 
+export type Listing = {
+  url: string
+  status: 'ok' | 'blocked' | 'error'
+  message: string | null
+  photos: number
+  hasPage: boolean
+  fetchedAt: string
+}
+
 export type HouseRecord = {
   id: string
   source: 'report-dir' | 'upload' | 'manual'
@@ -64,6 +73,7 @@ export type HouseRecord = {
   mine: Mine
   createdAt: string
   updatedAt: string
+  listing?: Listing | null
 }
 
 export type House = Fields & {
@@ -200,4 +210,23 @@ export function matchesSearch(house: House, query: string): boolean {
   return [house.adres, house.titel, house.plaats, house.wijk, house.postcode, house.woningtype]
     .filter(Boolean)
     .some((v) => String(v).toLowerCase().includes(q))
+}
+
+/** Addresses of the photos the app fetched from the listing, newest fetch first in the cache. */
+export function photoUrls(house: House): string[] {
+  const listing = house.record.listing
+  if (!listing?.photos) return house.foto ? [house.foto] : []
+  const v = encodeURIComponent(listing.fetchedAt)
+  return Array.from(
+    { length: listing.photos },
+    (_, i) => `/api/houses/${encodeURIComponent(house.id)}/photos/${i}?v=${v}`,
+  )
+}
+
+export function mapsUrl(house: Fields): string | null {
+  const where = [house.adres, [house.postcode, house.plaats].filter(Boolean).join(' ')]
+    .filter(Boolean)
+    .join(', ')
+  if (!house.adres) return null
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(where)}`
 }
