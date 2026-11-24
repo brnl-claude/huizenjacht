@@ -102,6 +102,20 @@ export function ListingOverlay({
     }
   }
 
+  async function upload(file: File | undefined) {
+    if (!file) return
+    setBusy(true)
+    try {
+      const record = await api.importListing(house.id, url, await file.text())
+      replace(record)
+      if (record.listing?.status !== 'ok') notify(record.listing?.message ?? 'Dit is geen advertentie.', 'error')
+    } catch (e) {
+      notify(errorText(e), 'error')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const host = (() => {
     try {
       return new URL(url).hostname.replace(/^www\./, '')
@@ -151,10 +165,23 @@ export function ListingOverlay({
               <h2>Nog geen kopie van de advertentie</h2>
               <p className="muted">
                 {listing?.status === 'blocked'
-                  ? `${listing.message} De app probeert het later vanzelf opnieuw.`
+                  ? 'Funda laat de app de advertentie niet zelf ophalen.'
                   : listing?.status === 'error'
                     ? listing.message
-                    : 'De app haalt de advertentie op de achtergrond op.'}
+                    : 'De app probeert de advertentie op de achtergrond op te halen.'}
+              </p>
+              <p className="overlay-hint">
+                Open de advertentie op {host} en klik daar op je bladwijzer <b>Naar Huizenjacht</b>.{' '}
+                <a href="#/instellingen/bladwijzer" onClick={() => ref.current?.close()}>
+                  Bladwijzer instellen
+                </a>
+                <br />
+                Of sla de pagina op met Ctrl+S en{' '}
+                <label className="link-button">
+                  upload het bestand
+                  <input type="file" accept=".html,.htm,text/html" hidden onChange={(e) => void upload(e.target.files?.[0])} />
+                </label>
+                .
               </p>
               <div className="row">
                 <button className="btn btn-ghost" disabled={busy} onClick={() => void refresh()}>
@@ -181,13 +208,13 @@ export function ListingOverlay({
             <div className="gallery">
               {photos.map((src, i) => (
                 <button key={src} className="gallery-item" onClick={() => setPhoto(i)} aria-label={`Foto ${i + 1}`}>
-                  <img src={src} alt="" loading="lazy" />
+                  <img src={src} alt="" loading="lazy" referrerPolicy="no-referrer" />
                 </button>
               ))}
             </div>
           ) : (
             <div className="viewer">
-              <img src={photos[photo]} alt={`Foto ${photo + 1} van ${photos.length}`} />
+              <img src={photos[photo]} referrerPolicy="no-referrer" alt={`Foto ${photo + 1} van ${photos.length}`} />
               <button className="viewer-nav prev" aria-label="Vorige foto" onClick={() => setPhoto((photo - 1 + photos.length) % photos.length)}>
                 <ChevronLeft size={28} />
               </button>

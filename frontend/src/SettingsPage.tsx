@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import {
   ArrowDown,
   ArrowLeft,
+  Bookmark,
   ArrowUp,
   ChevronRight,
   Database,
@@ -19,6 +20,7 @@ import {
   Upload,
   type LucideIcon,
 } from 'lucide-react'
+import { BookmarkletPanel } from './Bookmarklet'
 import { api, type Health, type ImportResult, type ImportStatus, type Me } from './api'
 import { applyUpdate, checkForUpdate, useUpdateReady } from './appUpdate'
 import { CHANGELOG, currentVersion, formatReleaseDate, markChangelogSeen } from './changelog'
@@ -40,6 +42,7 @@ export function SettingsPage({ section, health }: { section: string | null; heal
     { id: 'weergave', title: 'Weergave', icon: Palette, summary: THEMES.find((t) => t.id === rememberedTheme())!.label },
     { id: 'checklist', title: 'Checklist', icon: ListChecks, summary: `${template.length} onderdelen, ${items} punten` },
     { id: 'rapporten', title: 'Rapporten importeren', icon: FileUp, summary: 'Uit de rapporten-repo of uploaden' },
+    { id: 'bladwijzer', title: 'Bladwijzer voor Funda', icon: Bookmark, summary: 'Advertenties met foto\'s naar de app sturen' },
     { id: 'gegevens', title: 'Gegevens en back-up', icon: Database, summary: `${houses.length} huizen` },
     ...(me?.mode === 'oidc'
       ? [{ id: 'account', title: 'Account', icon: UserRound, summary: me.user?.name || me.user?.email || 'Ingelogd' }]
@@ -81,6 +84,7 @@ export function SettingsPage({ section, health }: { section: string | null; heal
       {shown.id === 'weergave' && <Display />}
       {shown.id === 'checklist' && <ChecklistEditor />}
       {shown.id === 'rapporten' && <Reports />}
+      {shown.id === 'bladwijzer' && <BookmarkletPanel />}
       {shown.id === 'gegevens' && <Data />}
       {shown.id === 'account' && me && <Account me={me} />}
       {shown.id === 'over' && <About health={health} />}

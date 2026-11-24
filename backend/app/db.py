@@ -236,8 +236,12 @@ class Database:
             if row["l_status"] is None or row["l_url"] != url:
                 due.append((row["id"], url))
                 continue
+            if row["l_status"] == "ok":
+                # A good copy stays until Bram sends a new one or asks for a refresh.
+                continue
             age = stamp - datetime.fromisoformat(row["l_fetched"])
-            retry = timedelta(days=7) if row["l_status"] == "ok" else timedelta(hours=6)
+            # Funda answers servers with a captcha, so do not keep knocking.
+            retry = timedelta(days=3) if row["l_status"] == "blocked" else timedelta(hours=6)
             if age >= retry:
                 due.append((row["id"], url))
         return due

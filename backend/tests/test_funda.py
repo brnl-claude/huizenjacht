@@ -120,9 +120,30 @@ def test_page_without_listing_is_an_error_and_kept_for_a_look(tmp_path):
         assert raw.headers["content-type"].startswith("text/plain")
 
 
-def test_failed_photos_are_reported(tmp_path):
+def test_refused_photos_are_shown_from_the_photo_server(tmp_path):
     with make_custom(tmp_path, custom(PAGE, photo_status=403)) as client:
         house = client.post("/api/houses", json={"adres": "Laan 1", "url": URL}).json()
         listing = client.post(f"/api/houses/{house['id']}/listing/refresh").json()["listing"]
-        assert listing["status"] == "ok" and listing["photos"] == 0
-        assert listing["message"] == "0 van 2 foto's opgehaald; mislukt: 2× HTTP 403."
+        assert listing["status"] == "ok" and listing["photos"] == 2
+        photo = client.get(f"/api/houses/{house['id']}/photos/0", follow_redirects=False)
+        assert photo.status_code == 302 and photo.headers["location"] == f"{IMG}_1440x960.jpg"
+
+
+def test_page_from_the_browser_is_kept(tmp_path):
+    def handle(request: httpx2.Request) -> httpx2.Response:
+        assert request.url.host != "www.funda.nl", "the page itself is not fetched again"
+        return httpx2.Response(200, content=b"jpg", headers={"content-type": "image/jpeg"})
+
+    with make_custom(tmp_path, handle) as client:
+        house = client.post("/api/houses", json={"adres": "Laan 1", "url": URL}).json()
+        sent = client.post(
+            f"/api/houses/{house['id']}/listing/import", json={"url": URL, "html": PAGE}
+        )
+        assert sent.status_code == 200, sent.text
+        listing = sent.json()["listing"]
+        assert listing["status"] == "ok" and listing["photos"] == 2 and listing["hasPage"]
+        captcha = "<title>Je bent bijna op de pagina die je zoekt</title>"
+        again = client.post(
+            f"/api/houses/{house['id']}/listing/import", json={"url": URL, "html": captcha}
+        ).json()["listing"]
+        assert again["status"] == "blocked" and again["photos"] == 2  # old copy stays

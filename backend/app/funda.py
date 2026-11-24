@@ -6,6 +6,7 @@ being reachable later. Funda answers some addresses (such as cloud data centres)
 captcha page instead; that is recorded as "blocked" and tried again later.
 """
 
+import json
 import logging
 import re
 from collections import Counter
@@ -25,6 +26,7 @@ HEADERS = {
     "Accept-Language": "nl-NL,nl;q=0.9,en;q=0.6",
 }
 MAX_PHOTOS = 40
+REMOTE_PHOTOS = "remote-photos.json"
 MAX_PHOTO_BYTES = 8 * 1024 * 1024
 # Always a block page, whatever its size.
 BLOCK_TEXT = "Je bent bijna op de pagina die je zoekt"
@@ -137,29 +139,45 @@ def fetch_listing(url: str, folder: Path, client: httpx2.Client) -> dict[str, An
         raise Blocked(f"De site weigerde de pagina (HTTP {response.status_code}).")
     if response.status_code >= 400:
         raise NotAListing(f"De site gaf een fout terug (HTTP {response.status_code}).")
+    return save_page(html, str(response.url), folder, client, label=f"HTTP {response.status_code}")
+
+
+def check_page(html: str, label: str) -> None:
+    """Raise Blocked or NotAListing when `html` is not a listing."""
     if BLOCK_TEXT in html or (
         any(marker in html for marker in BLOCK_MARKERS) and len(html) < 60_000
     ):
         raise Blocked("Funda vroeg om een captcha in plaats van de pagina te tonen.")
-
-    urls = photo_urls(html, str(response.url))
-    summary = page_summary(html)
     has_og_title = 'property="og:title"' in html or "property='og:title'" in html
-    if not urls and not has_og_title:
+    if not photo_urls(html, "https://www.funda.nl/") and not has_og_title:
         raise NotAListing(
-            f"De site stuurde een pagina zonder advertentie terug "
-            f"(HTTP {response.status_code}, {size}, titel: {_page_title(html)})."
+            f"De pagina bevat geen advertentie ({label}, {len(html) // 1024} kB, "
+            f"titel: {_page_title(html)})."
         )
+
+
+def save_page(
+    html: str, page_url: str, folder: Path, client: httpx2.Client, label: str = "browser"
+) -> dict[str, Any]:
+    """Keep a listing page that is known to be good, and download its photos.
+
+    Photos the app cannot download (the photo server may refuse it as well) are kept as
+    addresses, so the browser can still show them."""
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / "raw.html").write_text(html, encoding="utf-8")
+    check_page(html, label)
+    urls = photo_urls(html, page_url)
+    summary = page_summary(html)
 
     saved = 0
     failures: Counter[str] = Counter()
-    for old in folder.glob("photo-*"):
-        old.unlink()
+    for old in [*folder.glob("photo-*"), folder / REMOTE_PHOTOS]:
+        old.unlink(missing_ok=True)
     for photo_url in urls:
         try:
             photo = client.get(
                 photo_url,
-                headers={**HEADERS, "Accept": "image/*", "Referer": str(response.url)},
+                headers={**HEADERS, "Accept": "image/*", "Referer": page_url},
                 timeout=30,
                 follow_redirects=True,
             )
@@ -179,17 +197,31 @@ def fetch_listing(url: str, folder: Path, client: httpx2.Client) -> dict[str, An
         suffix = {"image/webp": ".webp", "image/png": ".png"}.get(kind.split(";")[0], ".jpg")
         (folder / f"photo-{saved:02d}{suffix}").write_bytes(photo.content)
         saved += 1
-    (folder / "page.html").write_text(clean_page(html, str(response.url)), encoding="utf-8")
+    (folder / "page.html").write_text(clean_page(html, page_url), encoding="utf-8")
 
+    photos = saved
     if not urls:
         message = "Geen foto's gevonden op de pagina."
+    elif saved == 0:
+        # Shown straight from the photo server by the browser instead.
+        (folder / REMOTE_PHOTOS).write_text(json.dumps(urls), encoding="utf-8")
+        photos = len(urls)
+        message = None
     elif failures:
         reasons = ", ".join(f"{n}× {why}" for why, n in failures.most_common())
         message = f"{saved} van {len(urls)} foto's opgehaald; mislukt: {reasons}."
     else:
         message = None
-    log.info("%s: %s of %s photos saved %s", url, saved, len(urls), dict(failures) or "")
-    return {"photos": saved, "found": len(urls), "message": message, **summary}
+    log.info("%s: %s of %s photos saved %s", page_url, saved, len(urls), dict(failures) or "")
+    return {"photos": photos, "found": len(urls), "message": message, **summary}
+
+
+def remote_photos(folder: Path) -> list[str]:
+    path = folder / REMOTE_PHOTOS
+    if not path.is_file():
+        return []
+    urls = json.loads(path.read_text(encoding="utf-8"))
+    return [u for u in urls if isinstance(u, str) and _PHOTO.match(u)]
 
 
 def photo_files(folder: Path) -> list[Path]:

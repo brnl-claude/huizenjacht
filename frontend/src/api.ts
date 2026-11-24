@@ -88,6 +88,11 @@ export const api = {
     }),
   refreshListing: (id: string) =>
     request<HouseRecord>(`/api/houses/${encodeURIComponent(id)}/listing/refresh`, { method: 'POST' }),
+  importListing: (id: string, url: string, html: string) =>
+    request<HouseRecord>(`/api/houses/${encodeURIComponent(id)}/listing/import`, {
+      method: 'POST',
+      body: JSON.stringify({ url, html }),
+    }),
   deleteHouse: (id: string) =>
     request<void>(`/api/houses/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   importStatus: () => request<ImportStatus>('/api/import'),

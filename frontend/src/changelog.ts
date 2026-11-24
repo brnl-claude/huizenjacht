@@ -19,6 +19,17 @@ export type Release = {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.4.0',
+    date: '2026-11-24',
+    title: 'Bladwijzer voor Funda',
+    changes: [
+      'Funda geeft servers een captcha. Met de nieuwe bladwijzer "Naar Huizenjacht" stuur je de advertentie die jij op Funda ziet met één klik naar de app, met de foto\'s. Instellen doe je onder Instellingen → Bladwijzer voor Funda.',
+      'Je kunt ook een opgeslagen Funda-pagina (Ctrl+S) uploaden in het advertentievenster.',
+      'Mag de app een foto niet zelf downloaden, dan laat je browser hem rechtstreeks van Funda zien.',
+      'De app probeert een geblokkeerde advertentie nog maar eens per drie dagen zelf op te halen.',
+    ],
+  },
+  {
     version: '0.3.2',
     date: '2026-11-24',
     title: 'Ophalen van advertenties zichtbaar',
