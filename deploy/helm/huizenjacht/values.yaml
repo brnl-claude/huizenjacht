@@ -59,7 +59,9 @@ forwardedAllowIps: ""
 # Extra environment variables for the app (list of name/value pairs).
 extraEnv: []
 
-# SQLite and uploaded files in /data. One ReadWriteOnce volume, hence one pod.
+# SQLite, uploaded files, and photos, videos and voice memos in /data. One ReadWriteOnce
+# volume, hence one pod. Photos and videos need room: raise the size (such as 20Gi) when your
+# storage class allows growing a volume.
 persistence:
   enabled: true
   size: 1Gi
@@ -109,7 +111,9 @@ service:
 ingress:
   enabled: false
   className: ""
-  # Controller-specific annotations, such as forward-auth or a cert-manager issuer.
+  # Controller-specific annotations, such as forward-auth or a cert-manager issuer. Videos are
+  # large: let them through, for example with ingress-nginx
+  # nginx.ingress.kubernetes.io/proxy-body-size: "0".
   annotations: {}
   host: huizenjacht.example.com
   tls:

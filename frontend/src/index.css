@@ -2277,3 +2277,321 @@ a[aria-label],
     opacity: 0;
   }
 }
+
+/* Photos, videos and voice memos */
+.general-media h2 {
+  margin: 0 0 10px;
+  font-size: 1.05rem;
+}
+.media-actions,
+.check-more {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.check-more {
+  margin-top: 8px;
+}
+.general-media .muted {
+  margin: 10px 0 0;
+}
+.media-tiles {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+  gap: 6px;
+}
+.check-row .media-tiles {
+  grid-template-columns: repeat(auto-fill, minmax(68px, 1fr));
+  margin-top: 8px;
+}
+.media-tile {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-small);
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--muted);
+  cursor: pointer;
+}
+.media-tile img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.media-tile-icon {
+  display: grid;
+  place-items: center;
+  height: 100%;
+}
+.media-tile.kind-audio {
+  background: var(--link-soft);
+  color: var(--link);
+}
+.media-tile-play {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  translate: -50% -50%;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: rgb(0 0 0 / 55%);
+  color: #fff;
+}
+.media-tile-time {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  padding: 1px 5px;
+  border-radius: 6px;
+  background: rgb(0 0 0 / 60%);
+  color: #fff;
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+}
+.media-tile.kind-audio .media-tile-time {
+  background: transparent;
+  color: var(--link);
+  left: 0;
+  right: 0;
+  text-align: center;
+}
+.media-tile.kind-audio .media-tile-icon {
+  padding-bottom: 10px;
+}
+.media-tile-person {
+  position: absolute;
+  left: 4px;
+  top: 4px;
+}
+.media-tile-person .person-dot {
+  width: 18px;
+  height: 18px;
+  font-size: 0.65rem;
+  box-shadow: 0 0 0 2px var(--surface);
+}
+.media-tile-note {
+  position: absolute;
+  right: 5px;
+  top: 5px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--brand);
+  box-shadow: 0 0 0 2px var(--surface);
+}
+.media-tile.pending {
+  cursor: default;
+}
+.media-tile.pending img {
+  opacity: 0.55;
+}
+.media-tile-status {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  filter: drop-shadow(0 1px 2px rgb(0 0 0 / 60%));
+}
+.media-tile.pending.is-fout {
+  border-color: var(--bad);
+}
+.media-tile.pending.is-fout .media-tile-status {
+  color: var(--bad);
+  filter: none;
+  place-items: start center;
+  padding-top: 8px;
+}
+.media-tile-actions {
+  position: absolute;
+  inset: auto 0 2px;
+  display: flex;
+  justify-content: center;
+  gap: 2px;
+}
+.media-tile-actions .icon-btn {
+  width: 30px;
+  height: 30px;
+  background: var(--surface);
+}
+.media-progress {
+  width: 70%;
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, #fff var(--p), rgb(255 255 255 / 35%) var(--p));
+}
+.check-btn.media-btn {
+  color: var(--link);
+}
+.recording,
+.check-btn.recording {
+  background: var(--bad);
+  border-color: var(--bad);
+  color: #fff;
+  animation: rec-pulse 1.4s ease-in-out infinite;
+}
+.check-btn.recording {
+  width: auto;
+  padding: 0 8px;
+  gap: 4px;
+  display: inline-flex;
+  align-items: center;
+}
+.rec-time {
+  font-variant-numeric: tabular-nums;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+@keyframes rec-pulse {
+  50% {
+    box-shadow: 0 0 0 4px var(--bad-soft);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .recording {
+    animation: none;
+  }
+}
+
+/* Full-size view of one photo, video or memo */
+.media-viewer {
+  border: none;
+  padding: 0;
+  width: 100vw;
+  height: 100dvh;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  background: #000;
+  color: #fff;
+  display: none;
+  flex-direction: column;
+}
+.media-viewer[open] {
+  display: flex;
+}
+.media-viewer::backdrop {
+  background: #000;
+}
+.media-viewer-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 8px 8px 16px;
+  padding-top: max(8px, env(safe-area-inset-top));
+}
+.media-viewer-who {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  font-size: 0.9rem;
+}
+.media-viewer-count {
+  font-size: 0.85rem;
+  opacity: 0.75;
+  font-variant-numeric: tabular-nums;
+}
+.media-viewer .icon-btn {
+  color: #fff;
+}
+.media-viewer-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+}
+.media-viewer-stage img,
+.media-viewer-stage video {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+.media-viewer-audio {
+  display: grid;
+  justify-items: center;
+  gap: 20px;
+  width: min(420px, 90vw);
+}
+.media-viewer-audio audio {
+  width: 100%;
+}
+.media-nav {
+  position: absolute;
+  top: 50%;
+  translate: 0 -50%;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: none;
+  background: rgb(255 255 255 / 18%);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+.media-nav.prev {
+  left: 8px;
+}
+.media-nav.next {
+  right: 8px;
+}
+.media-viewer-foot {
+  display: grid;
+  gap: 10px;
+  padding: 12px 16px;
+  padding-bottom: max(12px, env(safe-area-inset-bottom));
+  background: var(--surface);
+  color: var(--text);
+}
+.field {
+  display: grid;
+  gap: 4px;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+.field select,
+.field input {
+  width: 100%;
+  min-width: 0;
+  font: inherit;
+  font-weight: 400;
+  padding: 9px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-small);
+  background: var(--surface);
+  color: var(--text);
+}
+.btn.danger {
+  color: var(--bad);
+}
+
+/* Shared to Huizenjacht from another app */
+.share-page h1 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.share-tiles {
+  margin-bottom: 16px;
+}
+.share-tiles .media-tile {
+  cursor: default;
+}
+.share-form {
+  display: grid;
+  gap: 14px;
+}

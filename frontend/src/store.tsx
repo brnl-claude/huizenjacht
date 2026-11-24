@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { api, ApiError, CLIENT_ID } from './api'
 import { DEFAULT_CHECKLIST, type ChecklistCategory } from './checklist'
+import { startOutbox } from './media'
 import { PERSONAL, toHouse, type House, type HouseRecord, type Mine, type Person } from './house'
 
 type Toast = { id: number; text: string; tone: 'info' | 'error' }
@@ -32,6 +33,7 @@ type Store = {
 const StoreContext = createContext<Store | null>(null)
 export const MAX_COMPARE = 4
 const COMPARE_KEY = 'hj.compare'
+let outboxStarted = false
 
 function readCompare(): string[] {
   try {
@@ -119,6 +121,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         : [...list, record],
     )
   }, [])
+
+  // Photos and memos recorded here upload in the background; show the house again after each.
+  useEffect(() => {
+    if (outboxStarted) return
+    outboxStarted = true
+    startOutbox((id) => void api.house(id).then(replace, () => undefined))
+  }, [replace])
 
   // Live updates: another person or device changed something, so fetch it again.
   useEffect(() => {

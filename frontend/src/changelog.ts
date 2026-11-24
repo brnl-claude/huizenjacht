@@ -19,6 +19,18 @@ export type Release = {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.8.0',
+    date: '2026-11-24',
+    title: "Foto's, video's en spraakmemo's",
+    changes: [
+      "Maak bij een checklistpunt een foto of spraakmemo met de knoppen naast het punt. Via de notitieknop neem je ook een video op of kies je bestanden van je toestel.",
+      "Bovenaan de checklist staan foto's, video's en memo's over het huis in het algemeen. Tik erop om ze groot te zien, er een notitie bij te zetten of ze bij een ander punt te hangen.",
+      "Zonder bereik bewaart de app wat je opneemt en stuurt hij het zelf door zodra er weer verbinding is.",
+      "Deel foto's en video's vanuit je galerij met Huizenjacht; de app vraagt bij welk huis ze horen.",
+      "Wat de één toevoegt, ziet de ander meteen.",
+    ],
+  },
+  {
     version: '0.7.2',
     date: '2026-11-24',
     title: 'Uitleg bij knoppen',
