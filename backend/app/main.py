@@ -2,6 +2,7 @@
 
 import asyncio
 import contextlib
+import logging
 import re
 import secrets
 from contextlib import asynccontextmanager
@@ -15,10 +16,25 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from . import auth
 from .config import Settings, load_settings
 from .db import Database, now
-from .funda import Blocked, fetch_listing, photo_files
+from .funda import Blocked, NotAListing, fetch_listing, photo_files
 from .reports import REPORT_SUFFIXES, digest, find_reports, parse_report, slugify
 
 MAX_UPLOAD = 5 * 1024 * 1024
+# How often the app looks for listings that are new, changed or due for a retry.
+LISTING_CHECK_SECONDS = 300
+
+log = logging.getLogger("huizenjacht.listings")
+
+
+def setup_logging() -> None:
+    """Uvicorn only sets up its own loggers; without this, the app's messages are lost."""
+    root = logging.getLogger("huizenjacht")
+    if not root.handlers:
+        handler = logging.StreamHandler()
+        handler.setFormatter(logging.Formatter("%(levelname)s:     %(name)s: %(message)s"))
+        root.addHandler(handler)
+        root.setLevel(logging.INFO)
+        root.propagate = False
 
 
 class ImportState:
@@ -55,6 +71,7 @@ def create_app(
     listing_transport: Any = None,
 ) -> FastAPI:
     settings = settings or load_settings()
+    setup_logging()
     state = ImportState()
     listing_lock = asyncio.Lock()
 
@@ -67,15 +84,24 @@ def create_app(
             try:
                 result = fetch_listing(url, listing_folder(house_id), client)
             except Blocked as exc:
+                log.warning("Listing of %s blocked: %s", house_id, exc)
                 db().save_listing(house_id, url, "blocked", str(exc))
                 return
+            except NotAListing as exc:
+                log.warning("Listing of %s: %s", house_id, exc)
+                db().save_listing(house_id, url, "error", str(exc))
+                return
             except Exception as exc:
-                db().save_listing(house_id, url, "error", f"Ophalen mislukt: {exc}")
+                log.exception("Listing of %s failed", house_id)
+                db().save_listing(
+                    house_id, url, "error", f"Ophalen mislukt: {type(exc).__name__}: {exc}"
+                )
                 return
         db().save_listing(
             house_id,
             url,
             "ok",
+            message=result["message"],
             photos=result["photos"],
             has_page=True,
             title=result.get("title"),
@@ -83,14 +109,22 @@ def create_app(
         )
 
     async def fetch_listings_forever() -> None:
+        # Give the first import of reports a moment, so new houses are found right away.
+        await asyncio.sleep(10)
+        log.info("Fetching listings is on; checking every %s s", LISTING_CHECK_SECONDS)
         while True:
-            with contextlib.suppress(Exception):
-                for house_id, url in db().listing_due():
+            try:
+                due = db().listing_due()
+                if due:
+                    log.info("Fetching %s listing(s)", len(due))
+                for house_id, url in due:
                     async with listing_lock:
                         await asyncio.to_thread(fetch_one, house_id, url)
                     # Be gentle with the site.
                     await asyncio.sleep(3)
-            await asyncio.sleep(1800)
+            except Exception:
+                log.exception("Fetching listings failed")
+            await asyncio.sleep(LISTING_CHECK_SECONDS)
 
     async def scan() -> dict[str, Any]:
         folder = settings.reports_dir
@@ -186,6 +220,21 @@ def create_app(
         if not 0 <= number < len(files):
             raise HTTPException(404, "Deze foto is er niet.")
         return FileResponse(files[number], headers={"Cache-Control": "private, max-age=86400"})
+
+    @app.get("/api/houses/{house_id}/listing/raw")
+    def listing_raw(house_id: str) -> Response:
+        """What the site sent last time, as a download, to look into a failed fetch."""
+        raw = listing_folder(house_id) / "raw.html"
+        if not raw.is_file():
+            raise HTTPException(404, "De site is voor dit huis nog niet bezocht.")
+        return Response(
+            raw.read_bytes(),
+            media_type="text/plain; charset=utf-8",
+            headers={
+                "Content-Disposition": f'attachment; filename="{slugify(house_id)}-pagina.html"',
+                "X-Content-Type-Options": "nosniff",
+            },
+        )
 
     @app.get("/api/houses/{house_id}/listing/page")
     def listing_page(house_id: str) -> Response:

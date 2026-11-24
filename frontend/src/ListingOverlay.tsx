@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type MouseEvent } from 'react'
-import { ChevronLeft, ChevronRight, ExternalLink, Images, Newspaper, RefreshCw, X } from 'lucide-react'
+import { AlertTriangle, ChevronLeft, ChevronRight, Download, ExternalLink, Images, Newspaper, RefreshCw, X } from 'lucide-react'
 import { api } from './api'
-import { displayAddress, photoUrls, type House } from './house'
+import { displayAddress, photoUrls, type House, type Listing } from './house'
 import { errorText, useStore } from './store'
 
 /** A link that opens the overlay on a plain click, and stays a real link for Ctrl/Cmd/Shift
@@ -15,6 +15,46 @@ export function overlayClick(open: () => void) {
 }
 
 type Tab = 'advertentie' | 'fotos'
+
+function when(stamp: string) {
+  return new Date(stamp).toLocaleString('nl-NL', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+}
+
+/** How the last fetch of the listing went, with a retry, so a failure is never silent. */
+function ListingStatus({
+  houseId,
+  listing,
+  busy,
+  onRefresh,
+}: {
+  houseId: string
+  listing: Listing
+  busy: boolean
+  onRefresh: () => void
+}) {
+  const failed = listing.status !== 'ok'
+  const raw = `/api/houses/${encodeURIComponent(houseId)}/listing/raw`
+  const photos = listing.photos === 1 ? '1 foto' : `${listing.photos} foto's`
+  return (
+    <div className={`overlay-status${failed ? ' failed' : listing.message ? ' warn' : ''}`} role={failed ? 'alert' : 'status'}>
+      {(failed || listing.message) && <AlertTriangle size={16} aria-hidden="true" />}
+      <span className="overlay-status-text">
+        {failed
+          ? `Ophalen mislukt (${when(listing.fetchedAt)}): ${listing.message ?? 'onbekende fout'}`
+          : `Opgehaald ${when(listing.fetchedAt)} · ${photos}${listing.message ? ` · ${listing.message}` : ''}`}
+        {failed && listing.hasPage && ' Je ziet de vorige kopie.'}
+      </span>
+      {(failed || listing.message) && (
+        <a className="overlay-status-link" href={raw} download>
+          <Download size={14} /> Wat de site stuurde
+        </a>
+      )}
+      <button className="btn btn-small btn-ghost" disabled={busy} onClick={onRefresh}>
+        <RefreshCw size={14} className={busy ? 'spin' : ''} /> {busy ? 'Bezig…' : 'Opnieuw ophalen'}
+      </button>
+    </div>
+  )
+}
 
 export function ListingOverlay({
   house,
@@ -92,6 +132,8 @@ export function ListingOverlay({
           <X size={22} />
         </button>
       </header>
+
+      {listing && <ListingStatus houseId={house.id} listing={listing} busy={busy} onRefresh={() => void refresh()} />}
 
       <div className="overlay-body">
         {tab === 'advertentie' &&
