@@ -11,7 +11,22 @@ cd "$root/fdroid"
 
 : "${FDROID_KEYSTORE:?Set FDROID_KEYSTORE to the index signing keystore}"
 : "${FDROID_KEYSTORE_PASSWORD:?Set FDROID_KEYSTORE_PASSWORD}"
+# The key's alias: huizenjacht-fdroid as in fdroid/README.md, or else the keystore's only key.
+if ! aliases=$(keytool -list -keystore "$FDROID_KEYSTORE" -storepass "$FDROID_KEYSTORE_PASSWORD" 2>&1); then
+  echo "::error::Can't open the F-Droid keystore: check FDROID_KEYSTORE_PASSWORD and FDROID_KEYSTORE_BASE64 (see fdroid/README.md). keytool says: $(echo "$aliases" | grep -v '^Picked up' | tail -n 1)" >&2
+  exit 1
+fi
+aliases=$(echo "$aliases" | sed -n 's/^\([^,]*\), .*, PrivateKeyEntry,.*/\1/p')
 alias="${FDROID_KEY_ALIAS:-huizenjacht-fdroid}"
+if ! grep -qxF "$alias" <<< "$aliases"; then
+  if [ "$(grep -c . <<< "$aliases")" -eq 1 ]; then
+    alias="$aliases"
+    echo "Using the keystore's only key, $alias"
+  else
+    echo "::error::The F-Droid keystore has no key huizenjacht-fdroid; it has: $(echo $aliases)" >&2
+    exit 1
+  fi
+fi
 
 rm -rf repo archive tmp
 mkdir -p repo
@@ -59,7 +74,7 @@ CHECK
 echo "F-Droid index has Huizenjacht $version"
 
 # F-Droid checks the index against this fingerprint: the SHA-256 of the key's certificate.
-fingerprint=$(keytool -exportcert -keystore "$FDROID_KEYSTORE" -storetype PKCS12 -alias "$alias" \
+fingerprint=$(keytool -exportcert -keystore "$FDROID_KEYSTORE" -alias "$alias" \
   -storepass "$FDROID_KEYSTORE_PASSWORD" | sha256sum | cut -d' ' -f1)
 fingerprint="${fingerprint^^}"
 echo "F-Droid fingerprint $fingerprint"
