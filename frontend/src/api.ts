@@ -1,4 +1,5 @@
 import type { HouseRecord, Mine, Person } from './house'
+import type { Media } from './media'
 
 export class ApiError extends Error {}
 
@@ -73,6 +74,15 @@ export type ImportStatus = {
   lastResult: ImportResult | null
 }
 
+export type Share = {
+  id: string
+  title: string | null
+  text: string | null
+  url: string | null
+  createdAt: string
+  files: Media[]
+}
+
 export type Me = {
   mode: 'none' | 'oidc'
   user: { subject: string; name: string | null; email: string | null } | null
@@ -117,6 +127,16 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify({ value }),
     }),
+  updateMedia: (id: string, changes: { item?: string | null; note?: string }) =>
+    request<Media>(`/api/media/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(changes) }),
+  deleteMedia: (id: string) => request<void>(`/api/media/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  share: (id: string) => request<Share>(`/api/share/${encodeURIComponent(id)}`),
+  fileShare: (id: string, house: string, item: string | null) =>
+    request<{ house: string; files: number }>(`/api/share/${encodeURIComponent(id)}`, {
+      method: 'POST',
+      body: JSON.stringify({ house, item }),
+    }),
+  dropShare: (id: string) => request<void>(`/api/share/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   restore: (backup: unknown) =>
     request<{ houses: number }>('/api/backup/restore', {
       method: 'POST',

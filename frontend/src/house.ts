@@ -1,5 +1,7 @@
 /** Houses: what the report says, merged with what Bram adds in the app. */
 
+import type { Media } from './media'
+
 export type CheckState = 'ok' | 'twijfel' | 'probleem'
 export type CheckEntry = { s?: CheckState; n?: string }
 
@@ -87,6 +89,8 @@ export type HouseRecord = {
   createdAt: string
   updatedAt: string
   listing?: Listing | null
+  /** Photos, videos and voice memos, shared by everyone. */
+  media?: Media[]
 }
 
 export type House = Fields & {

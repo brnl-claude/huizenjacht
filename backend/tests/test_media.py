@@ -1,0 +1,93 @@
+from pathlib import Path
+
+from test_api import make_client
+
+PNG = b"\x89PNG\r\n\x1a\n" + b"0" * 100
+
+
+def media_dir(tmp_path: Path) -> Path:
+    return tmp_path / "data" / "media"
+
+
+def test_photo_on_a_checklist_item_and_in_general(tmp_path):
+    with make_client(tmp_path) as client:
+        house = client.post("/api/houses", json={"adres": "Kade 2"}).json()["id"]
+        res = client.post(
+            f"/api/houses/{house}/media",
+            files={
+                "file": ("kelder.jpg", PNG, "image/jpeg"),
+                "thumb": ("thumb.jpg", b"t", "image/jpeg"),
+            },
+            data={"item": "binnen-1"},
+        )
+        assert res.status_code == 201
+        photo = res.json()
+        assert photo["kind"] == "foto" and photo["item"] == "binnen-1" and photo["thumb"]
+        assert photo["person"] == "lokaal"
+        memo = client.post(
+            f"/api/houses/{house}/media",
+            files={"file": ("memo.webm", b"ogg", "audio/webm;codecs=opus")},
+            data={"duration": "12.5"},
+        ).json()
+        assert memo["kind"] == "audio" and memo["item"] is None and memo["duration"] == 12.5
+        assert [m["id"] for m in client.get(f"/api/houses/{house}").json()["media"]] == [
+            photo["id"],
+            memo["id"],
+        ]
+        got = client.get(f"/api/media/{photo['id']}")
+        assert got.content == PNG and got.headers["content-type"] == "image/jpeg"
+        assert client.get(f"/api/media/{photo['id']}/thumb").content == b"t"
+        moved = client.patch(f"/api/media/{photo['id']}", json={"item": None, "note": "Vocht"})
+        assert moved.json()["item"] is None and moved.json()["note"] == "Vocht"
+        assert client.delete(f"/api/media/{memo['id']}").status_code == 204
+        assert client.get(f"/api/media/{memo['id']}").status_code == 404
+        assert client.delete(f"/api/houses/{house}").status_code == 204
+        assert list(media_dir(tmp_path).iterdir()) == []
+
+
+def test_only_photos_videos_and_sound(tmp_path):
+    with make_client(tmp_path) as client:
+        house = client.post("/api/houses", json={"adres": "Kade 2"}).json()["id"]
+        res = client.post(
+            f"/api/houses/{house}/media", files={"file": ("x.pdf", b"%PDF", "application/pdf")}
+        )
+        assert res.status_code == 415
+        assert client.get("/api/media/..%2Fhuizenjacht.db").status_code == 404
+
+
+def test_shared_files_wait_for_a_house(tmp_path):
+    with make_client(tmp_path) as client:
+        house = client.post("/api/houses", json={"adres": "Kade 2"}).json()["id"]
+        res = client.post(
+            "/api/share",
+            data={"title": "Foto's", "text": "", "url": ""},
+            files=[
+                ("files", ("a.jpg", PNG, "image/jpeg")),
+                ("files", ("b.mp4", b"mp4", "video/mp4")),
+            ],
+            follow_redirects=False,
+        )
+        assert res.status_code == 303 and res.headers["location"].startswith("/#/delen/")
+        share = res.headers["location"].rsplit("/", 1)[1]
+        files = client.get(f"/api/share/{share}").json()["files"]
+        assert [f["kind"] for f in files] == ["foto", "video"]
+        assert client.get(f"/api/houses/{house}").json()["media"] == []
+        filed = client.post(f"/api/share/{share}", json={"house": house, "item": "buiten-2"})
+        assert filed.json() == {"house": house, "files": 2}
+        media = client.get(f"/api/houses/{house}").json()["media"]
+        assert [m["item"] for m in media] == ["buiten-2", "buiten-2"]
+        assert client.get(f"/api/share/{share}").status_code == 404
+
+
+def test_android_app_gets_json_and_can_drop_a_share(tmp_path):
+    with make_client(tmp_path) as client:
+        res = client.post(
+            "/api/share",
+            files=[("files", ("a.jpg", PNG, "image/jpeg"))],
+            headers={"Accept": "application/json"},
+        )
+        assert res.status_code == 201
+        share = res.json()
+        assert share["url"] == f"/#/delen/{share['id']}"
+        assert client.delete(f"/api/share/{share['id']}").status_code == 204
+        assert list(media_dir(tmp_path).iterdir()) == []

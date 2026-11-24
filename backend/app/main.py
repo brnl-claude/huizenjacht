@@ -8,11 +8,12 @@ import logging
 import re
 import secrets
 from contextlib import asynccontextmanager
+from datetime import timedelta
 from pathlib import Path
 from typing import Any
 
 import httpx2
-from fastapi import Body, FastAPI, HTTPException, Request, UploadFile
+from fastapi import Body, FastAPI, Form, HTTPException, Request, UploadFile
 from fastapi.responses import (
     FileResponse,
     JSONResponse,
@@ -20,6 +21,7 @@ from fastapi.responses import (
     Response,
     StreamingResponse,
 )
+from starlette.datastructures import UploadFile as StarletteUpload
 
 from . import auth
 from .config import Settings, load_settings
@@ -37,6 +39,12 @@ from .reports import REPORT_SUFFIXES, digest, find_reports, parse_report, slugif
 
 MAX_UPLOAD = 5 * 1024 * 1024
 MAX_LISTING_PAGE = 8 * 1024 * 1024
+# One photo, video or voice memo. A phone video of a few minutes fits.
+MAX_MEDIA = 2 * 1024 * 1024 * 1024
+MAX_THUMB = 2 * 1024 * 1024
+# Files shared to the app wait this long for someone to pick their house.
+SHARE_DAYS = 7
+MEDIA_KINDS = {"image": "foto", "video": "video", "audio": "audio"}
 BOOKMARKLET_TOKEN = "bookmarkletToken"
 # The bookmarklet posts from the listing site; it carries a token and no cookies.
 CORS = {
@@ -309,8 +317,180 @@ def create_app(
 
     @app.delete("/api/houses/{house_id}", status_code=204)
     def delete_house(house_id: str) -> Response:
+        files = db().house_media_ids(house_id)
         if not db().delete_house(house_id):
             raise HTTPException(404, "Dit huis bestaat niet (meer).")
+        remove_media_files(files)
+        return Response(status_code=204)
+
+    # Photos, videos and voice memos
+
+    def media_folder() -> Path:
+        folder = settings.data_dir / "media"
+        folder.mkdir(parents=True, exist_ok=True)
+        return folder
+
+    def media_path(media_id: str, thumb: bool = False) -> Path:
+        if not re.fullmatch(r"[A-Za-z0-9_-]{8,40}", media_id):
+            raise HTTPException(404, "Dit bestand is er niet.")
+        return media_folder() / (f"{media_id}.thumb.jpg" if thumb else media_id)
+
+    def remove_media_files(ids: list[str]) -> None:
+        for media_id in ids:
+            for thumb in (False, True):
+                media_path(media_id, thumb).unlink(missing_ok=True)
+
+    def media_kind(upload: StarletteUpload) -> tuple[str, str]:
+        mime = (upload.content_type or "").split(";")[0].strip().lower()
+        kind = MEDIA_KINDS.get(mime.split("/")[0])
+        if not kind:
+            raise HTTPException(
+                415, f"{upload.filename or 'Dit bestand'} is geen foto, video of geluid."
+            )
+        return kind, mime
+
+    def save_upload(upload: StarletteUpload, path: Path, limit: int) -> int:
+        size = 0
+        with path.open("wb") as out:
+            while chunk := upload.file.read(1024 * 1024):
+                size += len(chunk)
+                if size > limit:
+                    out.close()
+                    path.unlink(missing_ok=True)
+                    raise HTTPException(413, f"{upload.filename or 'Dit bestand'} is te groot.")
+                out.write(chunk)
+        return size
+
+    def store_media(
+        upload: UploadFile, thumb: UploadFile | None = None, **fields: Any
+    ) -> dict[str, Any]:
+        kind, mime = media_kind(upload)
+        media_id = secrets.token_urlsafe(12)
+        size = save_upload(upload, media_path(media_id), MAX_MEDIA)
+        has_thumb = False
+        if thumb is not None and (thumb.content_type or "").startswith("image/"):
+            save_upload(thumb, media_path(media_id, True), MAX_THUMB)
+            has_thumb = True
+        return db().add_media(
+            media_id,
+            kind=kind,
+            mime=mime,
+            name=upload.filename,
+            size=size,
+            thumb=has_thumb,
+            **fields,
+        )
+
+    @app.post("/api/houses/{house_id}/media", status_code=201)
+    def add_media(
+        request: Request,
+        house_id: str,
+        file: UploadFile,
+        thumb: UploadFile | None = None,
+        item: str = Form(""),
+        duration: float | None = Form(None),
+    ) -> dict[str, Any]:
+        house_or_404(house_id)
+        return store_media(
+            file, thumb, house_id=house_id, item=item, duration=duration, person=person(request)
+        )
+
+    def media_or_404(media_id: str) -> dict[str, Any]:
+        found = db().get_media(media_id) if re.fullmatch(r"[A-Za-z0-9_-]{8,40}", media_id) else None
+        if not found:
+            raise HTTPException(404, "Dit bestand is er niet (meer).")
+        return found
+
+    @app.get("/api/media/{media_id}")
+    def media_file(media_id: str) -> FileResponse:
+        found = media_or_404(media_id)
+        return FileResponse(
+            media_path(media_id),
+            media_type=found["mime"],
+            headers={"Cache-Control": "private, max-age=31536000, immutable"},
+        )
+
+    @app.get("/api/media/{media_id}/thumb")
+    def media_thumb(media_id: str) -> FileResponse:
+        path = media_path(media_id, True)
+        if not path.exists():
+            raise HTTPException(404, "Geen voorbeeld.")
+        return FileResponse(
+            path, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=86400"}
+        )
+
+    @app.put("/api/media/{media_id}/thumb")
+    def put_media_thumb(media_id: str, thumb: UploadFile) -> dict[str, Any]:
+        media_or_404(media_id)
+        if not (thumb.content_type or "").startswith("image/"):
+            raise HTTPException(415, "Een voorbeeld is een afbeelding.")
+        save_upload(thumb, media_path(media_id, True), MAX_THUMB)
+        return db().update_media(media_id, {"thumb": True}) or {}
+
+    @app.patch("/api/media/{media_id}")
+    def update_media(media_id: str, changes: dict[str, Any] = Body(...)) -> dict[str, Any]:
+        media_or_404(media_id)
+        return db().update_media(media_id, changes) or {}
+
+    @app.delete("/api/media/{media_id}", status_code=204)
+    def delete_media(media_id: str) -> Response:
+        media_or_404(media_id)
+        db().delete_media(media_id)
+        remove_media_files([media_id])
+        return Response(status_code=204)
+
+    # Sharing to the app (Web Share Target, and the Android app)
+
+    @app.post("/api/share", response_model=None)
+    async def share(request: Request) -> Response:
+        remove_media_files(db().drop_shares(timedelta(days=SHARE_DAYS)))
+        form = await request.form(max_files=100)
+        share_id = secrets.token_urlsafe(9)
+        files = [f for f in form.getlist("files") if isinstance(f, StarletteUpload) and f.filename]
+
+        def keep() -> None:
+            db().add_share(
+                share_id,
+                str(form.get("title") or ""),
+                str(form.get("text") or ""),
+                str(form.get("url") or ""),
+            )
+            for upload in files:
+                try:
+                    store_media(upload, share_id=share_id, person=person(request))
+                except HTTPException as exc:
+                    log.warning("Gedeeld bestand overgeslagen: %s", exc.detail)
+
+        await asyncio.to_thread(keep)
+        url = f"/#/delen/{share_id}"
+        if "application/json" in request.headers.get("accept", ""):
+            return JSONResponse({"id": share_id, "url": url}, status_code=201)
+        return RedirectResponse(url, status_code=303)
+
+    def share_or_404(share_id: str) -> dict[str, Any]:
+        found = db().get_share(share_id)
+        if not found:
+            raise HTTPException(404, "Deze gedeelde bestanden zijn er niet (meer).")
+        return found
+
+    @app.get("/api/share/{share_id}")
+    def get_share(share_id: str) -> dict[str, Any]:
+        return share_or_404(share_id)
+
+    @app.post("/api/share/{share_id}")
+    def file_share(
+        request: Request, share_id: str, target: dict[str, Any] = Body(...)
+    ) -> dict[str, Any]:
+        share_or_404(share_id)
+        house_id = str(target.get("house") or "")
+        house_or_404(house_id)
+        count = db().file_share(share_id, house_id, target.get("item") or None, person(request))
+        return {"house": house_id, "files": count}
+
+    @app.delete("/api/share/{share_id}", status_code=204)
+    def drop_share(share_id: str) -> Response:
+        share_or_404(share_id)
+        remove_media_files(db().drop_shares(share_id=share_id))
         return Response(status_code=204)
 
     @app.post("/api/houses/{house_id}/listing/refresh")

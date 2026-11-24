@@ -46,6 +46,31 @@ CREATE TABLE IF NOT EXISTS sessions (
     created_at TEXT NOT NULL,
     expires_at TEXT NOT NULL
 );
+-- Photos, videos and voice memos. A file shared to the app waits in a share (house_id NULL)
+-- until someone picks its house. The file itself is in <data dir>/media/<id>.
+CREATE TABLE IF NOT EXISTS media (
+    id TEXT PRIMARY KEY,
+    house_id TEXT,
+    share_id TEXT,
+    item TEXT,                       -- checklist item id, or NULL for the house in general
+    kind TEXT NOT NULL,              -- foto, video or audio
+    mime TEXT NOT NULL,
+    name TEXT,
+    size INTEGER NOT NULL,
+    duration REAL,
+    thumb INTEGER NOT NULL DEFAULT 0,
+    person TEXT,
+    note TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS media_house ON media (house_id);
+CREATE TABLE IF NOT EXISTS shares (
+    id TEXT PRIMARY KEY,
+    title TEXT,
+    text TEXT,
+    url TEXT,
+    created_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS settings (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
@@ -106,7 +131,7 @@ class Database:
     # Houses
 
     @staticmethod
-    def _house(row: sqlite3.Row) -> dict[str, Any]:
+    def _house(row: sqlite3.Row, media: list[dict[str, Any]] | None = None) -> dict[str, Any]:
         return {
             "id": row["id"],
             "source": row["source"],
@@ -126,17 +151,29 @@ class Database:
                 "hasPage": bool(row["l_has_page"]),
                 "fetchedAt": row["l_fetched_at"],
             },
+            "media": media or [],
         }
 
     def list_houses(self) -> list[dict[str, Any]]:
         with self._lock:
             rows = self._conn.execute(_SELECT + " ORDER BY h.created_at").fetchall()
-        return [self._house(r) for r in rows]
+            media: dict[str, list[dict[str, Any]]] = {}
+            for m in self._conn.execute(
+                "SELECT * FROM media WHERE house_id IS NOT NULL ORDER BY created_at, rowid"
+            ):
+                media.setdefault(m["house_id"], []).append(self._media(m))
+        return [self._house(r, media.get(r["id"])) for r in rows]
 
     def get_house(self, house_id: str) -> dict[str, Any] | None:
         with self._lock:
             row = self._conn.execute(_SELECT + " WHERE h.id = ?", (house_id,)).fetchone()
-        return self._house(row) if row else None
+            media = [
+                self._media(m)
+                for m in self._conn.execute(
+                    "SELECT * FROM media WHERE house_id = ? ORDER BY created_at, rowid", (house_id,)
+                )
+            ]
+        return self._house(row, media) if row else None
 
     def source_hash(self, house_id: str) -> str | None:
         with self._lock:
@@ -296,10 +333,184 @@ class Database:
         with self._lock:
             cur = self._conn.execute("DELETE FROM houses WHERE id = ?", (house_id,))
             self._conn.execute("DELETE FROM listings WHERE house_id = ?", (house_id,))
+            self._conn.execute("DELETE FROM media WHERE house_id = ?", (house_id,))
             self._conn.commit()
         if cur.rowcount:
             self._changed(house_id, True)
         return cur.rowcount > 0
+
+    # Media
+
+    @staticmethod
+    def _media(row: sqlite3.Row) -> dict[str, Any]:
+        return {
+            "id": row["id"],
+            "item": row["item"],
+            "kind": row["kind"],
+            "mime": row["mime"],
+            "name": row["name"],
+            "size": row["size"],
+            "duration": row["duration"],
+            "thumb": bool(row["thumb"]),
+            "person": row["person"],
+            "note": row["note"],
+            "createdAt": row["created_at"],
+        }
+
+    def add_media(
+        self,
+        media_id: str,
+        *,
+        house_id: str | None = None,
+        share_id: str | None = None,
+        item: str | None = None,
+        kind: str,
+        mime: str,
+        name: str | None,
+        size: int,
+        duration: float | None = None,
+        thumb: bool = False,
+        person: str | None = None,
+    ) -> dict[str, Any]:
+        with self._lock:
+            self._conn.execute(
+                "INSERT INTO media (id, house_id, share_id, item, kind, mime, name, size,"
+                " duration, thumb, person, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    media_id,
+                    house_id,
+                    share_id,
+                    item or None,
+                    kind,
+                    mime,
+                    name,
+                    size,
+                    duration,
+                    int(thumb),
+                    person,
+                    now(),
+                ),
+            )
+            self._conn.commit()
+        if house_id:
+            self._changed(house_id)
+        return self.get_media(media_id) or {}
+
+    def get_media(self, media_id: str) -> dict[str, Any] | None:
+        with self._lock:
+            row = self._conn.execute("SELECT * FROM media WHERE id = ?", (media_id,)).fetchone()
+        if not row:
+            return None
+        return {**self._media(row), "house": row["house_id"], "share": row["share_id"]}
+
+    def update_media(self, media_id: str, changes: dict[str, Any]) -> dict[str, Any] | None:
+        found = self.get_media(media_id)
+        if not found:
+            return None
+        fields = {k: changes[k] for k in ("item", "note") if k in changes}
+        if "thumb" in changes:
+            fields["thumb"] = int(bool(changes["thumb"]))
+        if "item" in fields:
+            fields["item"] = fields["item"] or None
+        if "note" in fields:
+            fields["note"] = str(fields["note"] or "")
+        if fields:
+            with self._lock:
+                self._conn.execute(
+                    f"UPDATE media SET {', '.join(f'{k} = ?' for k in fields)} WHERE id = ?",
+                    (*fields.values(), media_id),
+                )
+                self._conn.commit()
+            if found["house"]:
+                self._changed(found["house"])
+        return self.get_media(media_id)
+
+    def delete_media(self, media_id: str) -> dict[str, Any] | None:
+        found = self.get_media(media_id)
+        if found:
+            with self._lock:
+                self._conn.execute("DELETE FROM media WHERE id = ?", (media_id,))
+                self._conn.commit()
+            if found["house"]:
+                self._changed(found["house"])
+        return found
+
+    def house_media_ids(self, house_id: str) -> list[str]:
+        with self._lock:
+            rows = self._conn.execute("SELECT id FROM media WHERE house_id = ?", (house_id,))
+            return [r["id"] for r in rows]
+
+    def add_share(self, share_id: str, title: str, text: str, url: str) -> None:
+        with self._lock:
+            self._conn.execute(
+                "INSERT INTO shares (id, title, text, url, created_at) VALUES (?, ?, ?, ?, ?)",
+                (share_id, title or None, text or None, url or None, now()),
+            )
+            self._conn.commit()
+
+    def get_share(self, share_id: str) -> dict[str, Any] | None:
+        with self._lock:
+            row = self._conn.execute("SELECT * FROM shares WHERE id = ?", (share_id,)).fetchone()
+            files = self._conn.execute(
+                "SELECT * FROM media WHERE share_id = ? AND house_id IS NULL ORDER BY rowid",
+                (share_id,),
+            ).fetchall()
+        if not row:
+            return None
+        return {
+            "id": row["id"],
+            "title": row["title"],
+            "text": row["text"],
+            "url": row["url"],
+            "createdAt": row["created_at"],
+            "files": [self._media(f) for f in files],
+        }
+
+    def file_share(self, share_id: str, house_id: str, item: str | None, person: str) -> int:
+        """Moves a share's files to a house; returns how many."""
+        with self._lock:
+            cur = self._conn.execute(
+                "UPDATE media SET house_id = ?, item = ?, person = ?"
+                " WHERE share_id = ? AND house_id IS NULL",
+                (house_id, item or None, person, share_id),
+            )
+            self._conn.execute("DELETE FROM shares WHERE id = ?", (share_id,))
+            self._conn.commit()
+        if cur.rowcount:
+            self._changed(house_id)
+        return cur.rowcount
+
+    def drop_shares(
+        self, older_than: timedelta | None = None, share_id: str | None = None
+    ) -> list[str]:
+        """Removes shares nobody filed; returns the ids of their files, to delete them."""
+        with self._lock:
+            if share_id:
+                shares = [share_id]
+            else:
+                limit = (datetime.now(UTC) - (older_than or timedelta(0))).isoformat(
+                    timespec="seconds"
+                )
+                shares = [
+                    r["id"]
+                    for r in self._conn.execute(
+                        "SELECT id FROM shares WHERE created_at < ?", (limit,)
+                    )
+                ]
+            files: list[str] = []
+            for sid in shares:
+                files += [
+                    r["id"]
+                    for r in self._conn.execute(
+                        "SELECT id FROM media WHERE share_id = ? AND house_id IS NULL", (sid,)
+                    )
+                ]
+                self._conn.execute(
+                    "DELETE FROM media WHERE share_id = ? AND house_id IS NULL", (sid,)
+                )
+                self._conn.execute("DELETE FROM shares WHERE id = ?", (sid,))
+            self._conn.commit()
+        return files
 
     def ids(self) -> set[str]:
         with self._lock:

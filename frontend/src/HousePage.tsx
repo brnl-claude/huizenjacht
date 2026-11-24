@@ -40,6 +40,7 @@ import {
   type Status,
 } from './house'
 import { ListingOverlay } from './ListingOverlay'
+import { GeneralMedia, MediaActions, MediaTiles } from './Media'
 import { Dialog, HouseForm } from './NewHouseDialog'
 import { useStore } from './store'
 import { EnergyLabel, FavoriteButton, personColor, PersonDot, Photo, ProgressBar, ScorePill } from './ui'
@@ -447,6 +448,7 @@ function Checklist({ house, categories }: { house: House; categories: ChecklistC
         )}
       </div>
       <People house={house} />
+      <GeneralMedia house={house} categories={categories} />
       {ownList && (
         <p className="muted small checklist-source">
           De eerste onderdelen komen uit de afvinklijst en open punten van het rapport van dit huis.
@@ -469,6 +471,8 @@ function Checklist({ house, categories }: { house: House; categories: ChecklistC
               {items.map((item) => (
                 <CheckRow
                   key={item.id}
+                  house={house}
+                  categories={categories}
                   text={item.tekst}
                   entry={answers[item.id]}
                   others={house.others}
@@ -489,12 +493,16 @@ function Checklist({ house, categories }: { house: House; categories: ChecklistC
 }
 
 function CheckRow({
+  house,
+  categories,
   text,
   entry,
   others,
   itemId,
   onChange,
 }: {
+  house: House
+  categories: ChecklistCategory[]
   text: string
   entry?: CheckEntry
   others: Other[]
@@ -526,11 +534,12 @@ function CheckRow({
               <s.icon size={18} />
             </button>
           ))}
+          <MediaActions houseId={house.id} item={itemId} compact show={['foto', 'memo']} />
           <button
             type="button"
             className={`check-btn note ${entry?.n ? 'on' : ''}`}
             aria-expanded={noteOpen}
-            aria-label="Notitie"
+            aria-label="Notitie, video of upload"
             onClick={() => setNoteOpen(!noteOpen)}
           >
             <MessageSquare size={18} />
@@ -555,15 +564,21 @@ function CheckRow({
           })}
         </ul>
       )}
+      <MediaTiles house={house} item={itemId} categories={categories} />
       {noteOpen && (
-        <textarea
-          className="check-note"
-          rows={2}
-          placeholder="Wat zag je?"
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-          onBlur={() => note !== (entry?.n ?? '') && onChange({ ...entry, n: note || undefined })}
-        />
+        <>
+          <textarea
+            className="check-note"
+            rows={2}
+            placeholder="Wat zag je?"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            onBlur={() => note !== (entry?.n ?? '') && onChange({ ...entry, n: note || undefined })}
+          />
+          <div className="check-more">
+            <MediaActions houseId={house.id} item={itemId} show={['video', 'upload']} />
+          </div>
+        </>
       )}
     </li>
   )

@@ -18,6 +18,18 @@ export default defineConfig({
         background_color: '#ffffff',
         display: 'standalone',
         start_url: '/',
+        // "Delen" from the gallery or another app: the server keeps the files and asks which
+        // house they belong to (#/delen/<id>).
+        share_target: {
+          action: '/api/share',
+          method: 'POST',
+          enctype: 'multipart/form-data',
+          params: {
+            // Only files: Huizenjacht does not show up in the share menu for plain links or text.
+            title: 'title',
+            files: [{ name: 'files', accept: ['image/*', 'video/*', 'audio/*'] }],
+          },
+        },
         icons: [
           { src: 'favicon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' },
           { src: 'icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
@@ -37,6 +49,13 @@ export default defineConfig({
             method: 'GET',
             handler: 'NetworkFirst',
             options: { cacheName: 'houses', networkTimeoutSeconds: 4, expiration: { maxEntries: 200 } },
+          },
+          {
+            // Previews of photos and videos, so the checklist shows them without signal too.
+            urlPattern: ({ url, sameOrigin }) => sameOrigin && /^\/api\/media\/[^/]+\/thumb$/.test(url.pathname),
+            method: 'GET',
+            handler: 'CacheFirst',
+            options: { cacheName: 'media-thumbs', expiration: { maxEntries: 500, maxAgeSeconds: 90 * 86400 } },
           },
         ],
       },
