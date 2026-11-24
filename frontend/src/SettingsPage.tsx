@@ -431,7 +431,7 @@ function Account({ me }: { me: Me }) {
         <b>{me.user?.name || 'Onbekend'}</b>
         {me.user?.email && <span className="muted"> · {me.user.email}</span>}
       </p>
-      <p className="muted small">Je blijft ingelogd tot je uitlogt, of na 30 dagen niet gebruiken.</p>
+      <p className="muted small">Je blijft ingelogd tot je uitlogt, en hoogstens 30 dagen. Daarna log je opnieuw in.</p>
       <button
         className="btn btn-ghost"
         onClick={async () => {
