@@ -1,3 +1,4 @@
+import { useModalDialog } from './nav'
 import { useEffect, useRef, useState } from 'react'
 import {
   AlertTriangle,
@@ -306,10 +307,7 @@ export function MediaViewer({
   const ref = useRef<HTMLDialogElement>(null)
   const [note, setNote] = useState(media.note)
   useEffect(() => setNote(media.note), [media.id, media.note])
-  useEffect(() => {
-    const dialog = ref.current
-    if (dialog && !dialog.open) dialog.showModal?.()
-  }, [])
+  useModalDialog(ref)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'ArrowLeft' && index > 0) onIndex(index - 1)
