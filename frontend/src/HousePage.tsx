@@ -602,14 +602,14 @@ function CheckRow({
           </button>
         </div>
       </div>
-      {prefill && (prefill.oordeel || prefill.antwoord || prefill.bron) && (
+      {prefill && !entry?.v && (prefill.oordeel || prefill.antwoord || prefill.bron) && (
         <PrefillNote
           prefill={prefill}
           taken={Boolean(entry?.s)}
           onTake={() => {
             const fromDocs = [prefill.antwoord, prefill.bron && `Bron: ${prefill.bron}`].filter(Boolean).join(' ')
             const n = [entry?.n, fromDocs].filter(Boolean).join('\n')
-            onChange({ s: prefill.oordeel ?? entry?.s, n: n || undefined })
+            onChange({ s: prefill.oordeel ?? entry?.s, n: n || undefined, v: true })
             if (n) setNoteOpen(true)
           }}
         />

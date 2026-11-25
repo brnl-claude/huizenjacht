@@ -3,7 +3,8 @@
 import type { Media } from './media'
 
 export type CheckState = 'ok' | 'twijfel' | 'probleem'
-export type CheckEntry = { s?: CheckState; n?: string }
+/** One person's answer to a checklist point; `v` when it was taken over from the documents. */
+export type CheckEntry = { s?: CheckState; n?: string; v?: boolean }
 
 /** An answer to a checklist point that "Huizen beoordelen" found in the documents of a house. */
 export type Prefill = { punt: string; groep?: string; oordeel?: CheckState; antwoord?: string; bron?: string }
