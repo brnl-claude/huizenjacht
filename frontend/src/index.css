@@ -1181,7 +1181,10 @@ pre {
 }
 .danger-zone {
   display: flex;
-  justify-content: flex-end;
+  justify-content: flex-start;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
 }
 
 /* Report */

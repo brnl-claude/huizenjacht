@@ -12,7 +12,14 @@ import { errorText, useStore } from './store'
  * it only after Bram confirms, so another site cannot slip a page in.
  */
 
-type Page = { type: 'huizenjacht-page'; url: string; html: string }
+type Page = { type: 'huizenjacht-page'; url: string; html: string; v?: number }
+
+/**
+ * Raise together with BOOKMARKLET_VERSION in backend/app/main.py whenever the code below
+ * changes: the server and #/ontvang refuse a bookmarklet with another version.
+ */
+export const BOOKMARKLET_VERSION = 2
+const OUTDATED = 'Deze bladwijzer is verouderd. Zet hem opnieuw neer via Instellingen → Bladwijzer.'
 
 export function bookmarkletCode(origin: string, token: string): string {
   const app = JSON.stringify(origin)
@@ -20,22 +27,22 @@ export function bookmarkletCode(origin: string, token: string): string {
   // Sends the page in the background and shows a note on the page itself. Only when the site
   // blocks that request does it fall back to opening Huizenjacht in a new tab.
   return (
-    `javascript:(()=>{const a=${app},d={token:${key},url:location.href,html:document.documentElement.outerHTML};` +
+    `javascript:(()=>{const a=${app},d={v:${BOOKMARKLET_VERSION},token:${key},url:location.href,html:document.documentElement.outerHTML};` +
     `const e=document.createElement('div');` +
     `e.style.cssText='position:fixed;z-index:2147483647;right:16px;bottom:16px;max-width:380px;padding:12px 16px;border-radius:10px;font:15px/1.4 system-ui,sans-serif;color:#fff;background:#2b2b2b;box-shadow:0 6px 24px rgba(0,0,0,.3)';` +
-    `const say=(m,bad,h)=>{e.textContent='Huizenjacht: '+m;e.style.background=bad?'#c0392b':'#2b2b2b';` +
-    `if(h){const l=document.createElement('a');l.href=a+'/#/huis/'+encodeURIComponent(h);l.target='_blank';l.textContent='Bekijk';` +
+    `const say=(m,bad,h,t)=>{e.textContent='Huizenjacht: '+m;e.style.background=bad?'#c0392b':'#2b2b2b';` +
+    `if(h){const l=document.createElement('a');l.href=h;l.target='_blank';l.textContent=t;` +
     `l.style.cssText='color:#f7a100;font-weight:700;margin-left:8px';e.append(l)}};` +
     `document.body.append(e);` +
     `if(!/(^|\\.)funda\\.nl$/i.test(location.hostname)||!/^(\\/en)?\\/(detail\\/)?(koop|huur)\\/[^/]+\\/[^/]+/i.test(location.pathname)){` +
     `say('de bladwijzer werkt alleen op een huis op funda.nl. Open eerst een advertentie.',true);setTimeout(()=>e.remove(),8000);return}` +
     `say('bezig met opslaan…');` +
     `fetch(a+'/api/bookmarklet/page',{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify(d)})` +
-    `.then(r=>r.json().then(j=>{say(j.message,!r.ok,r.ok&&j.house);setTimeout(()=>e.remove(),r.ok?6000:12000)}))` +
+    `.then(r=>r.json().then(j=>{say(j.message,!r.ok,r.ok&&j.house?a+'/#/huis/'+encodeURIComponent(j.house):j.outdated?a+'/#/instellingen/bladwijzer':0,r.ok?'Bekijk':'Bijwerken');setTimeout(()=>e.remove(),r.ok?6000:12000)}))` +
     `.catch(()=>{say('deze site houdt het versturen tegen, Huizenjacht opent in een nieuw tabblad.',true);` +
     `const w=window.open(a+'/#/ontvang','huizenjacht');if(!w)return;` +
     `const f=v=>{if(v.source===w&&v.origin===a&&v.data&&v.data.type==='huizenjacht-ready'){` +
-    `w.postMessage({type:'huizenjacht-page',url:d.url,html:d.html},a);removeEventListener('message',f)}};addEventListener('message',f)})})()`
+    `w.postMessage({type:'huizenjacht-page',v:d.v,url:d.url,html:d.html},a);removeEventListener('message',f)}};addEventListener('message',f)})})()`
   )
 }
 
@@ -91,7 +98,7 @@ export function ReceivePage() {
       const d = e.data as Partial<Page> | null
       if (e.source !== opener || !d || d.type !== 'huizenjacht-page') return
       if (typeof d.url !== 'string' || typeof d.html !== 'string' || !/^https?:\/\//.test(d.url)) return
-      setPage({ type: d.type, url: d.url, html: d.html })
+      setPage({ type: d.type, url: d.url, html: d.html, v: typeof d.v === 'number' ? d.v : undefined })
     }
     window.addEventListener('message', onMessage)
     // Nothing secret in this message, and the opener's address is not known in advance.
@@ -159,6 +166,19 @@ export function ReceivePage() {
     // keep the address
   }
   const title = pageTitle(page.html)
+
+  if (page.v !== BOOKMARKLET_VERSION) {
+    return (
+      <div className="page narrow">
+        <h1>Advertentie ontvangen</h1>
+        <section className="panel receive">
+          <div className="notice notice-error">
+            {OUTDATED} <a href="#/instellingen/bladwijzer">Naar de bladwijzer</a>
+          </div>
+        </section>
+      </div>
+    )
+  }
 
   if (!isFundaListing(page.url)) {
     return (
@@ -270,7 +290,8 @@ export function BookmarkletPanel() {
         </ol>
         <p className="muted small">
           De bladwijzer bevat een eigen sleutel, zodat alleen jij pagina's naar je app kunt sturen. Deel hem dus niet. Op
-          een telefoon maak je een bladwijzer met de code hieronder als adres.
+          een telefoon maak je een bladwijzer met de code hieronder als adres. Dit is versie {BOOKMARKLET_VERSION}; zegt de
+          bladwijzer op Funda dat hij verouderd is, zet hem dan hier opnieuw neer.
         </p>
       </section>
       <section className="panel">

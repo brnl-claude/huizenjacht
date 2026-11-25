@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { bookmarkletCode, isFundaListing } from './Bookmarklet'
+// The backend's source, to check that both sides agree on the version.
+import backend from '../../backend/app/main.py?raw'
+import { BOOKMARKLET_VERSION, bookmarkletCode, isFundaListing } from './Bookmarklet'
 
 describe('bookmarklet', () => {
   it('only accepts house pages on funda.nl', () => {
@@ -17,5 +19,10 @@ describe('bookmarklet', () => {
     // The code must be valid JavaScript, regular expressions included.
     expect(() => new Function(code.replace(/^javascript:/, ''))).not.toThrow()
     expect(code).toContain(String.raw`(^|\.)funda\.nl$`)
+  })
+
+  it('sends the same version the server expects', () => {
+    expect(backend).toContain(`BOOKMARKLET_VERSION = ${BOOKMARKLET_VERSION}\n`)
+    expect(bookmarkletCode('https://huizen.example', 'sleutel')).toContain(`{v:${BOOKMARKLET_VERSION},token:`)
   })
 })

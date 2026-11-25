@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 
 from app.config import Settings
 from app.funda import clean_page, photo_urls
-from app.main import create_app
+from app.main import BOOKMARKLET_VERSION, create_app
 
 URL = "https://www.funda.nl/detail/koop/ergens/huis-laan-1/123/"
 IMG = "https://cloud.funda.nl/valentina_media/212/345/678"
@@ -157,7 +157,7 @@ def test_bookmarklet_sends_a_page_in_the_background(tmp_path):
     with make_custom(tmp_path, handle) as client:
         house = client.post("/api/houses", json={"adres": "Laan 1", "url": URL}).json()
         token = client.get("/api/bookmarklet").json()["token"]
-        page = {"token": token, "url": URL + "?utm=x", "html": PAGE}
+        page = {"token": token, "url": URL + "?utm=x", "html": PAGE, "v": BOOKMARKLET_VERSION}
         sent = client.post(
             "/api/bookmarklet/page",
             content=json.dumps(page),
@@ -183,6 +183,10 @@ def test_bookmarklet_sends_a_page_in_the_background(tmp_path):
             )
             assert sent.status_code == 400 and "alleen op een huis op funda.nl" in sent.text
         assert len(client.get("/api/houses").json()) == count
+
+        for old in ({k: v for k, v in page.items() if k != "v"}, {**page, "v": 1}):
+            sent = client.post("/api/bookmarklet/page", content=json.dumps(old))
+            assert sent.status_code == 426 and "verouderd" in sent.json()["message"]
 
         wrong = client.post("/api/bookmarklet/page", content=json.dumps({**page, "token": "x"}))
         assert wrong.status_code == 403
