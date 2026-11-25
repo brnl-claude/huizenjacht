@@ -11,7 +11,7 @@ from contextlib import asynccontextmanager
 from datetime import timedelta
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlsplit
+from urllib.parse import quote, urlsplit
 
 import httpx2
 from fastapi import Body, FastAPI, Form, HTTPException, Request, UploadFile
@@ -35,7 +35,15 @@ from .funda import (
     remote_photos,
     save_page,
 )
-from .reports import REPORT_SUFFIXES, digest, find_reports, parse_report, slugify
+from .reports import (
+    REPORT_SUFFIXES,
+    digest,
+    documents_folder,
+    find_documents,
+    find_reports,
+    parse_report,
+    slugify,
+)
 
 MAX_UPLOAD = 5 * 1024 * 1024
 MAX_LISTING_PAGE = 8 * 1024 * 1024
@@ -637,6 +645,59 @@ def create_app(
             # The photo server refused the app; the browser fetches it itself.
             return RedirectResponse(remote[number], status_code=302)
         raise HTTPException(404, "Deze foto is er niet.")
+
+    def house_documents(house_id: str) -> tuple[Path | None, list[dict[str, Any]]]:
+        """The report's list of documents, joined with the files in documenten/<id>/."""
+        house = house_or_404(house_id)
+        listed = [dict(d) for d in house["report"].get("documenten") or [] if isinstance(d, dict)]
+        folder = documents_folder(settings.reports_dir, house_id) if settings.reports_dir else None
+        files = find_documents(folder) if folder else []
+        by_name = {str(p.relative_to(folder)): p for p in files} if folder else {}
+        lower = {name.lower(): name for name in by_name}
+        seen = set()
+        docs = []
+        for doc in listed:
+            name = lower.get(str(doc.get("bestand", "")).strip().lstrip("/").lower())
+            if name:
+                seen.add(name)
+                doc["bestand"] = name
+                doc["grootte"] = by_name[name].stat().st_size
+                doc["url"] = f"/api/houses/{house_id}/documenten/{quote(name)}"
+            docs.append(doc)
+        # Files that the report does not name still show, under their own name.
+        for name, path in by_name.items():
+            if name not in seen:
+                docs.append(
+                    {
+                        "naam": Path(name).name,
+                        "bestand": name,
+                        "grootte": path.stat().st_size,
+                        "url": f"/api/houses/{house_id}/documenten/{quote(name)}",
+                        "zonderTitel": True,
+                    }
+                )
+        return folder, docs
+
+    @app.get("/api/houses/{house_id}/documenten")
+    def documents(house_id: str) -> list[dict[str, Any]]:
+        return house_documents(house_id)[1]
+
+    @app.get("/api/houses/{house_id}/documenten/{name:path}")
+    def document_file(house_id: str, name: str, download: bool = False) -> FileResponse:
+        folder, docs = house_documents(house_id)
+        if not folder or not any(d.get("bestand") == name and d.get("url") for d in docs):
+            raise HTTPException(404, "Dit document is er niet (meer).")
+        path = (folder / name).resolve()
+        if not path.is_relative_to(folder.resolve()) or not path.is_file():
+            raise HTTPException(404, "Dit document is er niet (meer).")
+        # A web page or SVG would run on the app's own origin; those only download.
+        active = path.suffix.lower() in {".html", ".htm", ".xhtml", ".svg", ".xml", ".js"}
+        return FileResponse(
+            path,
+            filename=Path(name).name,
+            content_disposition_type="attachment" if download or active else "inline",
+            headers={"Cache-Control": "private, max-age=300", "X-Content-Type-Options": "nosniff"},
+        )
 
     @app.get("/api/houses/{house_id}/listing/raw")
     def listing_raw(house_id: str) -> Response:
