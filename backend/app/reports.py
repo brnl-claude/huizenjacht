@@ -184,20 +184,48 @@ def _prefilled(value: Any) -> list[dict[str, str]]:
 
 
 def _documents(value: Any) -> list[dict[str, str]]:
-    """Entries of `documenten`: a name, optionally with a date."""
+    """Entries of `documenten`: a title, optionally the original file name, a date and a note."""
     docs = []
     for raw in value if isinstance(value, list) else _as_list(value):
         if isinstance(raw, dict):
             keys = {plain(str(k)): v for k, v in raw.items()}
-            naam = _text(
-                keys.get("naam") or keys.get("titel") or keys.get("document") or keys.get("name")
-            )
-            datum = _text(keys.get("datum") or keys.get("date"))
-            if naam:
-                docs.append({"naam": naam, **({"datum": datum} if datum else {})})
+
+            def pick(*names: str, keys: dict[str, Any] = keys) -> str:
+                return next((_text(keys[n]) for n in names if _text(keys.get(n))), "")
+
+            doc = {
+                "naam": pick("titel", "naam", "title", "name", "document"),
+                "bestand": pick("bestand", "bestandsnaam", "file", "origineel", "filename"),
+                "datum": pick("datum", "date"),
+                "omschrijving": pick("omschrijving", "toelichting", "beschrijving", "description"),
+            }
+            doc = {k: v for k, v in doc.items() if v}
+            if doc.get("bestand") and not doc.get("naam"):
+                doc["naam"] = Path(doc["bestand"]).stem
+            if doc.get("naam"):
+                docs.append(doc)
         elif _text(raw):
             docs.append({"naam": _text(raw)})
     return docs
+
+
+DOCUMENTS_DIR = "documenten"
+
+
+def documents_folder(reports_dir: Path, house_id: str) -> Path:
+    """Where a house's documents sit in the reports repository: documenten/<id>/."""
+    return reports_dir / DOCUMENTS_DIR / house_id
+
+
+def find_documents(folder: Path) -> list[Path]:
+    """The files in a house's documents folder and its subfolders, without hidden ones."""
+    if not folder.is_dir():
+        return []
+    return [
+        path
+        for path in sorted(folder.rglob("*"))
+        if path.is_file() and not any(p.startswith(".") for p in path.relative_to(folder).parts)
+    ]
 
 
 def normalise(raw: dict[str, Any]) -> dict[str, Any]:
@@ -333,6 +361,9 @@ def find_reports(folder: Path) -> list[Path]:
     for path in sorted(folder.rglob("*")):
         rel = path.relative_to(folder)
         if any(part.startswith((".", "_")) for part in rel.parts):
+            continue
+        # The documents of a house are no reports, even a Markdown file among them.
+        if len(rel.parts) > 1 and rel.parts[0] == DOCUMENTS_DIR:
             continue
         if not path.is_file() or path.suffix.lower() not in REPORT_SUFFIXES:
             continue

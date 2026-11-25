@@ -8,7 +8,18 @@ export type CheckEntry = { s?: CheckState; n?: string; v?: boolean }
 
 /** An answer to a checklist point that "Huizen beoordelen" found in the documents of a house. */
 export type Prefill = { punt: string; groep?: string; oordeel?: CheckState; antwoord?: string; bron?: string }
-export type Document = { naam: string; datum?: string }
+/** A document of a house: its title from the report, the original file and where to open it. */
+export type Document = {
+  naam: string
+  datum?: string
+  omschrijving?: string
+  /** The original file name, in documenten/<id>/ of the reports repository. */
+  bestand?: string
+  grootte?: number
+  url?: string
+  /** A file the report does not name; its title is the file name. */
+  zonderTitel?: boolean
+}
 
 export type Fields = {
   titel?: string

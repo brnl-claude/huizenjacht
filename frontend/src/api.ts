@@ -1,4 +1,4 @@
-import type { HouseRecord, Mine, Person } from './house'
+import type { Document, HouseRecord, Mine, Person } from './house'
 import type { Media } from './media'
 
 export class ApiError extends Error {}
@@ -94,6 +94,7 @@ export const api = {
   health: () => request<Health>('/api/health'),
   houses: () => request<HouseRecord[]>('/api/houses'),
   house: (id: string) => request<HouseRecord>(`/api/houses/${encodeURIComponent(id)}`),
+  documents: (id: string) => request<Document[]>(`/api/houses/${encodeURIComponent(id)}/documenten`),
   people: () => request<{ me: string; people: Person[] }>('/api/people'),
   claimAnswers: () => request<{ houses: number }>('/api/people/claim', { method: 'POST' }),
   createHouse: (mine: Mine) =>

@@ -19,6 +19,16 @@ export type Release = {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.11.0',
+    date: '2026-11-25',
+    title: 'Documenten van de makelaar bij het huis',
+    changes: [
+      'Huizen beoordelen zet de documenten van de makelaar in de rapporten-repo. Je vindt ze onder Overzicht bij het huis, met een duidelijke titel en de originele bestandsnaam.',
+      'Tik op een document om het te openen, of op het pijltje om het te downloaden.',
+      'Bovenaan de checklist zijn de documenten waar de vooraf ingevulde antwoorden uit komen nu ook aan te klikken.',
+    ],
+  },
+  {
     version: '0.10.0',
     date: '2026-11-25',
     title: 'Zoeken op de pagina',

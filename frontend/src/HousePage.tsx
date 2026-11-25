@@ -8,6 +8,7 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  Download,
   Images,
   MapPin,
   AlertTriangle,
@@ -23,6 +24,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react'
+import { api } from './api'
 import { checklistFor, prefilledCount, progress, reportChecklist, type ChecklistCategory } from './checklist'
 import {
   displayAddress,
@@ -35,6 +37,7 @@ import {
   STATUSES,
   EARLIER,
   type CheckEntry,
+  type Document,
   type Other,
   type Prefill,
   type CheckState,
@@ -376,6 +379,7 @@ function Overview({ house }: { house: House }) {
           ) : null}
         </div>
       )}
+      <DocumentsPanel house={house} />
       <section className="panel">
         <h2>Kenmerken</h2>
         {shownFacts.length ? (
@@ -451,7 +455,7 @@ function Checklist({ house, categories }: { house: House; categories: ChecklistC
   const [onlyOpen, setOnlyOpen] = useState(false)
   const p = progress(categories, answers)
   const prefilled = prefilledCount(categories)
-  const documents = house.record.report.documenten ?? []
+  const documents = useDocuments(house)
 
   function set(itemId: string, entry: CheckEntry | null) {
     const next = { ...answers }
@@ -500,7 +504,19 @@ function Checklist({ house, categories }: { house: House; categories: ChecklistC
             </p>
             {documents.length > 0 && (
               <p className="muted small prefill-documents">
-                {documents.map((d) => (d.datum ? `${d.naam} (${formatDate(d.datum)})` : d.naam)).join(' · ')}
+                {documents.map((d, i) => (
+                  <span key={i}>
+                    {i > 0 && ' · '}
+                    {d.url ? (
+                      <a href={d.url} target="_blank" rel="noreferrer">
+                        {d.naam}
+                      </a>
+                    ) : (
+                      d.naam
+                    )}
+                    {d.datum && ` (${formatDate(d.datum)})`}
+                  </span>
+                ))}
               </p>
             )}
           </div>
@@ -673,6 +689,76 @@ function PrefillNote({ prefill, taken, onTake }: { prefill: Prefill; taken: bool
         </button>
       )}
     </div>
+  )
+}
+
+/** The house's documents: the report's list joined with the files in the reports repository. */
+function useDocuments(house: House): Document[] {
+  const listed = house.record.report.documenten
+  const [docs, setDocs] = useState<Document[] | null>(null)
+  const stamp = house.record.updatedAt
+  useEffect(() => {
+    let current = true
+    api
+      .documents(house.id)
+      .then((found) => current && setDocs(found))
+      .catch(() => current && setDocs(null))
+    return () => {
+      current = false
+    }
+  }, [house.id, stamp])
+  return docs ?? listed ?? []
+}
+
+function fileSize(bytes?: number): string {
+  if (bytes === undefined) return ''
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} kB`
+  return `${(bytes / 1024 / 1024).toLocaleString('nl-NL', { maximumFractionDigits: 1 })} MB`
+}
+
+function DocumentsPanel({ house }: { house: House }) {
+  const docs = useDocuments(house)
+  if (!docs.length) return null
+  return (
+    <section className="panel documents">
+      <h2>
+        <FileText size={18} /> Documenten <small>{docs.length}</small>
+      </h2>
+      <ul>
+        {docs.map((d, i) => {
+          const details = [d.zonderTitel ? 'zonder titel' : d.bestand, fileSize(d.grootte), d.datum && formatDate(d.datum)]
+            .filter(Boolean)
+            .join(' · ')
+          return (
+            <li key={i} className={d.url ? '' : 'is-missing'}>
+              <FileText size={20} className="doc-icon" />
+              <div className="doc-text">
+                {d.url ? (
+                  <a href={d.url} target="_blank" rel="noreferrer" className="doc-title">
+                    {d.naam}
+                  </a>
+                ) : (
+                  <span className="doc-title">{d.naam}</span>
+                )}
+                {details && <span className="muted small doc-file">{details}</span>}
+                {d.omschrijving && <span className="small doc-note">{d.omschrijving}</span>}
+                {!d.url && <span className="muted small">Bestand niet aangeleverd</span>}
+              </div>
+              {d.url && (
+                <a
+                  href={`${d.url}?download=1`}
+                  className="btn btn-small btn-ghost doc-download"
+                  aria-label={`${d.naam} downloaden`}
+                  title="Downloaden"
+                >
+                  <Download size={16} />
+                </a>
+              )}
+            </li>
+          )
+        })}
+      </ul>
+    </section>
   )
 }
 

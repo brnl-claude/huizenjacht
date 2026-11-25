@@ -118,3 +118,42 @@ def test_assetlinks_names_the_android_app(tmp_path):
             "package_name": "app.huizenjacht",
             "sha256_cert_fingerprints": ["AB:CD", "EF:01"],
         }
+
+
+def test_documents_of_a_house(tmp_path):
+    reports = tmp_path / "reports"
+    (reports / "huizen").mkdir(parents=True)
+    (reports / "huizen" / "laan-1.md").write_text(
+        "---\nid: laan-1\ndocumenten:\n"
+        "  - titel: Bouwkundig rapport\n    bestand: BK-2026-0187.pdf\n    datum: 2026-11-18\n"
+        "  - titel: Lijst van zaken\n"
+        "---\n# Laan 1\n"
+    )
+    folder = reports / "documenten" / "laan-1"
+    (folder / "vve").mkdir(parents=True)
+    (folder / "BK-2026-0187.pdf").write_bytes(b"%PDF-1.4 rapport")
+    (folder / "vve" / "notulen.md").write_text("# Notulen, geen rapport")
+    (folder / "pagina.html").write_text("<script>alert(1)</script>")
+    with make_client(tmp_path, reports) as client:
+        client.post("/api/import/scan")
+        # A Markdown document is not imported as a house.
+        assert [h["id"] for h in client.get("/api/houses").json()] == ["laan-1"]
+        docs = client.get("/api/houses/laan-1/documenten").json()
+        assert [d["naam"] for d in docs] == [
+            "Bouwkundig rapport",
+            "Lijst van zaken",
+            "pagina.html",
+            "notulen.md",
+        ]
+        assert docs[0]["bestand"] == "BK-2026-0187.pdf" and docs[0]["grootte"] == 16
+        assert "url" not in docs[1]
+        assert docs[3]["zonderTitel"] and docs[3]["bestand"] == "vve/notulen.md"
+        res = client.get(docs[0]["url"])
+        assert res.content == b"%PDF-1.4 rapport"
+        assert res.headers["content-disposition"].startswith("inline")
+        assert client.get(docs[2]["url"]).headers["content-disposition"].startswith("attachment")
+        assert client.get(docs[3]["url"]).status_code == 200
+        assert (
+            client.get("/api/houses/laan-1/documenten/..%2Fhuizen%2Flaan-1.md").status_code == 404
+        )
+        assert client.get("/api/houses/laan-1/documenten/nope.pdf").status_code == 404
