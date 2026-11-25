@@ -19,6 +19,17 @@ export type Release = {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.10.0',
+    date: '2026-11-25',
+    title: 'Zoeken op de pagina',
+    changes: [
+      'Met het vergrootglas rechtsboven zoek je in de tekst van de pagina die openstaat, zoals het rapport of de checklist. Handig in de app, die geen zoekfunctie van de browser heeft.',
+      'Gevonden woorden worden geel gemarkeerd, de huidige oranje. Met de pijltjes of Enter ga je naar de volgende of vorige.',
+      'Hoofdletters en accenten maken niet uit: "e" vindt ook "é".',
+      'Ga je naar een ander tabblad, dan blijft de zoekbalk open en zoekt hij daar verder.',
+    ],
+  },
+  {
     version: '0.9.1',
     date: '2026-11-25',
     title: 'Overgenomen antwoord verdwijnt',
