@@ -314,6 +314,14 @@ pre {
   margin: 0 auto;
   padding: 24px 16px 48px;
 }
+/* A tab sliding in after a swipe must not widen the page. */
+.house-page {
+  overflow-x: clip;
+}
+/* Tabs other than the overview start as if scrolled down: address and tabs right at the top. */
+.house-page.tabbed {
+  margin-top: -24px;
+}
 .page {
   display: flex;
   flex-direction: column;
@@ -2135,9 +2143,12 @@ textarea.code {
   .house-sticky .tabs {
     gap: 0;
   }
+  .house-sticky .tabs {
+    justify-content: space-between;
+  }
   .house-sticky .tabs a {
-    padding: 10px 8px;
-    font-size: 0.92rem;
+    padding: 10px 6px;
+    font-size: 0.9rem;
   }
 }
 
@@ -2797,6 +2808,108 @@ a[aria-label],
 .doc-file {
   overflow-wrap: anywhere;
 }
-.doc-download {
+
+/* Documents tab: view and download */
+.doc-actions {
   flex: none;
+  display: flex;
+  gap: 6px;
+}
+
+/* Document viewer */
+.doc-viewer .overlay-title b {
+  font-size: 1rem;
+}
+.doc-zoom {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+.doc-zoom-value {
+  min-width: 3.2em;
+  text-align: center;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+.doc-body {
+  background: var(--surface-2);
+  overscroll-behavior: contain;
+}
+.doc-pdf {
+  min-height: 100%;
+  min-width: 100%;
+  width: max-content;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  box-sizing: border-box;
+}
+.doc-pdf .overlay-empty {
+  width: 100%;
+}
+.doc-page {
+  display: block;
+  background: #fff;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 25%);
+}
+.doc-pages {
+  margin: 0 0 8px;
+}
+.doc-loading {
+  padding: 40px 16px;
+  text-align: center;
+  color: var(--muted);
+}
+.doc-image {
+  min-width: 100%;
+  min-height: 100%;
+  display: grid;
+  place-items: center;
+}
+.doc-image img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.doc-text-view {
+  margin: 0;
+  padding: 16px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 0.9rem;
+}
+@media (max-width: 720px) {
+  .doc-viewer .overlay-head {
+    flex-wrap: nowrap;
+    gap: 4px;
+  }
+}
+
+/* Swiping between the tabs of a house */
+.house-tab.slide-from-right {
+  animation: tab-in-right 0.2s ease-out;
+}
+.house-tab.slide-from-left {
+  animation: tab-in-left 0.2s ease-out;
+}
+@keyframes tab-in-right {
+  from {
+    opacity: 0.4;
+    transform: translateX(40px);
+  }
+}
+@keyframes tab-in-left {
+  from {
+    opacity: 0.4;
+    transform: translateX(-40px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .house-tab.slide-from-right,
+  .house-tab.slide-from-left {
+    animation: none;
+  }
 }

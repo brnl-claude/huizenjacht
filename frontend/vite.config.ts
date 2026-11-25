@@ -38,7 +38,9 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,png}'],
+        globPatterns: ['**/*.{js,mjs,css,html,svg,png}'],
+        // pdf.js (its worker is over 1 MB) so documents also open without signal.
+        maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
         navigateFallbackDenylist: [/^\/api\//],
         // Houses come from the network when it answers and from the last copy otherwise, so
         // the list and checklists can be read during a viewing without signal.
