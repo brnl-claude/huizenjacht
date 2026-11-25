@@ -1,5 +1,5 @@
-import { navigate } from './nav'
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
+import { navigate, useModalDialog } from './nav'
+import { useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { X } from 'lucide-react'
 import { api } from './api'
 import { EDITABLE_FIELDS, type Fields, type House, type Mine } from './house'
@@ -125,10 +125,7 @@ export function Dialog({
   children: React.ReactNode
 }) {
   const ref = useRef<HTMLDialogElement>(null)
-  useEffect(() => {
-    const dialog = ref.current
-    if (dialog && !dialog.open) dialog.showModal?.()
-  }, [])
+  useModalDialog(ref)
   return (
     <dialog ref={ref} className="dialog" onClose={onClose} onCancel={onClose}>
       <div className="dialog-head">

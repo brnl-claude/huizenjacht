@@ -19,6 +19,15 @@ export type Release = {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.15.1',
+    date: '2026-11-26',
+    title: 'Terug sluit de documentviewer',
+    changes: [
+      'De terugknop sluit nu eerst een open venster, zoals de documentviewer, de advertentie, een foto of Gegevens. Je komt terug waar je was, bijvoorbeeld in het documentenoverzicht.',
+      'Een venster sluiten met het kruisje of Esc laat geen extra stap achter in de terugknop.',
+    ],
+  },
+  {
     version: '0.15.0',
     date: '2026-11-25',
     title: 'Terug gaat een niveau omhoog, notities passen zich aan',
