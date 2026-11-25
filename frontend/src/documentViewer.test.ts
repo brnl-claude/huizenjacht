@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { documentKind } from './DocumentViewer'
+import { clampZoom, documentKind, stepZoom } from './DocumentViewer'
 import { isTabSwipe } from './HousePage'
 
 describe('documentKind', () => {
@@ -23,5 +23,16 @@ describe('isTabSwipe', () => {
     expect(isTabSwipe(-80, 200, 200)).toBe(false)
     expect(isTabSwipe(-40, 0, 100)).toBe(false)
     expect(isTabSwipe(-150, 0, 1500)).toBe(false)
+  })
+})
+
+describe('zoom', () => {
+  it('steps from wherever pinching left it', () => {
+    expect(stepZoom(1, 1)).toBe(1.25)
+    expect(stepZoom(1.37, 1)).toBe(1.5)
+    expect(stepZoom(1.37, -1)).toBe(1.25)
+    expect(stepZoom(4, 1)).toBe(4)
+    expect(clampZoom(9)).toBe(4)
+    expect(clampZoom(0.1)).toBe(0.5)
   })
 })

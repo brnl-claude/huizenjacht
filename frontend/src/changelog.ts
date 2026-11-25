@@ -19,6 +19,16 @@ export type Release = {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.14.0',
+    date: '2026-11-25',
+    title: 'Inzoomen met twee vingers in de documentviewer',
+    changes: [
+      'In de documentviewer zoom je nu in en uit door met twee vingers te knijpen, net als bij foto\'s. Waar je vingers staan blijft staan; als je loslaat wordt de PDF weer scherp getekend.',
+      'Inzoomen kan nu tot 400%.',
+      'Bij Documenten staat het oogje om een document te bekijken nu rechts van de downloadknop.',
+    ],
+  },
+  {
     version: '0.13.0',
     date: '2026-11-25',
     title: 'Documenten als tab, vegen tussen tabs en documenten bekijken in de app',

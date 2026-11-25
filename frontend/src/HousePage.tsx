@@ -894,6 +894,14 @@ function Documents({ house, documents, onOpen }: { house: House; documents: Docu
               </div>
               {d.url && (
                 <div className="doc-actions">
+                  <a
+                    href={`${d.url}?download=1`}
+                    className="btn btn-small btn-ghost"
+                    aria-label={`${d.naam} downloaden`}
+                    title="Downloaden"
+                  >
+                    <Download size={16} />
+                  </a>
                   <button
                     type="button"
                     className="btn btn-small btn-ghost"
@@ -903,14 +911,6 @@ function Documents({ house, documents, onOpen }: { house: House; documents: Docu
                   >
                     <Eye size={16} />
                   </button>
-                  <a
-                    href={`${d.url}?download=1`}
-                    className="btn btn-small btn-ghost"
-                    aria-label={`${d.naam} downloaden`}
-                    title="Downloaden"
-                  >
-                    <Download size={16} />
-                  </a>
                 </div>
               )}
             </li>
