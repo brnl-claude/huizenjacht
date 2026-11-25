@@ -46,6 +46,13 @@ MAX_THUMB = 2 * 1024 * 1024
 SHARE_DAYS = 7
 MEDIA_KINDS = {"image": "foto", "video": "video", "audio": "audio"}
 BOOKMARKLET_TOKEN = "bookmarkletToken"
+# Raise together with BOOKMARKLET_VERSION in frontend/src/Bookmarklet.tsx whenever the
+# bookmarklet code changes, so an old bookmarklet in someone's browser is refused.
+BOOKMARKLET_VERSION = 2
+BOOKMARKLET_OUTDATED = (
+    "Deze bladwijzer is verouderd. "
+    "Zet hem opnieuw neer via Instellingen → Bladwijzer in Huizenjacht."
+)
 # The bookmarklet posts from the listing site; it carries a token and no cookies.
 CORS = {
     "Access-Control-Allow-Origin": "*",
@@ -581,6 +588,8 @@ def create_app(
             return answer(
                 403, "Deze bladwijzer is verlopen. Zet hem opnieuw neer vanuit Huizenjacht."
             )
+        if data.get("v") != BOOKMARKLET_VERSION:
+            return answer(426, BOOKMARKLET_OUTDATED, outdated=True)
         if not is_funda_listing(url):
             return answer(
                 400,
