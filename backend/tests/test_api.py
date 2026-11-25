@@ -138,7 +138,12 @@ def test_documents_of_a_house(tmp_path):
         # A Markdown document is not imported as a house.
         assert [h["id"] for h in client.get("/api/houses").json()] == ["laan-1"]
         docs = client.get("/api/houses/laan-1/documenten").json()
-        assert [d["naam"] for d in docs] == ["Bouwkundig rapport", "Lijst van zaken", "pagina.html", "notulen.md"]
+        assert [d["naam"] for d in docs] == [
+            "Bouwkundig rapport",
+            "Lijst van zaken",
+            "pagina.html",
+            "notulen.md",
+        ]
         assert docs[0]["bestand"] == "BK-2026-0187.pdf" and docs[0]["grootte"] == 16
         assert "url" not in docs[1]
         assert docs[3]["zonderTitel"] and docs[3]["bestand"] == "vve/notulen.md"
@@ -147,5 +152,7 @@ def test_documents_of_a_house(tmp_path):
         assert res.headers["content-disposition"].startswith("inline")
         assert client.get(docs[2]["url"]).headers["content-disposition"].startswith("attachment")
         assert client.get(docs[3]["url"]).status_code == 200
-        assert client.get("/api/houses/laan-1/documenten/..%2Fhuizen%2Flaan-1.md").status_code == 404
+        assert (
+            client.get("/api/houses/laan-1/documenten/..%2Fhuizen%2Flaan-1.md").status_code == 404
+        )
         assert client.get("/api/houses/laan-1/documenten/nope.pdf").status_code == 404
