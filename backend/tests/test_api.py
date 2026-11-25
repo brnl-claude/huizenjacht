@@ -135,6 +135,7 @@ def test_documents_of_a_house(tmp_path):
     (folder / "vve" / "notulen.md").write_text("# Notulen, geen rapport")
     (folder / "pagina.html").write_text("<script>alert(1)</script>")
     with make_client(tmp_path, reports) as client:
+        client.post("/api/import/scan")
         # A Markdown document is not imported as a house.
         assert [h["id"] for h in client.get("/api/houses").json()] == ["laan-1"]
         docs = client.get("/api/houses/laan-1/documenten").json()
