@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState, type TouchEvent } from 'react'
 import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import {
@@ -14,6 +14,7 @@ import {
   MapPin,
   AlertTriangle,
   ExternalLink,
+  Eye,
   FileText,
   HelpCircle,
   ChevronsDownUp,
@@ -49,7 +50,8 @@ import {
   type House,
   type Status,
 } from './house'
-import { ListingOverlay } from './ListingOverlay'
+import { ListingOverlay, overlayClick } from './ListingOverlay'
+import { DocumentViewer } from './DocumentViewer'
 import { exportPdf } from './pdfExport'
 import { GeneralMedia, MediaActions, MediaTiles } from './Media'
 import { Dialog, HouseForm } from './NewHouseDialog'
@@ -61,7 +63,57 @@ const TABS = [
   { id: 'rapport', label: 'Rapport' },
   { id: 'checklist', label: 'Checklist' },
   { id: 'notities', label: 'Mijn beoordeling' },
+  { id: 'documenten', label: 'Documenten' },
 ] as const
+
+/** Swiping left or right on a house moves to the next or previous tab. */
+function useTabSwipe(onSwipe: (step: 1 | -1) => void) {
+  const start = useRef<{ x: number; y: number; t: number } | null>(null)
+  return {
+    onTouchStart(e: TouchEvent) {
+      start.current = e.touches.length === 1 && swipeAllowed(e.target, e.currentTarget)
+        ? { x: e.touches[0].clientX, y: e.touches[0].clientY, t: e.timeStamp }
+        : null
+    },
+    onTouchEnd(e: TouchEvent) {
+      const from = start.current
+      start.current = null
+      if (!from || e.changedTouches.length !== 1) return
+      const dx = e.changedTouches[0].clientX - from.x
+      const dy = e.changedTouches[0].clientY - from.y
+      if (isTabSwipe(dx, dy, e.timeStamp - from.t)) onSwipe(dx < 0 ? 1 : -1)
+    },
+    onTouchCancel() {
+      start.current = null
+    },
+  }
+}
+
+/** With a large font the tabs scroll sideways; keep the open one in sight. */
+function showActiveTab(nav: HTMLElement | null) {
+  const a = nav?.querySelector<HTMLElement>('a.active')
+  if (nav && a && nav.scrollWidth > nav.clientWidth) {
+    nav.scrollLeft = a.offsetLeft - (nav.clientWidth - a.offsetWidth) / 2 - nav.offsetLeft
+  }
+}
+
+/** A quick, mostly sideways stroke; scrolling down the page with a slight angle is not one. */
+export function isTabSwipe(dx: number, dy: number, ms: number): boolean {
+  return Math.abs(dx) >= 70 && Math.abs(dx) > 2 * Math.abs(dy) && ms < 800
+}
+
+/** Not on things that use a sideways stroke themselves: photos, sliders, fields, open
+ * windows and anything that scrolls sideways (wide tables, the tab bar on a small phone). */
+function swipeAllowed(target: EventTarget | null, root: EventTarget | null): boolean {
+  let el = target instanceof Element ? target : null
+  if (!el || el.closest('dialog, input, textarea, select, .hero-photo-wrap, [data-no-swipe]')) return false
+  if (window.getSelection()?.toString()) return false
+  while (el && el !== root) {
+    if (el.scrollWidth > el.clientWidth + 1 && /auto|scroll/.test(getComputedStyle(el).overflowX)) return false
+    el = el.parentElement
+  }
+  return true
+}
 
 export function HousePage({ id, tab }: { id: string; tab: string | null }) {
   const { houses, loading, update, compare, toggleCompare, template, withStandard, people, me, notify } = useStore()
@@ -84,8 +136,21 @@ export function HousePage({ id, tab }: { id: string; tab: string | null }) {
       rootMargin: `-${Math.round(top)}px 0px 0px 0px`,
     })
     observer.observe(hero)
-    return () => observer.disconnect()
+    return () => {
+      observer.disconnect()
+      setHeroGone(false)
+    }
   }, [hero])
+  const [slide, setSlide] = useState<{ tab: string; from: 'left' | 'right' } | null>(null)
+  const swipe = useTabSwipe((step) => {
+    const at = TABS.findIndex((t) => t.id === (tab ?? 'overzicht'))
+    const next = TABS[Math.max(0, at) + step]
+    if (!next) return
+    setSlide({ tab: next.id, from: step > 0 ? 'right' : 'left' })
+    location.hash = `#/huis/${encodeURIComponent(id)}/${next.id}`
+  })
+  const documents = useDocuments(house)
+  const [viewing, setViewing] = useState<Document | null>(null)
   if (loading) return <div className="loading">Laden…</div>
   if (!house) {
     return (
@@ -101,13 +166,17 @@ export function HousePage({ id, tab }: { id: string; tab: string | null }) {
   const categories = checklistFor(house, template, withStandard)
   const p = progress(categories, house.mine.checklist)
   const selected = compare.includes(house.id)
+  const stuck = active !== 'overzicht' || heroGone
 
   return (
-    <div className="page house-page">
+    <div className={`page house-page${active === 'overzicht' ? '' : ' tabbed'}`} {...swipe}>
+      {/* Only the overview shows the big header; the other tabs start as if scrolled down. */}
+      {active === 'overzicht' && (
+      <>
       <a href="#/" className="back">
         <ArrowLeft size={18} /> Alle huizen
       </a>
-      <section ref={setHero} className={`hero ${active === 'overzicht' ? '' : 'compact'}`}>
+      <section ref={setHero} className="hero">
         <HeroPhoto
           house={house}
           index={heroPhoto}
@@ -209,13 +278,15 @@ export function HousePage({ id, tab }: { id: string; tab: string | null }) {
           </div>
         </div>
       </section>
+      </>
+      )}
 
-      <div className={`house-sticky${heroGone ? ' stuck' : ''}`}>
-        <div className="house-sticky-title" aria-hidden={!heroGone}>
+      <div className={`house-sticky${stuck ? ' stuck' : ''}`}>
+        <div className="house-sticky-title" aria-hidden={!stuck}>
           <b>{displayAddress(house)}</b>
           <span className="muted">{[house.plaats, house.vraagprijs ? formatEuro(house.vraagprijs) : null].filter(Boolean).join(' · ')}</span>
         </div>
-      <nav className="tabs" aria-label="Onderdelen van dit huis">
+      <nav className="tabs" aria-label="Onderdelen van dit huis" ref={(el) => showActiveTab(el)}>
         {TABS.map((t) => (
           <a
             key={t.id}
@@ -223,28 +294,34 @@ export function HousePage({ id, tab }: { id: string; tab: string | null }) {
             className={active === t.id ? 'active' : ''}
             aria-current={active === t.id ? 'page' : undefined}
           >
-            {t.id === 'notities' ? (
+            {t.id === 'notities' || t.id === 'documenten' ? (
               <>
                 <span className="hide-small">{t.label}</span>
-                <span className="show-small">Beoordeling</span>
+                <span className="show-small">{t.id === 'notities' ? 'Beoordeling' : 'Docs'}</span>
               </>
             ) : (
               t.label
             )}
             {t.id === 'checklist' && p.done > 0 && (
-              <span className="count">
+              <span className="count hide-small">
                 {p.done}/{p.total}
               </span>
             )}
+            {t.id === 'documenten' && documents.length > 0 && <span className="count hide-small">{documents.length}</span>}
           </a>
         ))}
       </nav>
       </div>
 
-      {active === 'overzicht' && <Overview house={house} />}
-      {active === 'checklist' && <Checklist house={house} categories={categories} />}
-      {active === 'rapport' && <Report house={house} />}
-      {active === 'notities' && <MyReview house={house} />}
+      <div key={active} className={`house-tab${slide?.tab === active ? ` slide-from-${slide.from}` : ''}`}>
+        {active === 'overzicht' && <Overview house={house} />}
+        {active === 'checklist' && <Checklist house={house} categories={categories} documents={documents} onOpen={setViewing} />}
+        {active === 'rapport' && <Report house={house} />}
+        {active === 'notities' && <MyReview house={house} />}
+        {active === 'documenten' && <Documents house={house} documents={documents} onOpen={setViewing} />}
+      </div>
+
+      {viewing && <DocumentViewer doc={viewing} onClose={() => setViewing(null)} />}
 
       {overlay && (
         <ListingOverlay
@@ -399,7 +476,6 @@ function Overview({ house }: { house: House }) {
           ) : null}
         </div>
       )}
-      <DocumentsPanel house={house} />
       <section className="panel">
         <h2>Kenmerken</h2>
         {shownFacts.length ? (
@@ -468,7 +544,17 @@ function People({ house }: { house: House }) {
   )
 }
 
-function Checklist({ house, categories }: { house: House; categories: ChecklistCategory[] }) {
+function Checklist({
+  house,
+  categories,
+  documents,
+  onOpen,
+}: {
+  house: House
+  categories: ChecklistCategory[]
+  documents: Document[]
+  onOpen: (doc: Document) => void
+}) {
   const { update, withStandard, setWithStandard } = useStore()
   const ownList = reportChecklist(house.record.reportBody ?? '').length > 0
   const answers = house.mine.checklist ?? {}
@@ -477,7 +563,6 @@ function Checklist({ house, categories }: { house: House; categories: ChecklistC
   const [notes, setNotes] = useState({ open: false, turn: 0 })
   const p = progress(categories, answers)
   const prefilled = prefilledCount(categories)
-  const documents = useDocuments(house)
 
   function set(itemId: string, entry: CheckEntry | null) {
     const next = { ...answers }
@@ -546,7 +631,7 @@ function Checklist({ house, categories }: { house: House; categories: ChecklistC
                   <span key={i}>
                     {i > 0 && ' · '}
                     {d.url ? (
-                      <a href={d.url} target="_blank" rel="noreferrer">
+                      <a href={d.url} target="_blank" rel="noreferrer" onClick={overlayClick(() => onOpen(d))}>
                         {d.naam}
                       </a>
                     ) : (
@@ -746,21 +831,23 @@ function PrefillNote({ prefill, taken, onTake }: { prefill: Prefill; taken: bool
 }
 
 /** The house's documents: the report's list joined with the files in the reports repository. */
-function useDocuments(house: House): Document[] {
-  const listed = house.record.report.documenten
-  const [docs, setDocs] = useState<Document[] | null>(null)
-  const stamp = house.record.updatedAt
+function useDocuments(house: House | undefined): Document[] {
+  const listed = house?.record.report.documenten
+  const [docs, setDocs] = useState<{ id: string; list: Document[] } | null>(null)
+  const id = house?.id
+  const stamp = house?.record.updatedAt
   useEffect(() => {
+    if (!id) return
     let current = true
     api
-      .documents(house.id)
-      .then((found) => current && setDocs(found))
+      .documents(id)
+      .then((found) => current && setDocs({ id, list: found }))
       .catch(() => current && setDocs(null))
     return () => {
       current = false
     }
-  }, [house.id, stamp])
-  return docs ?? listed ?? []
+  }, [id, stamp])
+  return (docs?.id === id ? docs?.list : undefined) ?? listed ?? []
 }
 
 function fileSize(bytes?: number): string {
@@ -769,16 +856,24 @@ function fileSize(bytes?: number): string {
   return `${(bytes / 1024 / 1024).toLocaleString('nl-NL', { maximumFractionDigits: 1 })} MB`
 }
 
-function DocumentsPanel({ house }: { house: House }) {
-  const docs = useDocuments(house)
-  if (!docs.length) return null
+function Documents({ house, documents, onOpen }: { house: House; documents: Document[]; onOpen: (doc: Document) => void }) {
+  if (!documents.length) {
+    return (
+      <div className="panel">
+        <p className="muted">
+          Bij dit huis zijn nog geen documenten. Huizen beoordelen zet ze in de rapporten-repo, in
+          documenten/{house.id}/.
+        </p>
+      </div>
+    )
+  }
   return (
     <section className="panel documents">
       <h2>
-        <FileText size={18} /> Documenten <small>{docs.length}</small>
+        <FileText size={18} /> Documenten <small>{documents.length}</small>
       </h2>
       <ul>
-        {docs.map((d, i) => {
+        {documents.map((d, i) => {
           const details = [d.zonderTitel ? 'zonder titel' : d.bestand, fileSize(d.grootte), d.datum && formatDate(d.datum)]
             .filter(Boolean)
             .join(' · ')
@@ -787,7 +882,7 @@ function DocumentsPanel({ house }: { house: House }) {
               <FileText size={20} className="doc-icon" />
               <div className="doc-text">
                 {d.url ? (
-                  <a href={d.url} target="_blank" rel="noreferrer" className="doc-title">
+                  <a href={d.url} target="_blank" rel="noreferrer" className="doc-title" onClick={overlayClick(() => onOpen(d))}>
                     {d.naam}
                   </a>
                 ) : (
@@ -798,14 +893,25 @@ function DocumentsPanel({ house }: { house: House }) {
                 {!d.url && <span className="muted small">Bestand niet aangeleverd</span>}
               </div>
               {d.url && (
-                <a
-                  href={`${d.url}?download=1`}
-                  className="btn btn-small btn-ghost doc-download"
-                  aria-label={`${d.naam} downloaden`}
-                  title="Downloaden"
-                >
-                  <Download size={16} />
-                </a>
+                <div className="doc-actions">
+                  <button
+                    type="button"
+                    className="btn btn-small btn-ghost"
+                    aria-label={`${d.naam} bekijken`}
+                    title="Bekijken"
+                    onClick={() => onOpen(d)}
+                  >
+                    <Eye size={16} />
+                  </button>
+                  <a
+                    href={`${d.url}?download=1`}
+                    className="btn btn-small btn-ghost"
+                    aria-label={`${d.naam} downloaden`}
+                    title="Downloaden"
+                  >
+                    <Download size={16} />
+                  </a>
+                </div>
               )}
             </li>
           )

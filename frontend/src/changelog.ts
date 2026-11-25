@@ -19,6 +19,18 @@ export type Release = {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.13.0',
+    date: '2026-11-25',
+    title: 'Documenten als tab, vegen tussen tabs en documenten bekijken in de app',
+    changes: [
+      'Rapport, Checklist, Beoordeling en Documenten beginnen meteen met de compacte kop: adres, plaats en prijs op één regel boven de tabs. De grote kop met status en knoppen staat bij Overzicht.',
+      'De documenten hebben een eigen tab Documenten, rechts van Beoordeling. Op een telefoon heet die tab Docs.',
+      'Veeg naar links of rechts om naar de volgende of vorige tab te gaan. Op foto\'s en dingen die zelf opzij scrollen werkt vegen zoals altijd.',
+      'Documenten openen nu in de app: tik op de naam of op het oogje links van de downloadknop. PDF\'s en afbeeldingen zie je direct, met in- en uitzoomen; andere bestanden kun je daar downloaden.',
+      'Ook de documenten bovenaan de checklist openen in de app.',
+    ],
+  },
+  {
     version: '0.12.0',
     date: '2026-11-25',
     title: 'PDF van een huis, notities ingeklapt en lettergrootte',
