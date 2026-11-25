@@ -19,6 +19,15 @@ export type Release = {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.9.1',
+    date: '2026-11-25',
+    title: 'Overgenomen antwoord verdwijnt',
+    changes: [
+      'Neem je een vooraf ingevuld antwoord over, dan verdwijnt het grijze blok "Uit de documenten" bij dat punt. Oordeel, toelichting en bron staan dan in je eigen antwoord.',
+      'Wis je je antwoord weer helemaal, dan komt het blok terug.',
+    ],
+  },
+  {
     version: '0.9.0',
     date: '2026-11-25',
     title: 'Checklist vooraf ingevuld uit de documenten',
