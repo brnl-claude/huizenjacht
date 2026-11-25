@@ -125,6 +125,9 @@ export type House = Fields & {
   prijsPerM2?: number
 }
 
+/** The parts of a house each person rates from 1 to 5 stars. */
+export const ASPECTS = ['Locatie', 'Ruimte en indeling', 'Staat van onderhoud', 'Licht', 'Buitenruimte', 'Prijs/kwaliteit']
+
 export const STATUSES: { id: Status; label: string; tone: string }[] = [
   { id: 'nieuw', label: 'Nieuw', tone: 'neutral' },
   { id: 'interessant', label: 'Interessant', tone: 'blue' },

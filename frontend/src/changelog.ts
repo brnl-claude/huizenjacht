@@ -19,6 +19,18 @@ export type Release = {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.12.0',
+    date: '2026-11-25',
+    title: 'PDF van een huis, notities ingeklapt en lettergrootte',
+    changes: [
+      'Met de knop PDF bij een huis maak je een PDF van de beoordeling en de hele checklist, met alle notities van iedereen. Altijd licht, compact en goed te printen.',
+      'In de PDF staan ook wat het rapport zegt (score, advies, plus- en minpunten) en de antwoorden uit de documenten die nog niet zijn overgenomen.',
+      'De notities in de checklist zijn nu standaard ingeklapt. Een blauw notitie-icoon laat zien waar een notitie staat; tik erop om hem te lezen.',
+      'Met Notities uitklappen bovenaan de checklist open je ze allemaal tegelijk, en klap je ze ook weer in.',
+      'Bij Instellingen → Weergave kies je de lettergrootte in vijf stappen. De middelste is de oude grootte.',
+    ],
+  },
+  {
     version: '0.11.0',
     date: '2026-11-25',
     title: 'Documenten van de makelaar bij het huis',
