@@ -50,7 +50,8 @@ export function App() {
   useEffect(() => {
     const el = topbar.current
     if (!el) return
-    const set = () => document.documentElement.style.setProperty('--topbar-h', `${el.offsetHeight}px`)
+    const set = () =>
+      document.documentElement.style.setProperty('--topbar-h', `${el.getBoundingClientRect().height}px`)
     set()
     const observer = new ResizeObserver(set)
     observer.observe(el)

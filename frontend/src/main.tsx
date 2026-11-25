@@ -1,5 +1,6 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+import { installNavigation } from './nav'
 import { App } from './App'
 import { startServiceWorker } from './appUpdate'
 import { StoreProvider } from './store'
@@ -12,6 +13,8 @@ applyTheme(rememberedTheme())
 applyFontSize(rememberedFontSize())
 startServiceWorker()
 installTooltips()
+
+installNavigation()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
