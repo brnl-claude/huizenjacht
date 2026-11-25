@@ -1,3 +1,4 @@
+import { useModalDialog } from './nav'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { AlertTriangle, Download, FileText, Minus, Plus, X } from 'lucide-react'
 import type { PDFDocumentProxy } from 'pdfjs-dist'
@@ -51,10 +52,7 @@ export function DocumentViewer({ doc, onClose }: { doc: Document; onClose: () =>
   const kind = documentKind(doc.bestand ?? doc.url)
   const url = doc.url!
 
-  useEffect(() => {
-    const dialog = ref.current
-    if (dialog && !dialog.open) dialog.showModal?.()
-  }, [])
+  useModalDialog(ref)
 
   useLayoutEffect(() => {
     const el = body.current

@@ -1,3 +1,4 @@
+import { useModalDialog } from './nav'
 import { useEffect, useRef, useState, type MouseEvent } from 'react'
 import { AlertTriangle, ChevronLeft, ChevronRight, Download, ExternalLink, Images, Newspaper, RefreshCw, X } from 'lucide-react'
 import { api } from './api'
@@ -76,10 +77,7 @@ export function ListingOverlay({
   const photos = photoUrls(house)
   const url = house.url!
 
-  useEffect(() => {
-    const dialog = ref.current
-    if (dialog && !dialog.open) dialog.showModal?.()
-  }, [])
+  useModalDialog(ref)
 
   useEffect(() => {
     if (photo === null) return

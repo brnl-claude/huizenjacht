@@ -5,6 +5,8 @@
  * history entry instead of adding one.
  */
 
+import { useEffect, type RefObject } from 'react'
+
 const ROOT = '#/'
 
 /** The canonical form of a hash: `#/huis/x/overzicht` is the overview `#/huis/x`. */
@@ -63,22 +65,32 @@ export function plan(
 export function navigate(to: string): void {
   const current = state() ?? { hj: normalise(location.hash), prev: parentOf(location.hash) }
   const step = plan(location.hash, to, current.prev)
+  // The entry of an open dialog (see useModalDialog) is a copy of this page; it gives way.
+  const modal = modalEntry()
   if (step.kind === 'none') return
   if (step.kind === 'back') {
-    history.back()
+    history.go(modal ? -2 : -1)
     return
   }
   if (step.kind === 'replace') {
     history.replaceState({ hj: normalise(to), prev: current.prev } satisfies State, '', normalise(to))
   } else {
     let prev = normalise(location.hash)
-    for (const hash of step.hashes) {
-      history.pushState({ hj: hash, prev } satisfies State, '', hash)
+    step.hashes.forEach((hash, i) => {
+      const next = { hj: hash, prev } satisfies State
+      if (i === 0 && modal) history.replaceState(next, '', hash)
+      else history.pushState(next, '', hash)
       prev = hash
-    }
+    })
   }
   announce()
 }
+
+function modalEntry(): boolean {
+  return Boolean((history.state as { modal?: boolean } | null)?.modal)
+}
+
+let openModals = 0
 
 /**
  * Once at start: a page opened directly (a link, a share, the bookmarklet) gets its parents
@@ -100,4 +112,41 @@ export function installNavigation(): void {
     e.preventDefault()
     navigate(link.getAttribute('href') ?? ROOT)
   })
+}
+
+/**
+ * Opens a <dialog> as a modal with its own history entry, so the back button closes it (and
+ * only it) instead of leaving the page underneath. Closing it another way removes that entry.
+ */
+export function useModalDialog(ref: RefObject<HTMLDialogElement | null>): void {
+  useEffect(() => {
+    const dialog = ref.current
+    if (!dialog) return
+    if (!dialog.open) dialog.showModal?.()
+    const isOpenEntry = modalEntry
+    openModals++
+    if (!isOpenEntry()) history.pushState({ ...(history.state ?? {}), modal: true }, '', location.href)
+    let left = false
+    const onPop = () => {
+      if (isOpenEntry()) return
+      left = true
+      if (dialog.open) dialog.close()
+    }
+    const onClose = () => {
+      if (isOpenEntry() && !left) history.back()
+      left = true
+    }
+    window.addEventListener('popstate', onPop)
+    dialog.addEventListener('close', onClose)
+    return () => {
+      window.removeEventListener('popstate', onPop)
+      dialog.removeEventListener('close', onClose)
+      openModals--
+      // Gone without closing (its page removed it): drop its entry too, unless it is opening
+      // again right away (React's development double mount) or the app navigated on.
+      setTimeout(() => {
+        if (!left && openModals === 0 && isOpenEntry()) history.back()
+      })
+    }
+  }, [ref])
 }

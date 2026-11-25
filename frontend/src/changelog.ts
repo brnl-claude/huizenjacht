@@ -20,13 +20,22 @@ export type Release = {
 export const CHANGELOG: Release[] = [
   {
     version: '0.16.0',
-    date: '2026-11-25',
+    date: '2026-11-26',
     title: 'Rustiger kop bij een huis',
     changes: [
       'De kop bij een huis is compacter: adres en plaats, dan prijs en prijs per m² op één regel met de status ernaast.',
       'De status is een klein label geworden; tik erop om hem te wijzigen.',
       'Vergelijk, Advertentie, Kaart, Gegevens en PDF staan als één rij icoontjes, in plaats van losse knoppen over drie regels.',
       'Moet de advertentie nog met de bladwijzer worden opgehaald, dan staat dat als korte melding onder de knoppen.',
+    ],
+  },
+  {
+    version: '0.15.1',
+    date: '2026-11-26',
+    title: 'Terug sluit de documentviewer',
+    changes: [
+      'De terugknop sluit nu eerst een open venster, zoals de documentviewer, de advertentie, een foto of Gegevens. Je komt terug waar je was, bijvoorbeeld in het documentenoverzicht.',
+      'Een venster sluiten met het kruisje of Esc laat geen extra stap achter in de terugknop.',
     ],
   },
   {
