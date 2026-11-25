@@ -27,6 +27,7 @@ import { CHANGELOG, currentVersion, formatReleaseDate, markChangelogSeen } from 
 import { DEFAULT_CHECKLIST, newId, type ChecklistCategory } from './checklist'
 import { LogoMark } from './Logo'
 import { errorText, useStore } from './store'
+import { FONT_SIZES, fontSizeLabel, rememberedFontSize, setFontSize, type FontSize } from './fontSize'
 import { rememberedTheme, setTheme, THEMES, type Theme } from './theme'
 
 type Section = { id: string; title: string; icon: LucideIcon; summary: string }
@@ -39,7 +40,12 @@ export function SettingsPage({ section, health }: { section: string | null; heal
   }, [])
   const items = template.reduce((n, c) => n + c.items.length, 0)
   const sections: Section[] = [
-    { id: 'weergave', title: 'Weergave', icon: Palette, summary: THEMES.find((t) => t.id === rememberedTheme())!.label },
+    {
+      id: 'weergave',
+      title: 'Weergave',
+      icon: Palette,
+      summary: `${THEMES.find((t) => t.id === rememberedTheme())!.label}, tekst ${fontSizeLabel(rememberedFontSize()).toLowerCase()}`,
+    },
     { id: 'checklist', title: 'Checklist', icon: ListChecks, summary: `${template.length} onderdelen, ${items} punten` },
     { id: 'rapporten', title: 'Rapporten importeren', icon: FileUp, summary: 'Uit de rapporten-repo of uploaden' },
     { id: 'bladwijzer', title: 'Bladwijzer voor Funda', icon: Bookmark, summary: 'Advertenties met foto\'s naar de app sturen' },
@@ -94,6 +100,7 @@ export function SettingsPage({ section, health }: { section: string | null; heal
 
 function Display() {
   const [theme, setThemeState] = useState<Theme>(rememberedTheme)
+  const [fontSize, setFontSizeState] = useState<FontSize>(rememberedFontSize)
   return (
     <section className="panel">
       <h2>Thema</h2>
@@ -113,6 +120,30 @@ function Display() {
           </button>
         ))}
       </div>
+      <h2 className="display-heading">Lettergrootte</h2>
+      <div className="font-size-row">
+        <div className="segmented font-sizes" role="radiogroup" aria-label="Lettergrootte">
+          {FONT_SIZES.map((f) => (
+            <button
+              key={f.id}
+              role="radio"
+              aria-checked={fontSize === f.id}
+              aria-label={f.label}
+              title={f.label}
+              className={fontSize === f.id ? 'on' : ''}
+              style={{ fontSize: `${Math.round(16 * f.scale)}px` }}
+              onClick={() => {
+                setFontSize(f.id)
+                setFontSizeState(f.id)
+              }}
+            >
+              A
+            </button>
+          ))}
+        </div>
+        <span className="muted">{fontSizeLabel(fontSize)}</span>
+      </div>
+      <p className="muted small">Geldt voor dit apparaat. De middelste is de standaard.</p>
     </section>
   )
 }

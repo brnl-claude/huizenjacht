@@ -7,6 +7,7 @@ import json
 import logging
 import re
 import secrets
+import time
 from contextlib import asynccontextmanager
 from datetime import timedelta
 from pathlib import Path
@@ -52,6 +53,8 @@ MAX_MEDIA = 2 * 1024 * 1024 * 1024
 MAX_THUMB = 2 * 1024 * 1024
 # Files shared to the app wait this long for someone to pick their house.
 SHARE_DAYS = 7
+EXPORT_SECONDS = 10 * 60
+EXPORT_LIMIT = 30 * 1024 * 1024
 MEDIA_KINDS = {"image": "foto", "video": "video", "audio": "audio"}
 BOOKMARKLET_TOKEN = "bookmarkletToken"
 # Raise together with BOOKMARKLET_VERSION in frontend/src/Bookmarklet.tsx whenever the
@@ -524,6 +527,41 @@ def create_app(
         share_or_404(share_id)
         remove_media_files(db().drop_shares(share_id=share_id))
         return Response(status_code=204)
+
+    # A PDF made in the browser, handed back as a real download for Android's WebView, which
+    # cannot save a blob: kept in memory for a few minutes only.
+    exports: dict[str, tuple[float, str, bytes]] = {}
+
+    @app.post("/api/export")
+    async def put_export(request: Request, naam: str = "export.pdf") -> dict[str, str]:
+        data = await request.body()
+        if len(data) > EXPORT_LIMIT:
+            raise HTTPException(413, "Deze PDF is te groot.")
+        if not data.startswith(b"%PDF-"):
+            raise HTTPException(400, "Dit is geen PDF.")
+        moment = time.monotonic()
+        for key in [k for k, (at, _, _) in exports.items() if moment - at > EXPORT_SECONDS]:
+            exports.pop(key, None)
+        while len(exports) >= 20:
+            exports.pop(next(iter(exports)))
+        name = re.sub(r'[\\/:*?"<>|\x00-\x1f]+', "", naam).strip() or "export.pdf"
+        if not name.lower().endswith(".pdf"):
+            name += ".pdf"
+        token = secrets.token_urlsafe(16)
+        exports[token] = (moment, name, data)
+        return {"url": f"/api/export/{token}/{quote(name)}"}
+
+    @app.get("/api/export/{token}/{name}")
+    def get_export(token: str, name: str) -> Response:
+        found = exports.get(token)
+        if not found or time.monotonic() - found[0] > EXPORT_SECONDS:
+            raise HTTPException(404, "Deze PDF is er niet meer. Maak hem opnieuw.")
+        _, filename, data = found
+        return Response(
+            data,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}"},
+        )
 
     @app.post("/api/houses/{house_id}/listing/refresh")
     async def refresh_listing(house_id: str) -> dict[str, Any]:

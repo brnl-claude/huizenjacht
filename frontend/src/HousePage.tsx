@@ -9,13 +9,17 @@ import {
   ChevronLeft,
   ChevronRight,
   Download,
+  FileDown,
   Images,
   MapPin,
   AlertTriangle,
   ExternalLink,
   FileText,
   HelpCircle,
+  ChevronsDownUp,
+  ChevronsUpDown,
   MessageSquare,
+  MessageSquareText,
   Minus,
   Pencil,
   Plus,
@@ -34,6 +38,7 @@ import {
   photoUrls,
   place,
   personInfo,
+  ASPECTS,
   STATUSES,
   EARLIER,
   type CheckEntry,
@@ -45,6 +50,7 @@ import {
   type Status,
 } from './house'
 import { ListingOverlay } from './ListingOverlay'
+import { exportPdf } from './pdfExport'
 import { GeneralMedia, MediaActions, MediaTiles } from './Media'
 import { Dialog, HouseForm } from './NewHouseDialog'
 import { useStore } from './store'
@@ -58,7 +64,8 @@ const TABS = [
 ] as const
 
 export function HousePage({ id, tab }: { id: string; tab: string | null }) {
-  const { houses, loading, update, compare, toggleCompare, template, withStandard } = useStore()
+  const { houses, loading, update, compare, toggleCompare, template, withStandard, people, me, notify } = useStore()
+  const [exporting, setExporting] = useState(false)
   const house = houses.find((h) => h.id === id)
   const [editing, setEditing] = useState(false)
   const [overlayState, setOverlayState] = useState<{ house: string; tab: 'advertentie' | 'fotos'; photo: number } | null>(null)
@@ -185,6 +192,19 @@ export function HousePage({ id, tab }: { id: string; tab: string | null }) {
               onClick={() => setEditing(true)}
             >
               <Pencil size={16} /> Gegevens
+            </button>
+            <button
+              className="btn btn-small btn-ghost"
+              data-tip="Beoordeling en checklist met alle notities als PDF"
+              disabled={exporting}
+              onClick={() => {
+                setExporting(true)
+                exportPdf(house, categories, people, me)
+                  .catch((e) => notify(e instanceof Error ? e.message : 'PDF maken mislukt.', 'error'))
+                  .finally(() => setExporting(false))
+              }}
+            >
+              <FileDown size={16} /> {exporting ? 'PDF maken…' : 'PDF'}
             </button>
           </div>
         </div>
@@ -453,6 +473,8 @@ function Checklist({ house, categories }: { house: House; categories: ChecklistC
   const ownList = reportChecklist(house.record.reportBody ?? '').length > 0
   const answers = house.mine.checklist ?? {}
   const [onlyOpen, setOnlyOpen] = useState(false)
+  // Notes start folded; the button folds or unfolds them at every point at once.
+  const [notes, setNotes] = useState({ open: false, turn: 0 })
   const p = progress(categories, answers)
   const prefilled = prefilledCount(categories)
   const documents = useDocuments(house)
@@ -473,16 +495,32 @@ function Checklist({ house, categories }: { house: House; categories: ChecklistC
           <span className="sum-twijfel">{p.twijfel} twijfel</span>
           <span className="sum-probleem">{p.probleem} probleem</span>
         </div>
-        <label className="switch">
-          <input type="checkbox" checked={onlyOpen} onChange={(e) => setOnlyOpen(e.target.checked)} />
-          Alleen open punten
-        </label>
-        {ownList && (
-          <label className="switch">
-            <input type="checkbox" checked={withStandard} onChange={(e) => setWithStandard(e.target.checked)} />
-            Ook de standaardlijst
-          </label>
-        )}
+        <div className="checklist-tools">
+          <div className="checklist-switches">
+            <label className="switch">
+              <input type="checkbox" checked={onlyOpen} onChange={(e) => setOnlyOpen(e.target.checked)} />
+              Alleen open punten
+            </label>
+            {ownList && (
+              <label className="switch">
+                <input type="checkbox" checked={withStandard} onChange={(e) => setWithStandard(e.target.checked)} />
+                Ook de standaardlijst
+              </label>
+            )}
+          </div>
+          <button
+            type="button"
+            className="btn btn-small btn-ghost notes-toggle"
+            aria-pressed={notes.open}
+            onClick={() => setNotes((n) => ({ open: !n.open, turn: n.turn + 1 }))}
+            data-tip={notes.open ? 'Klap de notities bij alle punten in' : 'Klap alle notities uit'}
+            aria-label={notes.open ? 'Alle notities inklappen' : 'Alle notities uitklappen'}
+          >
+            {notes.open ? <ChevronsDownUp size={16} /> : <ChevronsUpDown size={16} />}
+            <span className="hide-small">Notities</span>
+            <span className="show-small">Alles</span> {notes.open ? 'inklappen' : 'uitklappen'}
+          </button>
+        </div>
       </div>
       <People house={house} />
       <GeneralMedia house={house} categories={categories} />
@@ -547,6 +585,7 @@ function Checklist({ house, categories }: { house: House; categories: ChecklistC
                   others={house.others}
                   itemId={item.id}
                   prefill={item.vooraf}
+                  notes={notes}
                   onChange={(entry) => set(item.id, entry)}
                 />
               ))}
@@ -570,6 +609,7 @@ function CheckRow({
   others,
   itemId,
   prefill,
+  notes,
   onChange,
 }: {
   house: House
@@ -579,13 +619,21 @@ function CheckRow({
   others: Other[]
   itemId: string
   prefill?: Prefill
+  notes: { open: boolean; turn: number }
   onChange: (entry: CheckEntry | null) => void
 }) {
   const { me, people } = useStore()
   const theirs = others
     .map((o) => ({ person: o, entry: o.data.checklist?.[itemId] }))
     .filter((t): t is { person: Other; entry: CheckEntry } => Boolean(t.entry?.s || t.entry?.n))
-  const [noteOpen, setNoteOpen] = useState(Boolean(entry?.n))
+  const hasNotes = Boolean(entry?.n) || theirs.some((t) => t.entry.n)
+  // Unfolding all opens the points that have a note; folding all closes every point.
+  const [noteOpen, setNoteOpen] = useState(notes.open && hasNotes)
+  const [turn, setTurn] = useState(notes.turn)
+  if (turn !== notes.turn) {
+    setTurn(notes.turn)
+    setNoteOpen(notes.open && hasNotes)
+  }
   const [note, setNote] = useState(entry?.n ?? '')
   useEffect(() => setNote(entry?.n ?? ''), [entry?.n])
   return (
@@ -609,12 +657,12 @@ function CheckRow({
           <MediaActions houseId={house.id} item={itemId} compact show={['foto', 'memo']} />
           <button
             type="button"
-            className={`check-btn note ${entry?.n ? 'on' : ''}`}
+            className={`check-btn note ${hasNotes ? 'on' : ''}`}
             aria-expanded={noteOpen}
-            aria-label="Notitie, video of upload"
+            aria-label={hasNotes ? 'Notities tonen of verbergen' : 'Notitie, video of upload'}
             onClick={() => setNoteOpen(!noteOpen)}
           >
-            <MessageSquare size={18} />
+            {hasNotes ? <MessageSquareText size={18} /> : <MessageSquare size={18} />}
           </button>
         </div>
       </div>
@@ -642,7 +690,12 @@ function CheckRow({
                     <state.icon size={14} /> {state.label}
                   </span>
                 )}
-                {e.n && <span className="other-note">{e.n}</span>}
+                {e.n && noteOpen && <span className="other-note">{e.n}</span>}
+                {e.n && !noteOpen && (
+                  <button type="button" className="other-note-folded" onClick={() => setNoteOpen(true)}>
+                    <MessageSquareText size={14} /> notitie
+                  </button>
+                )}
               </li>
             )
           })}
@@ -799,7 +852,6 @@ function Report({ house }: { house: House }) {
   )
 }
 
-export const ASPECTS = ['Locatie', 'Ruimte en indeling', 'Staat van onderhoud', 'Licht', 'Buitenruimte', 'Prijs/kwaliteit']
 
 /** Other people's value for one thing, as small badges in their colour. */
 function TheirValues({ house, value }: { house: House; value: (o: Other) => string | undefined }) {
