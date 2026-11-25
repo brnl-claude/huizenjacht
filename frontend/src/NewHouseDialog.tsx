@@ -1,3 +1,4 @@
+import { navigate } from './nav'
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { X } from 'lucide-react'
 import { api } from './api'
@@ -152,7 +153,7 @@ export function NewHouseDialog({ onClose }: { onClose: () => void }) {
         onCancel={onClose}
         onDone={(id) => {
           onClose()
-          location.hash = `#/huis/${encodeURIComponent(id)}`
+          navigate(`#/huis/${encodeURIComponent(id)}`)
         }}
       />
     </Dialog>

@@ -1156,7 +1156,8 @@ pre {
 }
 .check-note {
   margin-top: 8px;
-  resize: vertical;
+  resize: none;
+  overflow: hidden;
 }
 .check-note:focus,
 .notes:focus,
@@ -2108,7 +2109,8 @@ textarea.code {
 /* House page: address and tabs stay at the top while scrolling */
 .house-sticky {
   position: sticky;
-  top: var(--topbar-h, 0px);
+  /* One pixel under the top bar, so no sliver of the page shows between them when scrolling. */
+  top: calc(var(--topbar-h, 0px) - 1px);
   z-index: 15;
   background: var(--bg);
   margin: 0 -16px;
@@ -2925,4 +2927,28 @@ a[aria-label],
   .house-tab.slide-from-left {
     animation: none;
   }
+}
+
+/* Date and time with a 24-hour clock */
+.datetime24 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.datetime24 input[type='date'] {
+  flex: 1;
+  min-width: 0;
+}
+.datetime24 select {
+  flex: none;
+  width: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-small);
+  background: var(--surface);
+  color: var(--text);
+  padding: 10px 8px;
+  font: inherit;
+}
+.datetime24 select:disabled {
+  opacity: 0.5;
 }

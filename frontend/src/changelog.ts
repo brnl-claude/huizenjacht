@@ -19,6 +19,18 @@ export type Release = {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.15.0',
+    date: '2026-11-25',
+    title: 'Terug gaat een niveau omhoog, notities passen zich aan',
+    changes: [
+      'De terugknop (ook die van Android) gaat nu een niveau omhoog: van een tabblad naar het overzicht van het huis, van daar naar alle huizen. Bij Instellingen net zo.',
+      'Wisselen tussen tabbladen stapelt geen stappen meer op in de terugknop.',
+      'Het notitieveld bij een checklistpunt is precies zo hoog als de tekst en groeit mee terwijl je typt.',
+      'De bezichtiging kies je nu altijd met een 24-uursklok, ook als je telefoon of browser op Engels staat.',
+      'Geen streepje pagina meer tussen de bovenbalk en de compacte balk met tabbladen bij het scrollen.',
+    ],
+  },
+  {
     version: '0.14.0',
     date: '2026-11-25',
     title: 'Inzoomen met twee vingers in de documentviewer',

@@ -1,3 +1,4 @@
+import { navigate } from './nav'
 import { useEffect, useRef, useState } from 'react'
 import { Bookmark, Check, Copy, Download, RotateCcw } from 'lucide-react'
 import { api, ApiError } from './api'
@@ -127,7 +128,7 @@ export function ReceivePage() {
         return
       }
       notify('Advertentie opgeslagen.', 'info')
-      location.hash = `#/huis/${encodeURIComponent(id)}`
+      navigate(`#/huis/${encodeURIComponent(id)}`)
     } catch (e) {
       setError(e instanceof ApiError ? e.message : errorText(e))
     } finally {

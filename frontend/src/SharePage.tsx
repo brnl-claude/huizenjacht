@@ -1,3 +1,4 @@
+import { navigate } from './nav'
 import { useEffect, useMemo, useState } from 'react'
 import { Mic, Share2, Trash2, Video } from 'lucide-react'
 import { api, type Share } from './api'
@@ -49,7 +50,7 @@ export function SharePage({ id }: { id: string }) {
       await Promise.all(share.files.map((f) => ensureThumb(f)))
       replace(await api.house(chosen.id))
       notify(`${share.files.length === 1 ? '1 bestand' : `${share.files.length} bestanden`} bij ${displayAddress(chosen)}`)
-      location.hash = `#/huis/${encodeURIComponent(chosen.id)}/checklist`
+      navigate(`#/huis/${encodeURIComponent(chosen.id)}/checklist`)
     } catch (e) {
       notify(errorText(e), 'error')
       setBusy(false)
@@ -59,7 +60,7 @@ export function SharePage({ id }: { id: string }) {
   async function drop() {
     if (!share || !confirm('Deze gedeelde bestanden weggooien?')) return
     await api.dropShare(share.id).catch(() => undefined)
-    location.hash = '#/'
+    navigate('#/')
   }
 
   if (failed) {

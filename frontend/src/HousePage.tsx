@@ -1,3 +1,4 @@
+import { navigate } from './nav'
 import { useEffect, useRef, useState, type TouchEvent } from 'react'
 import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -147,7 +148,7 @@ export function HousePage({ id, tab }: { id: string; tab: string | null }) {
     const next = TABS[Math.max(0, at) + step]
     if (!next) return
     setSlide({ tab: next.id, from: step > 0 ? 'right' : 'left' })
-    location.hash = `#/huis/${encodeURIComponent(id)}/${next.id}`
+    navigate(`#/huis/${encodeURIComponent(id)}/${next.id}`)
   })
   const documents = useDocuments(house)
   const [viewing, setViewing] = useState<Document | null>(null)
@@ -367,7 +368,7 @@ function DeleteHouse({ house }: { house: House }) {
             : 'Dit huis en je notities en checklist verwijderen?'
         if (confirm(text)) {
           void remove(house.id)
-          location.hash = '#/'
+          navigate('#/')
         }
       }}
     >
@@ -721,6 +722,8 @@ function CheckRow({
   }
   const [note, setNote] = useState(entry?.n ?? '')
   useEffect(() => setNote(entry?.n ?? ''), [entry?.n])
+  const noteRef = useRef<HTMLTextAreaElement>(null)
+  useEffect(() => fitHeight(noteRef.current), [note, noteOpen])
   return (
     <li className={`check-row ${entry?.s ? `is-${entry.s}` : ''}`}>
       <div className="check-main">
@@ -790,8 +793,9 @@ function CheckRow({
       {noteOpen && (
         <>
           <textarea
+            ref={noteRef}
             className="check-note"
-            rows={2}
+            rows={1}
             placeholder="Wat zag je?"
             value={note}
             onChange={(e) => setNote(e.target.value)}
@@ -804,6 +808,44 @@ function CheckRow({
       )}
     </li>
   )
+}
+
+const HOURS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'))
+const MINUTES = Array.from({ length: 12 }, (_, i) => String(i * 5).padStart(2, '0'))
+
+/**
+ * Date and time as YYYY-MM-DDTHH:MM, always with a 24-hour clock. A datetime-local field shows
+ * AM/PM when the browser or phone is set to English, whatever the page's language.
+ */
+function DateTime24({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const [date = '', time = ''] = value.split('T')
+  const [hour = '10', minute = '00'] = time.slice(0, 5).split(':')
+  const minutes = MINUTES.includes(minute) ? MINUTES : [...MINUTES, minute].sort()
+  const set = (d: string, h: string, m: string) => onChange(d ? `${d}T${h}:${m}` : '')
+  return (
+    <span className="datetime24">
+      <input type="date" value={date} aria-label="Datum" onChange={(e) => set(e.target.value, hour, minute)} />
+      <select value={hour} aria-label="Uur" disabled={!date} onChange={(e) => set(date, e.target.value, minute)}>
+        {HOURS.map((h) => (
+          <option key={h}>{h}</option>
+        ))}
+      </select>
+      <span aria-hidden>:</span>
+      <select value={minute} aria-label="Minuten" disabled={!date} onChange={(e) => set(date, hour, e.target.value)}>
+        {minutes.map((m) => (
+          <option key={m}>{m}</option>
+        ))}
+      </select>
+    </span>
+  )
+}
+
+/** A note field as high as its text: no empty lines, no scrolling inside it. */
+function fitHeight(el: HTMLTextAreaElement | null) {
+  if (!el) return
+  el.style.height = 'auto'
+  const border = el.offsetHeight - el.clientHeight
+  el.style.height = `${el.scrollHeight + border}px`
 }
 
 /** What the documents say about a point: not anyone's answer until someone takes it over. */
@@ -1056,13 +1098,12 @@ function MyReview({ house }: { house: House }) {
         <div className="form-grid">
           <label>
             <span>Bezichtiging</span>
-            <input
-              type="datetime-local"
+            <DateTime24
               value={house.mine.bezichtiging ?? ''}
-              onChange={(e) =>
+              onChange={(value) =>
                 void update(house.id, {
-                  bezichtiging: e.target.value || null,
-                  ...(e.target.value && house.status === 'nieuw' ? { status: 'gepland' } : {}),
+                  bezichtiging: value || null,
+                  ...(value && house.status === 'nieuw' ? { status: 'gepland' } : {}),
                 })
               }
             />
