@@ -1179,12 +1179,8 @@ pre {
   gap: 10px;
   margin-top: 18px;
 }
-.danger-zone {
-  display: flex;
-  justify-content: flex-start;
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid var(--border);
+.form-actions-start {
+  margin-right: auto;
 }
 
 /* Report */

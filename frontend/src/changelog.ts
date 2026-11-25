@@ -19,6 +19,12 @@ export type Release = {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.8.4',
+    date: '2026-11-25',
+    title: 'Huis verwijderen naast Opslaan',
+    changes: ['In het venster Gegevens staat Huis verwijderen nu links op dezelfde regel als Annuleren en Opslaan; op de telefoon als prullenbakje.'],
+  },
+  {
     version: '0.8.3',
     date: '2026-11-25',
     title: 'Verouderde bladwijzer herkennen, verwijderen onder Gegevens',

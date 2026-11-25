@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { X } from 'lucide-react'
 import { api } from './api'
 import { EDITABLE_FIELDS, type Fields, type House, type Mine } from './house'
@@ -27,10 +27,13 @@ export function HouseForm({
   house,
   onDone,
   onCancel,
+  extraAction,
 }: {
   house?: House
   onDone: (id: string) => void
   onCancel: () => void
+  // Shown on the left of the buttons, such as Huis verwijderen.
+  extraAction?: ReactNode
 }) {
   const { replace, update, notify } = useStore()
   const [values, setValues] = useState<Record<string, string>>(() => {
@@ -99,6 +102,7 @@ export function HouseForm({
         })}
       </div>
       <div className="form-actions">
+        {extraAction && <div className="form-actions-start">{extraAction}</div>}
         <button type="button" className="btn btn-ghost" onClick={onCancel}>
           Annuleren
         </button>

@@ -238,8 +238,12 @@ export function HousePage({ id, tab }: { id: string; tab: string | null }) {
               het rapport te tonen.
             </p>
           )}
-          <HouseForm house={house} onCancel={() => setEditing(false)} onDone={() => setEditing(false)} />
-          <DeleteHouse house={house} />
+          <HouseForm
+            house={house}
+            onCancel={() => setEditing(false)}
+            onDone={() => setEditing(false)}
+            extraAction={<DeleteHouse house={house} />}
+          />
         </Dialog>
       )}
     </div>
@@ -249,23 +253,24 @@ export function HousePage({ id, tab }: { id: string; tab: string | null }) {
 function DeleteHouse({ house }: { house: House }) {
   const { remove } = useStore()
   return (
-    <section className="danger-zone">
-      <button
-        className="btn btn-danger-ghost"
-        onClick={() => {
-          const text =
-            house.record.source === 'report-dir'
-              ? 'Dit huis verwijderen? Je notities en checklist gaan verloren. Staat het rapport nog in de rapporten-repo, dan komt het huis bij de volgende synchronisatie terug. Wil je het alleen uit beeld, zet de status dan op Afgevallen.'
-              : 'Dit huis en je notities en checklist verwijderen?'
-          if (confirm(text)) {
-            void remove(house.id)
-            location.hash = '#/'
-          }
-        }}
-      >
-        <Trash2 size={16} /> Huis verwijderen
-      </button>
-    </section>
+    <button
+      type="button"
+      className="btn btn-danger-ghost"
+      aria-label="Huis verwijderen"
+      title="Huis verwijderen"
+      onClick={() => {
+        const text =
+          house.record.source === 'report-dir'
+            ? 'Dit huis verwijderen? Je notities en checklist gaan verloren. Staat het rapport nog in de rapporten-repo, dan komt het huis bij de volgende synchronisatie terug. Wil je het alleen uit beeld, zet de status dan op Afgevallen.'
+            : 'Dit huis en je notities en checklist verwijderen?'
+        if (confirm(text)) {
+          void remove(house.id)
+          location.hash = '#/'
+        }
+      }}
+    >
+      <Trash2 size={16} /> <span className="hide-small">Huis verwijderen</span>
+    </button>
   )
 }
 
