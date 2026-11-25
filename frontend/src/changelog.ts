@@ -19,13 +19,24 @@ export type Release = {
 
 export const CHANGELOG: Release[] = [
   {
-    version: '0.10.0',
+    version: '0.11.0',
     date: '2026-11-25',
     title: 'Documenten van de makelaar bij het huis',
     changes: [
       'Huizen beoordelen zet de documenten van de makelaar in de rapporten-repo. Je vindt ze onder Overzicht bij het huis, met een duidelijke titel en de originele bestandsnaam.',
       'Tik op een document om het te openen, of op het pijltje om het te downloaden.',
       'Bovenaan de checklist zijn de documenten waar de vooraf ingevulde antwoorden uit komen nu ook aan te klikken.',
+    ],
+  },
+  {
+    version: '0.10.0',
+    date: '2026-11-25',
+    title: 'Zoeken op de pagina',
+    changes: [
+      'Met het vergrootglas rechtsboven zoek je in de tekst van de pagina die openstaat, zoals het rapport of de checklist. Handig in de app, die geen zoekfunctie van de browser heeft.',
+      'Gevonden woorden worden geel gemarkeerd, de huidige oranje. Met de pijltjes of Enter ga je naar de volgende of vorige.',
+      'Hoofdletters en accenten maken niet uit: "e" vindt ook "é".',
+      'Ga je naar een ander tabblad, dan blijft de zoekbalk open en zoekt hij daar verder.',
     ],
   },
   {

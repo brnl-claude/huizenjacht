@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
-import { Columns3, Home, Settings } from 'lucide-react'
+import { Columns3, Home, Search, Settings } from 'lucide-react'
 import { api, type Health } from './api'
 import { useUpdateReady, applyUpdate } from './appUpdate'
 import { ReceivePage } from './Bookmarklet'
 import { ComparePage } from './ComparePage'
+import { FindBar } from './FindBar'
 import { HousePage } from './HousePage'
 import { HousesPage } from './HousesPage'
 import { Logo } from './Logo'
@@ -58,6 +59,19 @@ export function App() {
   const { compare, toasts } = useStore()
   const updateReady = useUpdateReady()
   const [health, setHealth] = useState<Health | null>(null)
+  const [finding, setFinding] = useState(false)
+  // In the installed app there is no browser to catch Ctrl+F, so it opens our own search.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f' && matchMedia('(display-mode: standalone)').matches) {
+        e.preventDefault()
+        setFinding(true)
+        document.querySelector<HTMLInputElement>('.findbar-input')?.select()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
   useEffect(() => {
     api.health().then(setHealth).catch(() => undefined)
   }, [])
@@ -96,7 +110,17 @@ export function App() {
               </a>
             ))}
           </nav>
+          <button
+            className={`icon-btn find-toggle${finding ? ' on' : ''}`}
+            aria-label="Zoeken op deze pagina"
+            aria-pressed={finding}
+            data-tip="Zoeken op deze pagina"
+            onClick={() => setFinding((f) => !f)}
+          >
+            <Search size={20} aria-hidden="true" />
+          </button>
         </div>
+        {finding && <FindBar onClose={() => setFinding(false)} />}
       </header>
       {updateReady && (
         <div className="update-banner" role="status">
