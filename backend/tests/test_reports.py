@@ -60,3 +60,40 @@ def test_numbers():
     assert parse_number("7,5/10") == 7.5
     assert parse_number("€ 450k") == 450000
     assert parse_number("geen") is None
+
+
+def test_prefilled_answers_and_documents():
+    text = b"""---
+id: laan-1
+documenten:
+  - naam: Bouwkundig rapport
+    datum: 2026-11-20
+  - Lijst van zaken
+vooraf_ingevuld:
+  - punt: "Fundering: scheve deuren, scheuren, funderingsrapport"
+    oordeel: in orde
+    antwoord: Houten palen, onderzocht in 2019
+    bron: Funderingsrapport 2019, p. 3
+  - vraag: Asbest in de schuur?
+    groep: Uit de documenten
+    status: onbekend
+    bron: [Vragenlijst verkoper, NEN-rapport]
+  - antwoord: zonder punt telt niet
+---
+# Laan 1
+"""
+    _, fields, _ = parse_report("laan-1.md", text)
+    assert fields["documenten"] == [
+        {"naam": "Bouwkundig rapport", "datum": "2026-11-20"},
+        {"naam": "Lijst van zaken"},
+    ]
+    first, second = fields["vooraf"]
+    assert first["oordeel"] == "ok"
+    assert first["bron"] == "Funderingsrapport 2019, p. 3"
+    assert second == {
+        "punt": "Asbest in de schuur?",
+        "groep": "Uit de documenten",
+        "bron": "Vragenlijst verkoper; NEN-rapport",
+        "antwoord": "Oordeel: onbekend",
+    }
+    assert "extra" not in fields
