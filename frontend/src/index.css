@@ -2836,6 +2836,18 @@ a[aria-label],
   background: var(--surface-2);
   overscroll-behavior: contain;
 }
+/* The viewer does its own pinch zoom: the page itself stays put. */
+.doc-body.can-pinch {
+  touch-action: pan-x pan-y;
+}
+.doc-content {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.doc-content > * {
+  flex: 1 0 auto;
+}
 .doc-pdf {
   min-height: 100%;
   min-width: 100%;
@@ -2866,6 +2878,7 @@ a[aria-label],
 .doc-image {
   min-width: 100%;
   min-height: 100%;
+  box-sizing: border-box;
   display: grid;
   place-items: center;
 }
