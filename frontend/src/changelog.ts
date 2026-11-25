@@ -19,6 +19,17 @@ export type Release = {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.16.0',
+    date: '2026-11-25',
+    title: 'Rustiger kop bij een huis',
+    changes: [
+      'De kop bij een huis is compacter: adres en plaats, dan prijs en prijs per m² op één regel met de status ernaast.',
+      'De status is een klein label geworden; tik erop om hem te wijzigen.',
+      'Vergelijk, Advertentie, Kaart, Gegevens en PDF staan als één rij icoontjes, in plaats van losse knoppen over drie regels.',
+      'Moet de advertentie nog met de bladwijzer worden opgehaald, dan staat dat als korte melding onder de knoppen.',
+    ],
+  },
+  {
     version: '0.15.0',
     date: '2026-11-25',
     title: 'Terug gaat een niveau omhoog, notities passen zich aan',

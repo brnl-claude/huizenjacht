@@ -883,51 +883,139 @@ pre {
   max-height: 360px;
 }
 .hero-body {
-  padding: 22px 24px;
+  padding: 18px 20px 12px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
+  min-width: 0;
 }
 .hero-top {
   display: flex;
   justify-content: space-between;
+  align-items: flex-start;
   gap: 12px;
 }
+.hero-title {
+  min-width: 0;
+}
+.hero-title h1 {
+  margin: 0;
+  font-size: 1.5rem;
+  line-height: 1.2;
+}
 .hero-top p {
-  margin: 4px 0 0;
+  margin: 2px 0 0;
+}
+.hero-top .fav {
+  margin: -6px -8px 0 0;
+}
+.hero-price-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 .hero-price {
-  margin: 4px 0;
-  font-size: 1.7rem;
+  margin: 0;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  font-size: 1.45rem;
   font-weight: 800;
+  line-height: 1.2;
 }
 .hero-price small {
-  display: block;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   font-weight: 500;
   color: var(--muted);
 }
-.hero-controls {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: auto;
-}
+/* Status as a pill: what it is now, tap to change */
 .status-select {
-  min-height: 34px;
-  padding-right: 10px;
-  border-color: var(--brand);
+  position: relative;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--brand);
+  border-radius: 999px;
   background: var(--brand-soft);
   color: var(--brand-strong);
 }
 .status-select select {
-  font-size: 0.9rem;
-  padding-right: 18px;
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 650;
+  padding: 5px 28px 5px 12px;
+  /* As wide as the chosen status, not the longest one. */
+  field-sizing: content;
+  cursor: pointer;
+  outline: none;
+}
+.status-select:focus-within {
+  box-shadow: 0 0 0 3px var(--brand-soft);
 }
 .status-select svg {
   position: absolute;
-  right: 8px;
+  right: 10px;
   pointer-events: none;
+}
+/* One quiet row of actions: icon with a short label, like a share sheet */
+.hero-actions {
+  display: flex;
+  margin: 0 -8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+.hero-actions > a,
+.hero-actions > button {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 2px;
+  border: none;
+  border-radius: var(--radius-small);
+  background: none;
+  color: var(--link);
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.hero-actions span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hero-actions > a:hover,
+.hero-actions > button:hover {
+  background: var(--link-soft);
+  text-decoration: none;
+}
+.hero-actions > .on {
+  color: var(--brand-strong);
+}
+.hero-actions > button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.hero-notice {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+.hero-notice.failed {
+  color: var(--bad);
 }
 .tabs {
   display: flex;
@@ -1743,10 +1831,14 @@ pre {
     margin: 0;
   }
   .hero-body {
-    padding: 16px;
+    padding: 14px 16px 8px;
+    gap: 10px;
+  }
+  .hero-title h1 {
+    font-size: 1.3rem;
   }
   .hero-price {
-    font-size: 1.45rem;
+    font-size: 1.25rem;
   }
   .proscons {
     grid-template-columns: 1fr;
@@ -2034,9 +2126,6 @@ pre {
   }
 }
 
-.btn.listing-failed {
-  color: var(--bad);
-}
 
 /* Bookmarklet */
 .page.narrow {

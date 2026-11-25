@@ -186,7 +186,7 @@ export function HousePage({ id, tab }: { id: string; tab: string | null }) {
         />
         <div className="hero-body">
           <div className="hero-top">
-            <div>
+            <div className="hero-title">
               <h1>{displayAddress(house)}</h1>
               <p className="muted">{[place(house), house.wijk !== house.plaats ? house.wijk : undefined].filter(Boolean).join(' · ')}</p>
             </div>
@@ -195,12 +195,12 @@ export function HousePage({ id, tab }: { id: string; tab: string | null }) {
               onToggle={() => void update(house.id, { favoriet: house.favoriet ? null : true })}
             />
           </div>
-          <p className="hero-price">
-            {formatEuro(house.vraagprijs)}
-            {house.prijsPerM2 && <small> {formatEuro(house.prijsPerM2)} per m²</small>}
-          </p>
-          <div className="hero-controls">
-            <label className="select status-select" data-tip="Status van dit huis">
+          <div className="hero-price-row">
+            <p className="hero-price">
+              {formatEuro(house.vraagprijs)}
+              {house.prijsPerM2 && <small>{formatEuro(house.prijsPerM2)}/m²</small>}
+            </p>
+            <label className="status-select" data-tip="Status van dit huis">
               <span className="visually-hidden">Status</span>
               <select
                 value={house.status}
@@ -212,59 +212,36 @@ export function HousePage({ id, tab }: { id: string; tab: string | null }) {
                   </option>
                 ))}
               </select>
-              <ChevronDown size={16} aria-hidden="true" />
+              <ChevronDown size={14} aria-hidden="true" />
             </label>
+          </div>
+          <div className="hero-actions">
             <button
-              className={`btn btn-small ${selected ? 'btn-selected' : 'btn-ghost'}`}
+              className={selected ? 'on' : ''}
               onClick={() => toggleCompare(house.id)}
               aria-pressed={selected}
               data-tip={selected ? 'Haal dit huis uit Vergelijken' : 'Zet dit huis bij Vergelijken'}
             >
-              {selected ? <Check size={16} /> : <Plus size={16} />} Vergelijk
+              {selected ? <Check size={20} /> : <Plus size={20} />}
+              <span>Vergelijk</span>
             </button>
             {house.url && (
-              <a
-                className="btn btn-small btn-ghost"
-                href={house.url}
-                target="_blank"
-                rel="noreferrer"
-                data-tip="Open de advertentie in een nieuw tabblad"
-              >
-                <ExternalLink size={16} /> Advertentie
+              <a href={house.url} target="_blank" rel="noreferrer" data-tip="Open de advertentie in een nieuw tabblad">
+                <ExternalLink size={20} />
+                <span>Advertentie</span>
               </a>
             )}
             {mapsUrl(house) && (
-              <a
-                className="btn btn-small btn-ghost"
-                href={mapsUrl(house)!}
-                target="_blank"
-                rel="noreferrer"
-                data-tip="Bekijk de ligging in Google Maps"
-              >
-                <MapPin size={16} /> Google Maps
+              <a href={mapsUrl(house)!} target="_blank" rel="noreferrer" data-tip="Bekijk de ligging in Google Maps">
+                <MapPin size={20} />
+                <span>Kaart</span>
               </a>
             )}
-            {house.url && house.record.listing?.status !== 'ok' && (
-              <a
-                className={`btn btn-small btn-ghost${house.record.listing ? ' listing-failed' : ''}`}
-                href="#/instellingen/bladwijzer"
-                data-tip={
-                  house.record.listing?.message ??
-                  'De advertentie en foto\'s zijn nog niet opgehaald. Gebruik de bladwijzer op Funda.'
-                }
-              >
-                {house.record.listing ? <AlertTriangle size={16} /> : <Bookmark size={16} />} Ophalen met bladwijzer
-              </a>
-            )}
-            <button
-              className="btn btn-small btn-ghost"
-              data-tip="Adres, prijs en andere gegevens aanpassen"
-              onClick={() => setEditing(true)}
-            >
-              <Pencil size={16} /> Gegevens
+            <button data-tip="Adres, prijs en andere gegevens aanpassen" onClick={() => setEditing(true)}>
+              <Pencil size={20} />
+              <span>Gegevens</span>
             </button>
             <button
-              className="btn btn-small btn-ghost"
               data-tip="Beoordeling en checklist met alle notities als PDF"
               disabled={exporting}
               onClick={() => {
@@ -274,9 +251,23 @@ export function HousePage({ id, tab }: { id: string; tab: string | null }) {
                   .finally(() => setExporting(false))
               }}
             >
-              <FileDown size={16} /> {exporting ? 'PDF maken…' : 'PDF'}
+              <FileDown size={20} />
+              <span>{exporting ? 'Bezig…' : 'PDF'}</span>
             </button>
           </div>
+          {house.url && house.record.listing?.status !== 'ok' && (
+            <a
+              className={`hero-notice${house.record.listing ? ' failed' : ''}`}
+              href="#/instellingen/bladwijzer"
+              data-tip={
+                house.record.listing?.message ??
+                'De advertentie en foto\'s zijn nog niet opgehaald. Gebruik de bladwijzer op Funda.'
+              }
+            >
+              {house.record.listing ? <AlertTriangle size={15} /> : <Bookmark size={15} />}
+              {house.record.listing ? 'Ophalen mislukt, gebruik de bladwijzer' : 'Advertentie ophalen met de bladwijzer'}
+            </a>
+          )}
         </div>
       </section>
       </>
