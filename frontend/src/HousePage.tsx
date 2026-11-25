@@ -239,9 +239,33 @@ export function HousePage({ id, tab }: { id: string; tab: string | null }) {
             </p>
           )}
           <HouseForm house={house} onCancel={() => setEditing(false)} onDone={() => setEditing(false)} />
+          <DeleteHouse house={house} />
         </Dialog>
       )}
     </div>
+  )
+}
+
+function DeleteHouse({ house }: { house: House }) {
+  const { remove } = useStore()
+  return (
+    <section className="danger-zone">
+      <button
+        className="btn btn-danger-ghost"
+        onClick={() => {
+          const text =
+            house.record.source === 'report-dir'
+              ? 'Dit huis verwijderen? Je notities en checklist gaan verloren. Staat het rapport nog in de rapporten-repo, dan komt het huis bij de volgende synchronisatie terug. Wil je het alleen uit beeld, zet de status dan op Afgevallen.'
+              : 'Dit huis en je notities en checklist verwijderen?'
+          if (confirm(text)) {
+            void remove(house.id)
+            location.hash = '#/'
+          }
+        }}
+      >
+        <Trash2 size={16} /> Huis verwijderen
+      </button>
+    </section>
   )
 }
 
@@ -632,7 +656,7 @@ function TheirValues({ house, value }: { house: House; value: (o: Other) => stri
 }
 
 function MyReview({ house }: { house: House }) {
-  const { update, remove } = useStore()
+  const { update } = useStore()
   const [notes, setNotes] = useState(house.mine.notities ?? '')
   const [offer, setOffer] = useState(house.mine.bod ? String(house.mine.bod) : '')
   useEffect(() => setNotes(house.mine.notities ?? ''), [house.mine.notities])
@@ -778,23 +802,6 @@ function MyReview({ house }: { house: House }) {
           ))}
       </section>
 
-      <section className="danger-zone">
-        <button
-          className="btn btn-danger-ghost"
-          onClick={() => {
-            const text =
-              house.record.source === 'report-dir'
-                ? 'Dit huis verwijderen? Je notities en checklist gaan verloren. Staat het rapport nog in de rapporten-repo, dan komt het huis bij de volgende synchronisatie terug. Wil je het alleen uit beeld, zet de status dan op Afgevallen.'
-                : 'Dit huis en je notities en checklist verwijderen?'
-            if (confirm(text)) {
-              void remove(house.id)
-              location.hash = '#/'
-            }
-          }}
-        >
-          <Trash2 size={16} /> Huis verwijderen
-        </button>
-      </section>
     </div>
   )
 }

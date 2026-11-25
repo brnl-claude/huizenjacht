@@ -21,10 +21,11 @@ export const CHANGELOG: Release[] = [
   {
     version: '0.8.3',
     date: '2026-11-25',
-    title: 'Verouderde bladwijzer herkennen',
+    title: 'Verouderde bladwijzer herkennen, verwijderen onder Gegevens',
     changes: [
       'De bladwijzer stuurt zijn versie mee. Gebruik je een oude bladwijzer, dan meldt hij op Funda dat hij verouderd is, met een link om hem opnieuw neer te zetten.',
       'Zet de bladwijzer na deze update één keer opnieuw neer via Instellingen → Bladwijzer.',
+      'De knop Huis verwijderen staat nu onder Gegevens bij het huis, niet meer onderaan Mijn beoordeling.',
     ],
   },
   {
