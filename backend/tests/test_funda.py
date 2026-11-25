@@ -168,9 +168,21 @@ def test_bookmarklet_sends_a_page_in_the_background(tmp_path):
         assert sent.json()["house"] == house["id"]
         assert client.get(f"/api/houses/{house['id']}").json()["listing"]["photos"] == 2
 
+        count = len(client.get("/api/houses").json())
         other = {**page, "url": "https://www.funda.nl/detail/koop/x/huis-y/99999999/"}
-        new = client.post("/api/bookmarklet/page", content=json.dumps(other)).json()
-        assert new["message"].startswith("Nieuw huis") and new["house"] != house["id"]
+        unknown = client.post("/api/bookmarklet/page", content=json.dumps(other))
+        assert unknown.status_code == 404 and "nog niet in Huizenjacht" in unknown.json()["message"]
+        for elsewhere in (
+            "https://example.com/detail/koop/x/huis-y/123/",
+            "https://www.funda.nl.example.com/detail/koop/x/huis-y/123/",
+            "https://www.funda.nl/zoeken/koop?selected_area=lathum",
+            "javascript:alert(1)",
+        ):
+            sent = client.post(
+                "/api/bookmarklet/page", content=json.dumps({**page, "url": elsewhere})
+            )
+            assert sent.status_code == 400 and "alleen op een huis op funda.nl" in sent.text
+        assert len(client.get("/api/houses").json()) == count
 
         wrong = client.post("/api/bookmarklet/page", content=json.dumps({**page, "token": "x"}))
         assert wrong.status_code == 403

@@ -19,6 +19,15 @@ export type Release = {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.8.2',
+    date: '2026-11-25',
+    title: 'Bladwijzer alleen voor Funda',
+    changes: [
+      'De bladwijzer werkt alleen nog op een huis op funda.nl. Op een andere site meldt hij dat en stuurt hij niets.',
+      'De bladwijzer voegt geen nieuwe huizen meer toe: hij slaat de advertentie alleen op bij een huis dat al in de app staat. Nieuwe huizen komen erin via de rapporten.',
+    ],
+  },
+  {
     version: '0.8.1',
     date: '2026-11-24',
     title: "Foto's, video's en memo's in de Android-app",

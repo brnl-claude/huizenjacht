@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Bookmark, Check, Copy, Download, Plus, RotateCcw } from 'lucide-react'
+import { Bookmark, Check, Copy, Download, RotateCcw } from 'lucide-react'
 import { api, ApiError } from './api'
 import { displayAddress, type House } from './house'
 import { errorText, useStore } from './store'
@@ -26,7 +26,10 @@ export function bookmarkletCode(origin: string, token: string): string {
     `const say=(m,bad,h)=>{e.textContent='Huizenjacht: '+m;e.style.background=bad?'#c0392b':'#2b2b2b';` +
     `if(h){const l=document.createElement('a');l.href=a+'/#/huis/'+encodeURIComponent(h);l.target='_blank';l.textContent='Bekijk';` +
     `l.style.cssText='color:#f7a100;font-weight:700;margin-left:8px';e.append(l)}};` +
-    `document.body.append(e);say('bezig met opslaan…');` +
+    `document.body.append(e);` +
+    `if(!/(^|\\.)funda\\.nl$/i.test(location.hostname)||!/^(\\/en)?\\/(detail\\/)?(koop|huur)\\/[^/]+\\/[^/]+/i.test(location.pathname)){` +
+    `say('de bladwijzer werkt alleen op een huis op funda.nl. Open eerst een advertentie.',true);setTimeout(()=>e.remove(),8000);return}` +
+    `say('bezig met opslaan…');` +
     `fetch(a+'/api/bookmarklet/page',{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify(d)})` +
     `.then(r=>r.json().then(j=>{say(j.message,!r.ok,r.ok&&j.house);setTimeout(()=>e.remove(),r.ok?6000:12000)}))` +
     `.catch(()=>{say('deze site houdt het versturen tegen, Huizenjacht opent in een nieuw tabblad.',true);` +
@@ -34,6 +37,20 @@ export function bookmarkletCode(origin: string, token: string): string {
     `const f=v=>{if(v.source===w&&v.origin===a&&v.data&&v.data.type==='huizenjacht-ready'){` +
     `w.postMessage({type:'huizenjacht-page',url:d.url,html:d.html},a);removeEventListener('message',f)}};addEventListener('message',f)})})()`
   )
+}
+
+/** A house page on funda.nl; the server checks the same. */
+export function isFundaListing(url: string): boolean {
+  try {
+    const u = new URL(url)
+    return (
+      /^https?:$/.test(u.protocol) &&
+      /(^|\.)funda\.nl$/i.test(u.hostname) &&
+      /^(\/en)?\/(detail\/)?(koop|huur)\/[^/]+\/[^/]+/i.test(u.pathname)
+    )
+  } catch {
+    return false
+  }
 }
 
 /** The Funda number in an address such as /detail/koop/lathum/huis-x/80985930/. */
@@ -95,12 +112,7 @@ export function ReceivePage() {
     setBusy(true)
     setError(null)
     try {
-      let id = target
-      if (id === 'nieuw') {
-        const created = await api.createHouse({ adres: pageTitle(page.html) || 'Nieuw huis', url: page.url })
-        replace(created)
-        id = created.id
-      }
+      const id = target
       const record = await api.importListing(id, page.url, page.html)
       replace(record)
       if (record.listing?.status !== 'ok') {
@@ -148,6 +160,37 @@ export function ReceivePage() {
   }
   const title = pageTitle(page.html)
 
+  if (!isFundaListing(page.url)) {
+    return (
+      <div className="page narrow">
+        <h1>Advertentie ontvangen</h1>
+        <section className="panel receive">
+          <p className="muted small">Van {host}</p>
+          <h2>{title || page.url}</h2>
+          <div className="notice notice-error">
+            De bladwijzer werkt alleen op een huis op funda.nl. Deze pagina is niet opgeslagen.
+          </div>
+        </section>
+      </div>
+    )
+  }
+
+  if (!match) {
+    return (
+      <div className="page narrow">
+        <h1>Advertentie ontvangen</h1>
+        <section className="panel receive">
+          <p className="muted small">Van {host}</p>
+          <h2>{title || page.url}</h2>
+          <div className="notice notice-error">
+            Dit huis staat nog niet in Huizenjacht. Huizen komen erin via de rapporten; daarna kun je de advertentie
+            hier opslaan.
+          </div>
+        </section>
+      </div>
+    )
+  }
+
   return (
     <div className="page narrow">
       <h1>Advertentie ontvangen</h1>
@@ -157,21 +200,19 @@ export function ReceivePage() {
         <label className="field">
           <span>Opslaan bij</span>
           <select value={target} onChange={(e) => setChoice(e.target.value)}>
-            {!match && <option value="">Kies een huis…</option>}
             {houses.map((h) => (
               <option key={h.id} value={h.id}>
                 {displayAddress(h)}
                 {h.plaats ? `, ${h.plaats}` : ''}
-                {h.id === match?.id ? ' (zelfde advertentie)' : ''}
+                {h.id === match.id ? ' (zelfde advertentie)' : ''}
               </option>
             ))}
-            <option value="nieuw">+ Nieuw huis met deze advertentie</option>
           </select>
         </label>
         {error && <div className="notice notice-error">{error}</div>}
         <div className="row">
           <button className="btn btn-primary" disabled={!target || busy} onClick={() => void save()}>
-            {target === 'nieuw' ? <Plus size={16} /> : <Download size={16} />}{' '}
+            <Download size={16} />{' '}
             {busy ? 'Bezig met opslaan…' : 'Opslaan in Huizenjacht'}
           </button>
         </div>
@@ -222,8 +263,9 @@ export function BookmarkletPanel() {
           </li>
           <li>Open een huis op Funda en klik op de bladwijzer.</li>
           <li>
-            Rechtsonder op de pagina zie je of het gelukt is. Het huis wordt herkend aan het Funda-nummer; een huis dat
-            nog niet in de app staat, wordt toegevoegd.
+            Rechtsonder op de pagina zie je of het gelukt is. Het huis wordt herkend aan het Funda-nummer. De bladwijzer
+            werkt alleen op Funda en alleen voor huizen die al in de app staan; nieuwe huizen komen erin via de
+            rapporten.
           </li>
         </ol>
         <p className="muted small">

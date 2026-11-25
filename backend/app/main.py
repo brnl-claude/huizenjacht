@@ -11,6 +11,7 @@ from contextlib import asynccontextmanager
 from datetime import timedelta
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 import httpx2
 from fastapi import Body, FastAPI, Form, HTTPException, Request, UploadFile
@@ -30,7 +31,6 @@ from .funda import (
     Blocked,
     NotAListing,
     fetch_listing,
-    page_summary,
     photo_files,
     remote_photos,
     save_page,
@@ -60,6 +60,23 @@ def listing_key(url: str) -> str:
     if match:
         return match.group(1)
     return url.split("?")[0].rstrip("/").lower().replace("://www.", "://")
+
+
+FUNDA_LISTING_PATH = re.compile(r"^(?:/en)?/(?:detail/)?(?:koop|huur)/[^/]+/[^/]+", re.I)
+
+
+def is_funda_listing(url: str) -> bool:
+    """A house page on funda.nl, such as /detail/koop/lathum/huis-x/80985930/."""
+    try:
+        parts = urlsplit(url)
+    except ValueError:
+        return False
+    host = (parts.hostname or "").lower()
+    return (
+        parts.scheme in ("http", "https")
+        and (host == "funda.nl" or host.endswith(".funda.nl"))
+        and bool(FUNDA_LISTING_PATH.match(parts.path))
+    )
 
 
 # The browser tab that made a change, so it can skip its own live update.
@@ -564,8 +581,11 @@ def create_app(
             return answer(
                 403, "Deze bladwijzer is verlopen. Zet hem opnieuw neer vanuit Huizenjacht."
             )
-        if not url.startswith(("http://", "https://")):
-            return answer(400, "Dit is geen webadres.")
+        if not is_funda_listing(url):
+            return answer(
+                400,
+                "De bladwijzer werkt alleen op een huis op funda.nl. Open eerst een advertentie.",
+            )
         key = listing_key(url)
         house = next(
             (
@@ -575,11 +595,13 @@ def create_app(
             ),
             None,
         )
-        created = house is None
         if house is None:
-            title = page_summary(html).get("title") or "Nieuw huis"
-            adres = re.sub(r"^.*?te koop:\s*", "", str(title), flags=re.I).split(" [")[0].strip()
-            house = create_house(request, {"adres": adres[:80] or "Nieuw huis", "url": url})
+            # Houses come in through the reports; the bookmarklet only adds the listing to one.
+            return answer(
+                404,
+                "Dit huis staat nog niet in Huizenjacht. Huizen komen erin via de rapporten; "
+                "daarna kun je de advertentie hier opslaan.",
+            )
         async with listing_lock:
             await asyncio.to_thread(fetch_one, house["id"], url, html)
         saved = house_or_404(house["id"])
@@ -590,7 +612,7 @@ def create_app(
         photos = listing.get("photos", 0)
         return answer(
             200,
-            f"{'Nieuw huis' if created else 'Opgeslagen'}: {name}, {photos} foto's.",
+            f"Opgeslagen: {name}, {photos} foto's.",
             house=saved["id"],
             link=f"{settings.public_url or ''}/#/huis/{saved['id']}",
         )
