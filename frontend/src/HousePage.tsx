@@ -12,6 +12,7 @@ import {
   MapPin,
   AlertTriangle,
   ExternalLink,
+  FileText,
   HelpCircle,
   MessageSquare,
   Minus,
@@ -22,7 +23,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react'
-import { checklistFor, progress, reportChecklist, type ChecklistCategory } from './checklist'
+import { checklistFor, prefilledCount, progress, reportChecklist, type ChecklistCategory } from './checklist'
 import {
   displayAddress,
   formatEuro,
@@ -35,6 +36,7 @@ import {
   EARLIER,
   type CheckEntry,
   type Other,
+  type Prefill,
   type CheckState,
   type House,
   type Status,
@@ -448,6 +450,8 @@ function Checklist({ house, categories }: { house: House; categories: ChecklistC
   const answers = house.mine.checklist ?? {}
   const [onlyOpen, setOnlyOpen] = useState(false)
   const p = progress(categories, answers)
+  const prefilled = prefilledCount(categories)
+  const documents = house.record.report.documenten ?? []
 
   function set(itemId: string, entry: CheckEntry | null) {
     const next = { ...answers }
@@ -483,6 +487,25 @@ function Checklist({ house, categories }: { house: House; categories: ChecklistC
           De eerste onderdelen komen uit de afvinklijst en open punten van het rapport van dit huis.
         </p>
       )}
+      {prefilled > 0 && (
+        <div className="panel prefill-summary">
+          <FileText size={18} />
+          <div>
+            <strong>
+              {prefilled} {prefilled === 1 ? 'punt' : 'punten'} vooraf ingevuld uit de documenten
+            </strong>
+            <p className="muted small">
+              Grijs gestippeld staat wat de documenten zeggen. Dat telt niet als jullie antwoord: kijk
+              het na en neem het over, of vul zelf in.
+            </p>
+            {documents.length > 0 && (
+              <p className="muted small prefill-documents">
+                {documents.map((d) => (d.datum ? `${d.naam} (${formatDate(d.datum)})` : d.naam)).join(' · ')}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
       {categories.map((category) => {
         const items = category.items.filter((i) => !onlyOpen || !answers[i.id]?.s)
         if (!items.length) return null
@@ -492,6 +515,7 @@ function Checklist({ house, categories }: { house: House; categories: ChecklistC
             <h2>
               {category.titel}
               {category.fromReport && <span className="badge badge-report">Rapport</span>}
+              {category.fromDocuments && <span className="badge badge-documents">Documenten</span>}
               <small>
                 {cp.done}/{cp.total}
               </small>
@@ -506,6 +530,7 @@ function Checklist({ house, categories }: { house: House; categories: ChecklistC
                   entry={answers[item.id]}
                   others={house.others}
                   itemId={item.id}
+                  prefill={item.vooraf}
                   onChange={(entry) => set(item.id, entry)}
                 />
               ))}
@@ -528,6 +553,7 @@ function CheckRow({
   entry,
   others,
   itemId,
+  prefill,
   onChange,
 }: {
   house: House
@@ -536,6 +562,7 @@ function CheckRow({
   entry?: CheckEntry
   others: Other[]
   itemId: string
+  prefill?: Prefill
   onChange: (entry: CheckEntry | null) => void
 }) {
   const { me, people } = useStore()
@@ -575,6 +602,18 @@ function CheckRow({
           </button>
         </div>
       </div>
+      {prefill && (prefill.oordeel || prefill.antwoord || prefill.bron) && (
+        <PrefillNote
+          prefill={prefill}
+          taken={Boolean(entry?.s)}
+          onTake={() => {
+            const fromDocs = [prefill.antwoord, prefill.bron && `Bron: ${prefill.bron}`].filter(Boolean).join(' ')
+            const n = [entry?.n, fromDocs].filter(Boolean).join('\n')
+            onChange({ s: prefill.oordeel ?? entry?.s, n: n || undefined })
+            if (n) setNoteOpen(true)
+          }}
+        />
+      )}
       {theirs.length > 0 && (
         <ul className="check-others">
           {theirs.map(({ person, entry: e }) => {
@@ -611,6 +650,37 @@ function CheckRow({
       )}
     </li>
   )
+}
+
+/** What the documents say about a point: not anyone's answer until someone takes it over. */
+function PrefillNote({ prefill, taken, onTake }: { prefill: Prefill; taken: boolean; onTake: () => void }) {
+  const state = STATES.find((s) => s.id === prefill.oordeel)
+  return (
+    <div className="check-prefill">
+      <span className="prefill-label">
+        <FileText size={14} /> Uit de documenten
+      </span>
+      {state && (
+        <span className={`other-state ${state.id}`}>
+          <state.icon size={14} /> {state.label}
+        </span>
+      )}
+      {prefill.antwoord && <span className="other-note">{prefill.antwoord}</span>}
+      {prefill.bron && <span className="prefill-source">Bron: {prefill.bron}</span>}
+      {!taken && (
+        <button type="button" className="btn btn-small btn-ghost prefill-take" onClick={onTake}>
+          Overnemen
+        </button>
+      )}
+    </div>
+  )
+}
+
+function formatDate(value: string): string {
+  const date = new Date(value)
+  return /^\d{4}-\d{2}-\d{2}/.test(value) && !Number.isNaN(date.getTime())
+    ? date.toLocaleDateString('nl-NL', { day: 'numeric', month: 'short', year: 'numeric' })
+    : value
 }
 
 function Report({ house }: { house: House }) {

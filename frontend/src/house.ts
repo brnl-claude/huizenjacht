@@ -5,6 +5,10 @@ import type { Media } from './media'
 export type CheckState = 'ok' | 'twijfel' | 'probleem'
 export type CheckEntry = { s?: CheckState; n?: string }
 
+/** An answer to a checklist point that "Huizen beoordelen" found in the documents of a house. */
+export type Prefill = { punt: string; groep?: string; oordeel?: CheckState; antwoord?: string; bron?: string }
+export type Document = { naam: string; datum?: string }
+
 export type Fields = {
   titel?: string
   adres?: string
@@ -34,6 +38,10 @@ export type Fields = {
   pluspunten?: string[]
   minpunten?: string[]
   bezichtigingspunten?: string[]
+  /** Prefilled checklist answers and new points from the documents (`vooraf_ingevuld`). */
+  vooraf?: Prefill[]
+  /** The documents the prefilled answers come from. */
+  documenten?: Document[]
   extra?: Record<string, unknown>
 }
 

@@ -1,9 +1,16 @@
 /** The viewing checklist: one template for every house, plus points from the house's report. */
 
-import type { CheckEntry, House } from './house'
+import type { CheckEntry, House, Prefill } from './house'
 
-export type ChecklistItem = { id: string; tekst: string }
-export type ChecklistCategory = { id: string; titel: string; items: ChecklistItem[]; fromReport?: boolean }
+export type ChecklistItem = { id: string; tekst: string; vooraf?: Prefill }
+export type ChecklistCategory = {
+  id: string
+  titel: string
+  items: ChecklistItem[]
+  fromReport?: boolean
+  /** New points from the documents of the house. */
+  fromDocuments?: boolean
+}
 
 const c = (id: string, titel: string, items: string[]): ChecklistCategory => ({
   id,
@@ -120,26 +127,96 @@ export function reportChecklist(body: string): ChecklistCategory[] {
 /**
  * The checklist for one house. A report with its own checklist comes first, with the
  * standard template after it unless `withStandard` is off. Without one, the short
- * aandachtspunten from the front matter come first.
+ * aandachtspunten from the front matter come first. Prefilled answers from the documents
+ * (`vooraf_ingevuld`) attach to the point with the same text; the others become new points.
  */
 export function checklistFor(
   house: House,
   template: ChecklistCategory[],
   withStandard = true,
 ): ChecklistCategory[] {
-  const own = reportChecklist(house.record.reportBody ?? '')
-  if (own.length) return withStandard ? [...own, ...template] : own
-  const points = house.record.report.bezichtigingspunten ?? []
-  if (!points.length) return template
-  return [
-    {
-      id: REPORT_CATEGORY_ID,
-      titel: 'Uit het rapport',
-      fromReport: true,
-      items: points.map((tekst) => ({ id: `${REPORT_CATEGORY_ID}-${slug(tekst)}`, tekst })),
-    },
-    ...template,
-  ]
+  const report = house.record.report
+  let own = reportChecklist(house.record.reportBody ?? '')
+  const showStandard = withStandard || !own.length
+  if (!own.length && report.bezichtigingspunten?.length) {
+    own = [
+      {
+        id: REPORT_CATEGORY_ID,
+        titel: 'Uit het rapport',
+        fromReport: true,
+        items: report.bezichtigingspunten.map((tekst) => ({ id: `${REPORT_CATEGORY_ID}-${slug(tekst)}`, tekst })),
+      },
+    ]
+  }
+  return withPrefill(own, template, showStandard, report.vooraf ?? [])
+}
+
+export const DOCUMENTS_CATEGORY = 'Uit de documenten'
+
+/** Comparable text: no case, accents or punctuation. */
+export function sameText(text: string): string {
+  return text
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+}
+
+function withPrefill(
+  own: ChecklistCategory[],
+  template: ChecklistCategory[],
+  showStandard: boolean,
+  prefills: Prefill[],
+): ChecklistCategory[] {
+  if (!prefills.length) return showStandard ? [...own, ...template] : own
+  const copy = (cs: ChecklistCategory[]) => cs.map((c) => ({ ...c, items: c.items.map((i) => ({ ...i })) }))
+  const first = copy(own)
+  const standard = copy(template)
+  const added: ChecklistCategory[] = []
+  const byText = new Map<string, ChecklistItem>()
+  const byTitle = new Map<string, ChecklistCategory>()
+  for (const category of [...first, ...standard]) {
+    if (!byTitle.has(sameText(category.titel))) byTitle.set(sameText(category.titel), category)
+    for (const item of category.items) if (!byText.has(sameText(item.tekst))) byText.set(sameText(item.tekst), item)
+  }
+  const used = new Set<string>()
+  for (const prefill of prefills) {
+    const key = sameText(prefill.punt)
+    if (!key) continue
+    const found = byText.get(key)
+    if (found) {
+      found.vooraf ??= prefill
+      continue
+    }
+    const titel = prefill.groep?.trim() || DOCUMENTS_CATEGORY
+    let category = byTitle.get(sameText(titel))
+    // A new point in a group of the standard list is only seen with the standard list on.
+    if (!category || (!showStandard && standard.includes(category))) {
+      category = { id: `vooraf-${slug(titel)}`, titel, items: [], fromDocuments: true }
+      added.push(category)
+      byTitle.set(sameText(titel), category)
+    }
+    const base = `vooraf-${slug(prefill.punt, 60)}`
+    let id = base
+    for (let n = 2; used.has(id); n++) id = `${base}-${n}`
+    used.add(id)
+    const item = { id, tekst: prefill.punt, vooraf: prefill }
+    category.items.push(item)
+    byText.set(key, item)
+  }
+  // Without the standard list, its points that the documents answer still show.
+  const rest = showStandard
+    ? standard
+    : standard
+        .map((c) => ({ ...c, items: c.items.filter((i) => i.vooraf) }))
+        .filter((c) => c.items.length)
+  return [...first, ...added, ...rest]
+}
+
+/** How many points have a prefilled answer. */
+export function prefilledCount(categories: ChecklistCategory[]): number {
+  return categories.reduce((n, c) => n + c.items.filter((i) => i.vooraf).length, 0)
 }
 
 function slug(text: string, length = 40): string {

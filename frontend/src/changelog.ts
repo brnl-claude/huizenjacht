@@ -19,6 +19,17 @@ export type Release = {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.9.0',
+    date: '2026-11-25',
+    title: 'Checklist vooraf ingevuld uit de documenten',
+    changes: [
+      'Huizen beoordelen kan uit de documenten van de makelaar antwoorden op checklistpunten vooraf invullen, met oordeel, toelichting en bron.',
+      'Vooraf ingevulde antwoorden staan grijs gestippeld onder het punt en tellen niet als jullie eigen antwoord. Met Overnemen maak je er je eigen antwoord van.',
+      'Nieuwe vragen uit de documenten komen in een eigen onderdeel, of in het onderdeel dat het rapport noemt.',
+      'Bovenaan de checklist staat hoeveel punten vooraf zijn ingevuld en uit welke documenten.',
+    ],
+  },
+  {
     version: '0.8.4',
     date: '2026-11-25',
     title: 'Huis verwijderen naast Opslaan',

@@ -55,6 +55,9 @@ ALIASES: dict[str, list[str]] = {
         "checklist",
     ],
     "bezichtiging": ["bezichtiging", "bezichtigingsdatum", "viewing"],
+    # Answers to checklist points from the documents of a viewing, and new points from them.
+    "vooraf": ["vooraf_ingevuld", "vooraf ingevuld", "checklist_vooraf", "checklist vooraf"],
+    "documenten": ["documenten", "stukken", "ontvangen documenten"],
 }
 NUMERIC = {
     "vraagprijs",
@@ -69,6 +72,30 @@ NUMERIC = {
     "score",
 }
 LISTS = {"pluspunten", "minpunten", "bezichtigingspunten"}
+
+# Prefilled answers: canonical key -> the names an entry may use for it.
+_ENTRY_KEYS = {
+    "punt": ["punt", "vraag", "item", "tekst"],
+    "groep": ["groep", "categorie", "onderdeel"],
+    "oordeel": ["oordeel", "status", "beoordeling"],
+    "antwoord": ["antwoord", "toelichting", "uitleg", "notitie"],
+    "bron": ["bron", "document", "bronnen"],
+}
+_STATES = {
+    "ok": "ok",
+    "in orde": "ok",
+    "goed": "ok",
+    "akkoord": "ok",
+    "voldoende": "ok",
+    "twijfel": "twijfel",
+    "onduidelijk": "twijfel",
+    "navragen": "twijfel",
+    "let op": "twijfel",
+    "probleem": "probleem",
+    "slecht": "probleem",
+    "fout": "probleem",
+    "risico": "probleem",
+}
 
 _LOOKUP = {alias: field for field, names in ALIASES.items() for alias in names}
 
@@ -120,6 +147,59 @@ def _as_list(value: Any) -> list[str]:
     return [p.strip(" -•*") for p in re.split(r"[;\n]", str(value)) if p.strip(" -•*")]
 
 
+def _text(value: Any) -> str:
+    if isinstance(value, list):
+        return "; ".join(str(v).strip() for v in value if str(v).strip())
+    return str(value).strip() if value is not None else ""
+
+
+def _prefilled(value: Any) -> list[dict[str, str]]:
+    """Entries of `vooraf_ingevuld`: a checklist point with a verdict, answer and source."""
+    entries = []
+    for raw in value if isinstance(value, list) else [value]:
+        if isinstance(raw, str):
+            raw = {"punt": raw}
+        if not isinstance(raw, dict):
+            continue
+        keys = {plain(str(k)): v for k, v in raw.items()}
+        entry: dict[str, str] = {}
+        for field, names in _ENTRY_KEYS.items():
+            found = next((_text(keys[n]) for n in names if _text(keys.get(n))), "")
+            if found:
+                entry[field] = found
+        if not entry.get("punt"):
+            continue
+        if "oordeel" in entry:
+            state = _STATES.get(plain(entry["oordeel"]))
+            if state:
+                entry["oordeel"] = state
+            else:
+                # A verdict the app does not know stays readable in the answer.
+                note = f"Oordeel: {entry.pop('oordeel')}"
+                entry["antwoord"] = (
+                    f"{note}. {entry['antwoord']}" if entry.get("antwoord") else note
+                )
+        entries.append(entry)
+    return entries
+
+
+def _documents(value: Any) -> list[dict[str, str]]:
+    """Entries of `documenten`: a name, optionally with a date."""
+    docs = []
+    for raw in value if isinstance(value, list) else _as_list(value):
+        if isinstance(raw, dict):
+            keys = {plain(str(k)): v for k, v in raw.items()}
+            naam = _text(
+                keys.get("naam") or keys.get("titel") or keys.get("document") or keys.get("name")
+            )
+            datum = _text(keys.get("datum") or keys.get("date"))
+            if naam:
+                docs.append({"naam": naam, **({"datum": datum} if datum else {})})
+        elif _text(raw):
+            docs.append({"naam": _text(raw)})
+    return docs
+
+
 def normalise(raw: dict[str, Any]) -> dict[str, Any]:
     """Map a report's own field names onto the app's. Unknown fields go to `extra`."""
     fields: dict[str, Any] = {}
@@ -144,6 +224,10 @@ def normalise(raw: dict[str, Any]) -> dict[str, Any]:
                 extra[str(key)] = value
                 continue
             fields[field] = number
+        elif field == "vooraf":
+            fields[field] = _prefilled(value)
+        elif field == "documenten":
+            fields[field] = _documents(value)
         elif field in LISTS:
             fields[field] = _as_list(value)
         elif field == "energielabel":
