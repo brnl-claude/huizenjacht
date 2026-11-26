@@ -84,6 +84,7 @@ def test_documents_other_than_pdf_or_images_only_download(tmp_path):
     (reports / "documenten" / "laan-1" / "a.pdf").write_bytes(b"%PDF-1.4")
     (reports / "documenten" / "laan-1" / "b.xht").write_text("<html><script>x</script></html>")
     with make_client(tmp_path, reports) as client:
+        client.post("/api/import/scan")
         pdf = client.get("/api/houses/laan-1/documenten/a.pdf")
         assert pdf.headers["content-disposition"].startswith("inline")
         page = client.get("/api/houses/laan-1/documenten/b.xht")
