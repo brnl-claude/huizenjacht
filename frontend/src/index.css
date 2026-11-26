@@ -695,6 +695,7 @@ pre {
 }
 .chip-count {
   font-size: 0.78rem;
+  line-height: 1;
   opacity: 0.75;
 }
 .empty-filter {
@@ -752,45 +753,89 @@ pre {
     linear-gradient(135deg, var(--brand-soft), var(--link-soft));
 }
 .card-body {
-  padding: 14px 16px 6px;
+  padding: 14px 16px 12px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 .card-title {
   font-size: 1.05rem;
   color: var(--link);
 }
 .card-place {
-  margin: -4px 0 0;
+  margin: 2px 0 0;
   color: var(--muted);
   font-size: 0.9rem;
+}
+/* Price on the left, energy label on the right: the label never ends up on a line of its own. */
+.card-price-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.card-price-row .energy {
+  flex: none;
 }
 .card-price {
   margin: 0;
   font-size: 1.2rem;
   font-weight: 750;
+  line-height: 1.25;
 }
 .card-price small {
-  font-size: 0.82rem;
+  margin-left: 4px;
+  font-size: 0.8rem;
   font-weight: 500;
   color: var(--muted);
+  white-space: nowrap;
 }
+/* Facts separated by dots; one fact never breaks over two lines, and a line never starts
+   with a dot: every fact has one in front, and the first of each line falls outside. */
 .card-facts {
-  margin: 0;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px 12px;
+  overflow: hidden;
   font-size: 0.88rem;
   color: var(--muted);
+  line-height: 1.5;
+}
+.card-facts p {
+  margin: 0 0 0 -1.2em;
+  display: flex;
+  flex-wrap: wrap;
+}
+.card-facts span {
+  white-space: nowrap;
+}
+.card-facts span::before {
+  content: '·';
+  display: inline-block;
+  width: 1.2em;
+  text-align: center;
+  opacity: 0.7;
+}
+/* Your viewing, on the photo next to the status. */
+.card-when {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgb(0 0 0 / 66%);
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 650;
+  white-space: nowrap;
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
 }
 .card-scores {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
-  min-height: 4px;
 }
 .when {
   display: inline-flex;
@@ -803,21 +848,32 @@ pre {
 .card {
   position: relative;
 }
+/* Below a thin line: the scores, then progress with Vergelijk on its right. */
 .card-foot {
-  display: flex;
-  align-items: flex-end;
-  gap: 10px;
-  padding: 0 12px 14px 16px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px 12px;
+  margin: 0 16px;
+  padding: 12px 0 14px;
+  border-top: 1px solid var(--border);
 }
-.card-foot-info {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+.card-foot .card-scores {
+  grid-column: 1 / -1;
+}
+.card-foot .progress {
+  grid-column: 1;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+}
+.card-foot .progress-track {
+  flex: 1 1 64px;
+}
+.card-foot .progress-text {
+  white-space: nowrap;
 }
 .card-foot .btn {
-  flex: none;
+  grid-column: 2;
 }
 /* Favourite: a round button in the top right corner of the photo */
 .fav-photo {
@@ -2461,6 +2517,21 @@ a[aria-label],
 @media (max-width: 720px) {
   .toolbar {
     flex-wrap: nowrap;
+  }
+  /* Chips run to the edge of the screen and fade out there, so it is clear they scroll. */
+  .chips {
+    margin: 0 -16px;
+    padding: 0 16px 2px;
+    scroll-padding: 0 16px;
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+    mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+  }
+  .chip {
+    padding: 5px 12px;
+    gap: 6px;
+  }
+  .card-photo {
+    aspect-ratio: 16 / 9;
   }
   .search {
     flex: 1 1 auto;
