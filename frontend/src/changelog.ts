@@ -26,6 +26,17 @@ export type Release = {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.19.7',
+    date: '2026-11-26',
+    title: 'Niet meer per ongeluk verversen',
+    changes: [
+      'Heb je al getikt kort na het openen, dan laadt een nieuwe versie niet meer vanzelf onder je vinger. Je krijgt dan de melding om te vernieuwen.',
+    ],
+    android: [
+      'Omlaag trekken om te verversen werkt alleen nog bij een duidelijke trek recht omlaag, ver genoeg over het scherm. Een tik, of een vinger die bij het tikken een beetje schuift, ververst niet meer.',
+    ],
+  },
+  {
     version: '0.19.6',
     date: '2026-11-26',
     title: 'Sorteren geldt ook voor favorieten',
