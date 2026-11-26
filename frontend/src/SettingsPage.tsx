@@ -541,30 +541,34 @@ function About({ health }: { health: Health | null }) {
       </section>
       <section className="panel">
         <h2>Android-app</h2>
-        {androidApp && <p className="muted small">Je gebruikt nu de Android-app {androidApp}.</p>}
-        {androidRelease && (
-          <p className="muted small">
-            De app zelf is voor het laatst veranderd in versie {androidRelease.version}, van{' '}
-            {formatReleaseDate(androidRelease.date)}. Alleen dan komt er een nieuwe app; al het andere krijg je vanzelf
-            via de website.
+        {androidApp ? (
+          <p className="small">
+            Je gebruikt de Android-app {androidApp}. Nieuwe functies krijg je vanzelf. De app zelf hoef je alleen bij
+            te werken als Obtainium of F-Droid dat aanbiedt.
+          </p>
+        ) : (
+          <p className="small">
+            Installeer Huizenjacht op je telefoon met{' '}
+            <a href="https://obtainium.imranr.dev/" target="_blank" rel="noreferrer">
+              Obtainium
+            </a>{' '}
+            (link <code>github.com/brnl-claude/huizenjacht</code>), via{' '}
+            <a href="https://brnl-claude.github.io/huizenjacht/" target="_blank" rel="noreferrer">
+              F-Droid
+            </a>{' '}
+            of als{' '}
+            <a
+              href={
+                androidRelease
+                  ? `https://github.com/brnl-claude/huizenjacht/releases/download/v${androidRelease.version}/huizenjacht.apk`
+                  : 'https://github.com/brnl-claude/huizenjacht/releases'
+              }
+            >
+              APK
+            </a>
+            .
           </p>
         )}
-        <p className="small">
-          Huizenjacht staat ook als app op je telefoon, met dit adres als server. Voeg in{' '}
-          <a href="https://obtainium.imranr.dev/" target="_blank" rel="noreferrer">
-            Obtainium
-          </a>{' '}
-          de link <code>github.com/brnl-claude/huizenjacht</code> toe, dan krijg je elke nieuwe versie vanzelf. Of
-          installeer hem één keer met de{' '}
-          <a href="https://github.com/brnl-claude/huizenjacht/releases/latest/download/huizenjacht.apk">APK</a>.
-        </p>
-        <p className="small">
-          Liever F-Droid? Open{' '}
-          <a href="https://brnl-claude.github.io/huizenjacht/" target="_blank" rel="noreferrer">
-            brnl-claude.github.io/huizenjacht
-          </a>{' '}
-          op je telefoon en tik op Toevoegen aan F-Droid.
-        </p>
       </section>
       <section className="panel">
         <h2>Wat is er nieuw</h2>

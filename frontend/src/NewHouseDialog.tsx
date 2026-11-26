@@ -119,15 +119,29 @@ export function Dialog({
   title,
   onClose,
   children,
+  closeOnBackdrop = false,
 }: {
   title: string
   onClose: () => void
   children: React.ReactNode
+  // Tapping next to the dialog closes it; only for dialogs without input that could get lost.
+  closeOnBackdrop?: boolean
 }) {
   const ref = useRef<HTMLDialogElement>(null)
   useModalDialog(ref)
   return (
-    <dialog ref={ref} className="dialog" onClose={onClose} onCancel={onClose}>
+    <dialog
+      ref={ref}
+      className="dialog"
+      onClose={onClose}
+      onCancel={onClose}
+      onClick={(e) => {
+        if (!closeOnBackdrop || e.target !== e.currentTarget) return
+        // A click on the backdrop reaches the dialog itself, outside its box.
+        const r = e.currentTarget.getBoundingClientRect()
+        if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) onClose()
+      }}
+    >
       <div className="dialog-head">
         <h2>{title}</h2>
         <button className="icon-btn" aria-label="Sluiten" onClick={onClose}>

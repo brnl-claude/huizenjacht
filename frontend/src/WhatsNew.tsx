@@ -50,7 +50,7 @@ export function WhatsNew() {
   const more = releases.length - listed.length
   const single = releases.length === 1 ? releases[0] : null
   return (
-    <Dialog title={single ? `Nieuw in versie ${single.version}` : 'Nieuw in Huizenjacht'} onClose={close}>
+    <Dialog title={single ? `Nieuw in versie ${single.version}` : 'Nieuw in Huizenjacht'} onClose={close} closeOnBackdrop>
       <div className="whats-new">
         {single ? (
           <>
