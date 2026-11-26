@@ -91,6 +91,14 @@ export type Share = {
   files: Media[]
 }
 
+export type LoginSession = {
+  id: string
+  device: string | null
+  via: 'oidc' | 'telefoon'
+  createdAt: string
+  expiresAt: string
+}
+
 export type Me = {
   mode: 'none' | 'oidc'
   user: { subject: string; name: string | null; email: string | null } | null
@@ -99,6 +107,12 @@ export type Me = {
 export const api = {
   me: () => request<Me>('/api/auth/me'),
   logout: () => request<unknown>('/api/auth/logout', { method: 'POST' }),
+  sessions: () => request<{ current: string; sessions: LoginSession[] }>('/api/auth/sessions'),
+  endSession: (id: string) => request<void>(`/api/auth/sessions/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  pairing: (id: string) => request<{ code: string; device: string }>(`/api/auth/pair/${encodeURIComponent(id)}`),
+  approvePairing: (id: string) =>
+    request<unknown>(`/api/auth/pair/${encodeURIComponent(id)}/approve`, { method: 'POST' }),
+  denyPairing: (id: string) => request<unknown>(`/api/auth/pair/${encodeURIComponent(id)}/deny`, { method: 'POST' }),
   health: () => request<Health>('/api/health'),
   houses: () => request<HouseRecord[]>('/api/houses'),
   house: (id: string) => request<HouseRecord>(`/api/houses/${encodeURIComponent(id)}`),

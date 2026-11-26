@@ -25,6 +25,7 @@ import { api, type Health, type ImportResult, type ImportStatus, type Me } from 
 import { applyUpdate, checkForUpdate, useUpdateReady } from './appUpdate'
 import { CHANGELOG, currentVersion, formatReleaseDate, latestAndroidRelease, markChangelogSeen } from './changelog'
 import { AndroidChanges } from './WhatsNew'
+import { Devices } from './Pairing'
 import { DEFAULT_CHECKLIST, newId, type ChecklistCategory } from './checklist'
 import { LogoMark } from './Logo'
 import { errorText, useStore } from './store'
@@ -94,6 +95,7 @@ export function SettingsPage({ section, health }: { section: string | null; heal
       {shown.id === 'bladwijzer' && <BookmarkletPanel />}
       {shown.id === 'gegevens' && <Data />}
       {shown.id === 'account' && me && <Account me={me} />}
+      {shown.id === 'account' && me && <Devices />}
       {shown.id === 'over' && <About health={health} />}
     </div>
   )
@@ -476,7 +478,7 @@ function Account({ me }: { me: Me }) {
           await api.logout().catch(() => undefined)
           // The offline copy of the houses stays on this device otherwise (a shared tablet).
           await Promise.all(['houses', 'media-thumbs'].map((name) => caches?.delete(name))).catch(() => undefined)
-          location.assign('/api/auth/login')
+          location.assign('/api/auth/start')
         }}
       >
         <LogOut size={16} /> Uitloggen

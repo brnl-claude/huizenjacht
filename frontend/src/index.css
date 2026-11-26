@@ -3284,3 +3284,29 @@ a[aria-label],
     display: none;
   }
 }
+
+/* Logging in another device from the phone (#/koppel/<id>) and the list of devices. */
+.pair-code {
+  font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: 0.3em;
+  margin: 0.25rem 0 0.75rem;
+}
+.pair-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.devices {
+  list-style: none;
+  margin: 0.75rem 0 0;
+  padding: 0;
+}
+.devices li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.6rem 0;
+  border-top: 1px solid var(--border);
+}
