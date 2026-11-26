@@ -99,6 +99,14 @@ export type LoginSession = {
   expiresAt: string
 }
 
+export type StorageCategory = 'fotos' | 'videos' | 'memos' | 'documenten' | 'advertenties' | 'gegevens'
+
+export type StorageUsage = {
+  categories: Record<StorageCategory, { bytes: number; count: number }>
+  total: number
+  disk: { total: number; free: number } | null
+}
+
 export type Me = {
   mode: 'none' | 'oidc'
   user: { subject: string; name: string | null; email: string | null } | null
@@ -158,6 +166,12 @@ export const api = {
       body: JSON.stringify({ house, item }),
     }),
   dropShare: (id: string) => request<void>(`/api/share/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  storage: () => request<StorageUsage>('/api/opslag'),
+  restoreFull: (file: File) => {
+    const body = new FormData()
+    body.append('file', file)
+    return request<{ houses: number; media: number }>('/api/backup/restore/volledig', { method: 'POST', body })
+  },
   restore: (backup: unknown) =>
     request<{ houses: number }>('/api/backup/restore', {
       method: 'POST',

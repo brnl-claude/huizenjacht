@@ -78,6 +78,34 @@ CREATE TABLE IF NOT EXISTS settings (
 );
 """
 
+# What a full backup keeps of the rows behind the files (media/, listings/).
+MEDIA_COLUMNS = (
+    "id",
+    "house_id",
+    "share_id",
+    "item",
+    "kind",
+    "mime",
+    "name",
+    "size",
+    "duration",
+    "thumb",
+    "person",
+    "note",
+    "created_at",
+)
+LISTING_COLUMNS = (
+    "house_id",
+    "url",
+    "status",
+    "message",
+    "photos",
+    "has_page",
+    "title",
+    "description",
+    "fetched_at",
+)
+
 
 _SELECT = (
     "SELECT h.*, l.url AS l_url, l.status AS l_status, l.message AS l_message,"
@@ -710,8 +738,45 @@ class Database:
             "settings": settings,
         }
 
-    def restore(self, backup: dict[str, Any]) -> int:
-        """Replace all houses and settings, all or nothing. Raises ValueError for a bad backup."""
+    def file_rows(self) -> dict[str, list[dict[str, Any]]]:
+        """The media and listing rows for a full backup: what the files in it belong to.
+        Media still waiting in a share (no house yet) stay out; they go away after a week."""
+        with self._lock:
+            media = [
+                dict(r)
+                for r in self._conn.execute("SELECT * FROM media WHERE house_id IS NOT NULL")
+            ]
+            listings = [dict(r) for r in self._conn.execute("SELECT * FROM listings")]
+        return {"media": media, "listings": listings}
+
+    def house_count(self) -> int:
+        with self._lock:
+            return self._conn.execute("SELECT COUNT(*) FROM houses").fetchone()[0]
+
+    def media_sizes(self) -> list[tuple[str, str]]:
+        """(id, kind) of every media file, for the disk usage."""
+        with self._lock:
+            return [(r["id"], r["kind"]) for r in self._conn.execute("SELECT id, kind FROM media")]
+
+    def _replace_rows(self, table: str, columns: tuple[str, ...], rows: list[Any]) -> None:
+        self._conn.execute(f"DELETE FROM {table}")
+        for row in rows:
+            if not isinstance(row, dict):
+                raise ValueError(f"ongeldige regel in {table}")
+            try:
+                self._conn.execute(
+                    f"INSERT INTO {table} ({', '.join(columns)})"
+                    f" VALUES ({', '.join('?' for _ in columns)})",
+                    tuple(row.get(c) for c in columns),
+                )
+            except sqlite3.Error as exc:
+                raise ValueError(f"ongeldige regel in {table}") from exc
+
+    def restore(
+        self, backup: dict[str, Any], files: dict[str, list[dict[str, Any]]] | None = None
+    ) -> int:
+        """Replace all houses and settings, all or nothing. Raises ValueError for a bad backup.
+        With `files` (from a full backup) the media and listing rows are replaced too."""
         houses = backup.get("houses", [])
         settings = backup.get("settings", {})
         if not isinstance(houses, list) or not isinstance(settings, dict):
@@ -750,5 +815,9 @@ class Database:
                 self._conn.execute(
                     "INSERT INTO settings (key, value) VALUES (?, ?)", (str(key), json.dumps(value))
                 )
+            if files is not None:
+                self._conn.execute("DELETE FROM shares")
+                self._replace_rows("media", MEDIA_COLUMNS, files.get("media", []))
+                self._replace_rows("listings", LISTING_COLUMNS, files.get("listings", []))
         self._changed(None)
         return len(houses)

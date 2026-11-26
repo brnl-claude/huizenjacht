@@ -3310,3 +3310,139 @@ a[aria-label],
   padding: 0.6rem 0;
   border-top: 1px solid var(--border);
 }
+
+/* Instellingen → Over: the web app's block with the update row */
+.about-app {
+  display: grid;
+  gap: 16px;
+}
+.update-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+  padding: 12px 14px;
+  border-radius: var(--radius-small);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+.update-row.ready {
+  background: var(--brand-soft);
+  border-color: var(--brand);
+}
+.update-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.875rem;
+  color: var(--muted);
+  min-width: 0;
+}
+.update-status svg {
+  flex: none;
+}
+.update-row.ready .update-status {
+  color: var(--text);
+  font-weight: 600;
+}
+.update-row.ready .update-status svg {
+  color: var(--brand-strong);
+}
+.update-status .ok {
+  color: var(--ok);
+}
+
+/* Instellingen → Gegevens en back-up: disk usage */
+.storage-fotos {
+  --swatch: #f7a100;
+}
+.storage-videos {
+  --swatch: #3d7fd9;
+}
+.storage-memos {
+  --swatch: #2fa36b;
+}
+.storage-documenten {
+  --swatch: #8b5cc8;
+}
+.storage-advertenties {
+  --swatch: #d6517d;
+}
+.storage-gegevens {
+  --swatch: #8a929b;
+}
+.storage-total {
+  margin: 0 0 10px;
+}
+.storage-total b {
+  font-size: 1.5rem;
+}
+.storage-bar {
+  display: flex;
+  gap: 2px;
+  height: 12px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--surface-2);
+  margin-bottom: 14px;
+}
+.storage-bar span {
+  background: var(--swatch);
+  flex-basis: 0;
+}
+.storage-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 12px;
+}
+.storage-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+}
+.storage-list li + li {
+  border-top: 1px solid var(--border);
+}
+.storage-dot {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--swatch);
+}
+.storage-label {
+  flex: 1;
+  min-width: 0;
+}
+.storage-bytes {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+.backup-choice {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.backup-choice label {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-small);
+  cursor: pointer;
+}
+.backup-choice label.chosen {
+  border-color: var(--brand);
+  background: var(--brand-soft);
+}
+.backup-choice input {
+  margin-top: 3px;
+  accent-color: var(--brand);
+}
+.backup-choice label > span {
+  display: grid;
+  gap: 2px;
+}

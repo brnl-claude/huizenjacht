@@ -5,6 +5,7 @@ import {
   Bookmark,
   ArrowUp,
   ChevronRight,
+  CircleCheck,
   Database,
   Download,
   FileUp,
@@ -16,12 +17,14 @@ import {
   Plus,
   RefreshCw,
   RotateCcw,
+  Sparkles,
   Trash2,
   Upload,
   type LucideIcon,
 } from 'lucide-react'
 import { BookmarkletPanel } from './Bookmarklet'
-import { api, type Health, type ImportResult, type ImportStatus, type Me } from './api'
+import { api, type Health, type ImportResult, type ImportStatus, type Me, type StorageUsage } from './api'
+import { countText, filesBytes, formatBytes, STORAGE_CATEGORIES, storageShares } from './storage'
 import { applyUpdate, checkForUpdate, useUpdateReady } from './appUpdate'
 import { CHANGELOG, currentVersion, formatReleaseDate, latestAndroidRelease, markChangelogSeen } from './changelog'
 import { AndroidChanges } from './WhatsNew'
@@ -417,37 +420,131 @@ Het volledige rapport…`}</pre>
   )
 }
 
+function Storage() {
+  const [usage, setUsage] = useState<StorageUsage | null>(null)
+  const [failed, setFailed] = useState(false)
+  const [device, setDevice] = useState<number | null>(null)
+  useEffect(() => {
+    api.storage().then(setUsage, () => setFailed(true))
+    navigator.storage
+      ?.estimate?.()
+      .then((e) => setDevice(e.usage ?? null))
+      .catch(() => undefined)
+  }, [])
+  return (
+    <section className="panel">
+      <h2>Opslag</h2>
+      {failed && <p className="muted small">Het gebruik kon niet worden opgehaald.</p>}
+      {!usage && !failed && <p className="muted small">Even tellen…</p>}
+      {usage && (
+        <>
+          <p className="storage-total">
+            <b>{formatBytes(usage.total)}</b>
+            <span className="muted small">
+              {usage.disk
+                ? ` in gebruik · ${formatBytes(usage.disk.free)} vrij van ${formatBytes(usage.disk.total)} op de server`
+                : ' in gebruik op de server'}
+            </span>
+          </p>
+          <div className="storage-bar" aria-hidden="true">
+            {storageShares(usage).map((s) => (
+              <span key={s.id} className={`storage-${s.id}`} style={{ flexGrow: s.percent }} />
+            ))}
+          </div>
+          <ul className="storage-list">
+            {STORAGE_CATEGORIES.map((c) => {
+              const entry = usage.categories[c.id]
+              return (
+                <li key={c.id}>
+                  <span className={`storage-dot storage-${c.id}`} />
+                  <span className="storage-label">
+                    {c.label}
+                    <span className="muted small"> · {countText(entry.count, c.unit)}</span>
+                  </span>
+                  <span className="storage-bytes">{formatBytes(entry.bytes)}</span>
+                </li>
+              )
+            })}
+          </ul>
+          <p className="muted small">
+            Documenten komen uit de rapporten-repo, advertenties zijn de bewaarde Funda-pagina’s met foto’s, en
+            gegevens is de database met checklists, cijfers en notities.
+            {device != null && device > 0 && ` Op dit apparaat staat ${formatBytes(device)} offline bewaard.`}
+          </p>
+        </>
+      )}
+    </section>
+  )
+}
+
 function Data() {
   const { refresh, notify } = useStore()
   const input = useRef<HTMLInputElement>(null)
+  const [withFiles, setWithFiles] = useState(true)
+  const [usage, setUsage] = useState<StorageUsage | null>(null)
+  const [restoring, setRestoring] = useState(false)
+  useEffect(() => {
+    api.storage().then(setUsage, () => undefined)
+  }, [])
+  const extra = usage ? filesBytes(usage) : null
   return (
     <>
+      <Storage />
       <section className="panel">
         <h2>Back-up downloaden</h2>
-        <p className="muted small">
-          Alle huizen met je checklists, cijfers en notities, en je checklist-sjabloon, in één
-          JSON-bestand. Bewaar het niet in de publieke repo: het bevat de rapporten.
-        </p>
-        <a className="btn btn-primary" href="/api/backup" download>
-          <Download size={18} /> Back-up downloaden
+        <div className="backup-choice" role="radiogroup" aria-label="Wat zit er in de back-up">
+          <label className={withFiles ? 'chosen' : ''}>
+            <input type="radio" name="backup" checked={withFiles} onChange={() => setWithFiles(true)} />
+            <span>
+              <b>Alles</b>
+              <span className="muted small">
+                Huizen, checklists, cijfers en notities, plus alle foto’s, video’s, spraakmemo’s, documenten en
+                advertenties. Eén ZIP-bestand{extra != null && <>, ongeveer {formatBytes(extra)}</>}.
+              </span>
+            </span>
+          </label>
+          <label className={withFiles ? '' : 'chosen'}>
+            <input type="radio" name="backup" checked={!withFiles} onChange={() => setWithFiles(false)} />
+            <span>
+              <b>Alleen gegevens</b>
+              <span className="muted small">
+                Huizen, checklists, cijfers, notities en je checklist-sjabloon in één klein JSON-bestand.
+              </span>
+            </span>
+          </label>
+        </div>
+        <p className="muted small">Bewaar de back-up niet in de publieke repo: hij bevat de rapporten.</p>
+        <a className="btn btn-primary" href={withFiles ? '/api/backup/volledig' : '/api/backup'} download>
+          <Download size={18} /> {withFiles ? 'Alles downloaden' : 'Gegevens downloaden'}
         </a>
       </section>
       <section className="panel">
         <h2>Back-up terugzetten</h2>
-        <p className="muted small">Vervangt alle huizen en instellingen door die uit de back-up.</p>
-        <button className="btn btn-ghost" onClick={() => input.current?.click()}>
-          <Upload size={16} /> Back-up kiezen
+        <p className="muted small">
+          Vervangt alle huizen en instellingen door die uit de back-up. Met een ZIP komen ook de foto’s, video’s,
+          spraakmemo’s en advertenties terug. Documenten haalt de app weer uit de rapporten-repo.
+        </p>
+        <button className="btn btn-ghost" disabled={restoring} onClick={() => input.current?.click()}>
+          <Upload size={16} className={restoring ? 'spin' : ''} /> {restoring ? 'Bezig met terugzetten…' : 'Back-up kiezen'}
         </button>
         <input
           ref={input}
           type="file"
           hidden
-          accept=".json,application/json"
+          accept=".json,.zip,application/json,application/zip"
           onChange={async (e) => {
             const file = e.target.files?.[0]
             e.target.value = ''
             if (!file) return
             try {
+              if (/\.zip$/i.test(file.name) || file.type.includes('zip')) {
+                if (!confirm(`Alles vervangen door de volledige back-up ${file.name} (${formatBytes(file.size)})?`)) return
+                setRestoring(true)
+                const r = await api.restoreFull(file)
+                await refresh()
+                notify(`${r.houses} huizen en ${r.media} bestanden teruggezet.`)
+                return
+              }
               const backup = JSON.parse(await file.text())
               if (!confirm(`Alles vervangen door de back-up met ${backup.houses?.length ?? 0} huizen?`)) return
               const r = await api.restore(backup)
@@ -455,6 +552,8 @@ function Data() {
               notify(`${r.houses} huizen teruggezet.`)
             } catch (err) {
               notify(err instanceof SyntaxError ? 'Dit is geen geldig JSON-bestand.' : errorText(err), 'error')
+            } finally {
+              setRestoring(false)
             }
           }}
         />
@@ -487,9 +586,53 @@ function Account({ me }: { me: Me }) {
   )
 }
 
-function About({ health }: { health: Health | null }) {
+/** Inside the web app's block: is this the newest version, and a button to look again. */
+function UpdateRow() {
   const updateReady = useUpdateReady()
-  const [checking, setChecking] = useState(false)
+  const [state, setState] = useState<'idle' | 'checking' | 'newest' | 'failed'>('idle')
+  if (updateReady) {
+    return (
+      <div className="update-row ready">
+        <span className="update-status">
+          <Sparkles size={18} /> Er staat een nieuwe versie klaar.
+        </span>
+        <button className="btn btn-primary btn-small" onClick={applyUpdate}>
+          <RefreshCw size={16} /> Nu laden
+        </button>
+      </div>
+    )
+  }
+  const status = {
+    idle: 'Nieuwe versies laden vanzelf als je de app opent.',
+    checking: 'Zoeken naar een nieuwe versie…',
+    newest: 'Je hebt de nieuwste versie.',
+    failed: 'Zoeken lukte niet. Ben je online?',
+  }[state]
+  return (
+    <div className="update-row">
+      <span className="update-status" role="status">
+        {state === 'newest' ? <CircleCheck size={18} className="ok" /> : <RefreshCw size={18} />} {status}
+      </span>
+      <button
+        className="btn btn-ghost btn-small"
+        disabled={state === 'checking'}
+        onClick={async () => {
+          setState('checking')
+          const started = Date.now()
+          let failed = false
+          await checkForUpdate().catch(() => (failed = true))
+          // A new version announces itself a moment after the check; give it that moment.
+          await new Promise((r) => setTimeout(r, Math.max(0, 1500 - (Date.now() - started))))
+          setState(failed || !navigator.onLine ? 'failed' : 'newest')
+        }}
+      >
+        <RefreshCw size={16} className={state === 'checking' ? 'spin' : ''} /> Zoeken naar updates
+      </button>
+    </div>
+  )
+}
+
+function About({ health }: { health: Health | null }) {
   useEffect(() => markChangelogSeen(), [])
   const server = health?.version
   // The app's own WebView says so in its user agent (android/, WebViewActivity).
@@ -497,51 +640,35 @@ function About({ health }: { health: Health | null }) {
   const androidRelease = latestAndroidRelease()
   return (
     <>
-      <section className="panel about">
-        <LogoMark size={56} />
-        <div>
-          <h2>Huizenjacht</h2>
-          <p className="muted small">
-            App {currentVersion()}
-            {server && server !== currentVersion() && (
-              <>
-                {' · server '}
-                {health?.commitUrl ? (
-                  <a href={health.commitUrl} target="_blank" rel="noreferrer">
-                    {server}
-                  </a>
-                ) : (
-                  server
-                )}
-              </>
-            )}
-          </p>
-          <p className="small">
-            Overzicht, bezichtigingschecklists en vergelijkingen voor je zoektocht naar een huis.{' '}
-            <a href="https://github.com/brnl-claude/huizenjacht" target="_blank" rel="noreferrer">
-              Broncode op GitHub
-            </a>
-          </p>
+      <section className="panel about-app">
+        <div className="about">
+          <LogoMark size={56} />
+          <div>
+            <h2>Huizenjacht</h2>
+            <p className="muted small">
+              App {currentVersion()}
+              {server && server !== currentVersion() && (
+                <>
+                  {' · server '}
+                  {health?.commitUrl ? (
+                    <a href={health.commitUrl} target="_blank" rel="noreferrer">
+                      {server}
+                    </a>
+                  ) : (
+                    server
+                  )}
+                </>
+              )}
+            </p>
+            <p className="small">
+              Overzicht, bezichtigingschecklists en vergelijkingen voor je zoektocht naar een huis.{' '}
+              <a href="https://github.com/brnl-claude/huizenjacht" target="_blank" rel="noreferrer">
+                Broncode op GitHub
+              </a>
+            </p>
+          </div>
         </div>
-      </section>
-      <section className="panel">
-        {updateReady ? (
-          <button className="btn btn-primary" onClick={applyUpdate}>
-            Nieuwe versie laden
-          </button>
-        ) : (
-          <button
-            className="btn btn-ghost"
-            disabled={checking}
-            onClick={async () => {
-              setChecking(true)
-              await checkForUpdate().catch(() => undefined)
-              setTimeout(() => setChecking(false), 1500)
-            }}
-          >
-            <RefreshCw size={16} className={checking ? 'spin' : ''} /> Zoeken naar updates
-          </button>
-        )}
+        <UpdateRow />
       </section>
       <section className="panel">
         <h2>Android-app</h2>
