@@ -23,7 +23,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { BookmarkletPanel } from './Bookmarklet'
-import { api, type Health, type ImportResult, type ImportStatus, type Me, type StorageUsage } from './api'
+import { api, type Health, type ImportResult, type ImportStatus, type Me, type NightlyBackups, type StorageUsage } from './api'
 import { countText, filesBytes, formatBytes, STORAGE_CATEGORIES, storageShares } from './storage'
 import { applyUpdate, checkForUpdate, useUpdateReady } from './appUpdate'
 import { CHANGELOG, currentVersion, formatReleaseDate, latestAndroidRelease, markChangelogSeen } from './changelog'
@@ -96,7 +96,7 @@ export function SettingsPage({ section, health }: { section: string | null; heal
       {shown.id === 'checklist' && <ChecklistEditor />}
       {shown.id === 'rapporten' && <Reports />}
       {shown.id === 'bladwijzer' && <BookmarkletPanel />}
-      {shown.id === 'gegevens' && <Data />}
+      {shown.id === 'gegevens' && <Data admin={me?.admin ?? false} loaded={me != null} />}
       {shown.id === 'account' && me && <Account me={me} />}
       {shown.id === 'account' && me && <Devices />}
       {shown.id === 'over' && <About health={health} />}
@@ -477,7 +477,76 @@ function Storage() {
   )
 }
 
-function Data() {
+function formatNightlyDate(name: string): string {
+  const day = /(\d{4}-\d{2}-\d{2})/.exec(name)?.[1]
+  if (!day) return name
+  return new Date(`${day}T12:00:00`).toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long' })
+}
+
+function Nightly() {
+  const { refresh, notify } = useStore()
+  const [data, setData] = useState<NightlyBackups | null>(null)
+  const [busy, setBusy] = useState<string | null>(null)
+  useEffect(() => {
+    api.nightly().then(setData, () => undefined)
+  }, [])
+  if (!data) return null
+  return (
+    <section className="panel">
+      <h2>Nachtelijke back-ups</h2>
+      {!data.enabled ? (
+        <p className="muted small">Staat uit op deze server (Helm: backups.enabled).</p>
+      ) : (
+        <>
+          <p className="muted small">
+            Elke nacht om {data.time} maakt de server een volledige back-up. Die blijft {data.keepDays} dagen
+            bewaard.
+          </p>
+          {data.backups.length === 0 ? (
+            <p className="muted small">Er is nog geen back-up gemaakt.</p>
+          ) : (
+            <ul className="nightly-list">
+              {data.backups.map((b) => (
+                <li key={b.name}>
+                  <span className="nightly-name">
+                    {formatNightlyDate(b.name)}
+                    <span className="muted small"> · {formatBytes(b.size)}</span>
+                  </span>
+                  <span className="nightly-actions">
+                    <a className="btn btn-ghost btn-small" href={`/api/backups/${encodeURIComponent(b.name)}`} download>
+                      <Download size={16} /> Downloaden
+                    </a>
+                    <button
+                      className="btn btn-ghost btn-small"
+                      disabled={busy != null}
+                      onClick={async () => {
+                        if (!confirm(`Alles vervangen door de back-up van ${formatNightlyDate(b.name)}?`)) return
+                        setBusy(b.name)
+                        try {
+                          const r = await api.restoreNightly(b.name)
+                          await refresh()
+                          notify(`${r.houses} huizen en ${r.media} bestanden teruggezet.`)
+                        } catch (err) {
+                          notify(errorText(err), 'error')
+                        } finally {
+                          setBusy(null)
+                        }
+                      }}
+                    >
+                      <RotateCcw size={16} className={busy === b.name ? 'spin' : ''} /> Terugzetten
+                    </button>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
+      )}
+    </section>
+  )
+}
+
+function Data({ admin, loaded }: { admin: boolean; loaded: boolean }) {
   const { refresh, notify } = useStore()
   const input = useRef<HTMLInputElement>(null)
   const [withFiles, setWithFiles] = useState(true)
@@ -487,6 +556,18 @@ function Data() {
     api.storage().then(setUsage, () => undefined)
   }, [])
   const extra = usage ? filesBytes(usage) : null
+  if (!loaded) return <Storage />
+  if (!admin) {
+    return (
+      <>
+        <Storage />
+        <section className="panel">
+          <h2>Back-up</h2>
+          <p className="muted small">Back-ups maken en terugzetten kan alleen een beheerder.</p>
+        </section>
+      </>
+    )
+  }
   return (
     <>
       <Storage />
@@ -518,6 +599,7 @@ function Data() {
           <Download size={18} /> {withFiles ? 'Alles downloaden' : 'Gegevens downloaden'}
         </a>
       </section>
+      <Nightly />
       <section className="panel">
         <h2>Back-up terugzetten</h2>
         <p className="muted small">

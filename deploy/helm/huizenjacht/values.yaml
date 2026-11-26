@@ -28,6 +28,8 @@ auth:
     # Both empty: everyone the provider lets log in.
     allowedGroups: ""
     allowedUsers: ""
+    # Only these groups may make, download and restore backups (comma separated).
+    adminGroups: admins
     # Extra CA certificates (PEM) when the provider uses a private CA.
     caPem: ""
   # The https address people open the app on, such as https://huizen.example.com. Required
@@ -71,6 +73,24 @@ persistence:
   existingClaim: ""
   # Keep the PVC when the release is uninstalled.
   keep: true
+
+# Nightly full backup (the same ZIP as Instellingen → Gegevens en back-up → Alles), kept
+# `keepDays` days. Admins download or restore them in the app. Without their own volume
+# they sit in the data volume under /data/backups: then make persistence.size large enough
+# for the data plus `keepDays` backups.
+backups:
+  enabled: true
+  # HH:MM in `timezone`.
+  time: "03:00"
+  timezone: Europe/Amsterdam
+  keepDays: 5
+  # A volume of their own, so the backups survive a lost data volume.
+  persistence:
+    enabled: false
+    size: 5Gi
+    storageClass: ""
+    existingClaim: ""
+    keep: true
 
 # Where the app imports report Markdown files from (HJ_REPORTS_DIR). Optional.
 reports:

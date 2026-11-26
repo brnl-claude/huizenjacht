@@ -99,7 +99,14 @@ export type LoginSession = {
   expiresAt: string
 }
 
-export type StorageCategory = 'fotos' | 'videos' | 'memos' | 'documenten' | 'advertenties' | 'gegevens'
+export type StorageCategory =
+  | 'fotos'
+  | 'videos'
+  | 'memos'
+  | 'documenten'
+  | 'advertenties'
+  | 'gegevens'
+  | 'backups'
 
 export type StorageUsage = {
   categories: Record<StorageCategory, { bytes: number; count: number }>
@@ -107,8 +114,17 @@ export type StorageUsage = {
   disk: { total: number; free: number } | null
 }
 
+export type NightlyBackups = {
+  enabled: boolean
+  time: string
+  keepDays: number
+  backups: { name: string; size: number; createdAt: string }[]
+}
+
 export type Me = {
   mode: 'none' | 'oidc'
+  // May make, download and restore backups (OIDC group HJ_ADMIN_GROUPS; everyone without login).
+  admin: boolean
   user: { subject: string; name: string | null; email: string | null } | null
 }
 
@@ -167,6 +183,11 @@ export const api = {
     }),
   dropShare: (id: string) => request<void>(`/api/share/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   storage: () => request<StorageUsage>('/api/opslag'),
+  nightly: () => request<NightlyBackups>('/api/backups'),
+  restoreNightly: (name: string) =>
+    request<{ houses: number; media: number }>(`/api/backups/${encodeURIComponent(name)}/restore`, {
+      method: 'POST',
+    }),
   restoreFull: (file: File) => {
     const body = new FormData()
     body.append('file', file)

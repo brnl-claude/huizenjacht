@@ -26,6 +26,16 @@ export type Release = {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.23.0',
+    date: '2026-11-26',
+    title: 'Elke nacht een back-up',
+    changes: [
+      'De server maakt elke nacht om 03:00 een volledige back-up, met alle foto’s, video’s, spraakmemo’s, documenten en advertenties, en bewaart die 5 dagen.',
+      'Onder Instellingen → Gegevens en back-up zie je die back-ups. Je kunt ze daar downloaden of terugzetten.',
+      'Back-ups maken, downloaden en terugzetten kan alleen wie in de groep admins zit. Log na deze update één keer opnieuw in, zodat de app je groepen kent.',
+    ],
+  },
+  {
     version: '0.22.0',
     date: '2026-11-26',
     title: 'Alle foto’s van een advertentie',

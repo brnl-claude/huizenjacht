@@ -8,6 +8,7 @@ export const STORAGE_CATEGORIES: { id: StorageCategory; label: string; unit: [st
   { id: 'documenten', label: 'Documenten', unit: ['document', 'documenten'] },
   { id: 'advertenties', label: 'Advertenties', unit: ['foto', "foto's"] },
   { id: 'gegevens', label: 'Gegevens', unit: ['huis', 'huizen'] },
+  { id: 'backups', label: 'Nachtelijke back-ups', unit: ['back-up', 'back-ups'] },
 ]
 
 /** 0 B, 812 kB, 4,2 MB, 1,25 GB: decimal units, as phones and file managers show them. */
@@ -37,7 +38,7 @@ export function storageShares(usage: StorageUsage): { id: StorageCategory; perce
   }))
 }
 
-/** What the media and documents add to a backup: everything but the database itself. */
+/** What the media and documents add to a backup: not the database, nor older backups. */
 export function filesBytes(usage: StorageUsage): number {
-  return usage.total - usage.categories.gegevens.bytes
+  return usage.total - usage.categories.gegevens.bytes - (usage.categories.backups?.bytes ?? 0)
 }

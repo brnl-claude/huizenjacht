@@ -4,7 +4,7 @@ import { countText, filesBytes, formatBytes, storageShares } from './storage'
 
 const usage = (bytes: Partial<Record<keyof StorageUsage['categories'], number>>): StorageUsage => {
   const categories = Object.fromEntries(
-    ['fotos', 'videos', 'memos', 'documenten', 'advertenties', 'gegevens'].map((k) => [
+    ['fotos', 'videos', 'memos', 'documenten', 'advertenties', 'gegevens', 'backups'].map((k) => [
       k,
       { bytes: bytes[k as keyof typeof bytes] ?? 0, count: 1 },
     ]),

@@ -119,7 +119,7 @@ def test_api_needs_login_and_login_works(tmp_path):
     with client:
         assert client.get("/api/health").status_code == 200
         assert client.get("/api/houses").status_code == 401
-        assert client.get("/api/auth/me").json() == {"mode": "oidc", "user": None}
+        assert client.get("/api/auth/me").json() == {"mode": "oidc", "user": None, "admin": False}
         done = provider.log_in(client, "bram", [], next="/#/vergelijk")
         assert done.status_code == 303 and done.headers["location"] == "/#/vergelijk"
         assert client.get("/api/houses").status_code == 200
@@ -225,3 +225,20 @@ def test_old_answers_of_unknown_owner_can_be_claimed(tmp_path):
         mine = client.get("/api/houses/laan-1").json()["mine"]
         assert mine["personen"] == {people["me"]: {"notities": "Mooi"}}
         assert "eerder" not in [p["key"] for p in client.get("/api/people").json()["people"]]
+
+
+def test_only_admins_manage_backups(tmp_path):
+    client, provider = make(tmp_path)
+    with client:
+        provider.log_in(client, "partner", ["huizen"], name="Partner")
+        assert client.get("/api/auth/me").json()["admin"] is False
+        assert client.get("/api/opslag").status_code == 200
+        for path in ("/api/backup", "/api/backup/volledig", "/api/backups"):
+            assert client.get(path).status_code == 403, path
+        assert client.post("/api/backup/restore", json={}).status_code == 403
+        assert client.post("/api/backups/huizenjacht-2026-11-01.zip/restore").status_code == 403
+        client.post("/api/auth/logout")
+        provider.log_in(client, "bram", ["admins"])
+        assert client.get("/api/auth/me").json()["admin"] is True
+        assert client.get("/api/backup").status_code == 200
+        assert client.get("/api/backup/volledig").status_code == 200

@@ -11,13 +11,14 @@ import re
 import secrets
 import time
 from contextlib import asynccontextmanager
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote, urlsplit
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import httpx2
-from fastapi import Body, FastAPI, Form, HTTPException, Request, UploadFile
+from fastapi import Body, Depends, FastAPI, Form, HTTPException, Request, UploadFile
 from fastapi.responses import (
     FileResponse,
     JSONResponse,
@@ -28,7 +29,15 @@ from fastapi.responses import (
 from starlette.datastructures import UploadFile as StarletteUpload
 
 from . import auth
-from .backup import disk_usage, full_backup, restore_full
+from .backup import (
+    NIGHTLY,
+    disk_usage,
+    full_backup,
+    next_run,
+    nightly_backups,
+    restore_full,
+    write_nightly,
+)
 from .config import Settings, load_settings
 from .db import EARLIER, LOCAL, PEOPLE, PERSONAL, Database, first_name, now, person_key
 from .funda import (
@@ -53,6 +62,8 @@ from .reports import (
 )
 
 MAX_UPLOAD = 5 * 1024 * 1024
+# A nightly backup the server missed is made this long after it starts.
+BACKUP_CATCH_UP_SECONDS = 600
 MAX_LISTING_PAGE = 8 * 1024 * 1024
 # One photo, video or voice memo. A phone video of a few minutes fits.
 MAX_MEDIA = 2 * 1024 * 1024 * 1024
@@ -166,6 +177,7 @@ class Events:
 LISTING_CHECK_SECONDS = 300
 
 log = logging.getLogger("huizenjacht.listings")
+backup_log = logging.getLogger("huizenjacht.backup")
 
 
 def setup_logging() -> None:
@@ -294,6 +306,47 @@ def create_app(
                 return
             await asyncio.sleep(settings.reports_scan_interval)
 
+    def backup_zone() -> ZoneInfo | timezone:
+        try:
+            return ZoneInfo(settings.backup_timezone)
+        except (ZoneInfoNotFoundError, ValueError):
+            return UTC
+
+    def nightly_on() -> bool:
+        return settings.backup_dir is not None and settings.backup_keep_days > 0
+
+    def make_nightly() -> None:
+        assert settings.backup_dir is not None
+        day = datetime.now(backup_zone()).date()
+        try:
+            path = write_nightly(
+                db(),
+                settings.data_dir,
+                settings.reports_dir,
+                settings.backup_dir,
+                day,
+                settings.backup_keep_days,
+            )
+            backup_log.info("Nachtelijke back-up gemaakt: %s", path.name)
+        except Exception:
+            backup_log.exception("Nachtelijke back-up mislukt")
+
+    async def backup_forever() -> None:
+        assert settings.backup_dir is not None
+        # Missed one (the server was off at night, or this is the first start): make it soon.
+        newest = nightly_backups(settings.backup_dir)
+        today = datetime.now(backup_zone()).date().isoformat()
+        yesterday = (datetime.now(backup_zone()) - timedelta(days=1)).date().isoformat()
+        if not newest or newest[0]["name"] < f"huizenjacht-{yesterday}.zip":
+            await asyncio.sleep(BACKUP_CATCH_UP_SECONDS)
+            if not any(today in b["name"] for b in nightly_backups(settings.backup_dir)):
+                await asyncio.to_thread(make_nightly)
+        while True:
+            now_there = datetime.now(backup_zone())
+            wait = (next_run(now_there, settings.backup_time) - now_there).total_seconds()
+            await asyncio.sleep(wait)
+            await asyncio.to_thread(make_nightly)
+
     events = Events()
 
     def on_change(house_id: str | None, removed: bool) -> None:
@@ -329,6 +382,8 @@ def create_app(
         tasks = [asyncio.create_task(scan_forever())]
         if settings.fetch_listings:
             tasks.append(asyncio.create_task(fetch_listings_forever()))
+        if nightly_on():
+            tasks.append(asyncio.create_task(backup_forever()))
         yield
         for task in tasks:
             task.cancel()
@@ -992,7 +1047,13 @@ def create_app(
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
         )
 
-    @app.get("/api/backup")
+    def require_admin(request: Request) -> None:
+        """Backups hold everything: only admins (HJ_ADMIN_GROUPS) make, fetch or restore them."""
+        current = app.state.current_user
+        if current is not None and not auth.is_admin(current(request), settings):
+            raise HTTPException(403, "Alleen beheerders mogen back-ups maken en terugzetten.")
+
+    @app.get("/api/backup", dependencies=[Depends(require_admin)])
     def backup() -> JSONResponse:
         stamp = now()[:10]
         return JSONResponse(
@@ -1000,7 +1061,7 @@ def create_app(
             headers={"Content-Disposition": f'attachment; filename="huizenjacht-{stamp}.json"'},
         )
 
-    @app.get("/api/backup/volledig")
+    @app.get("/api/backup/volledig", dependencies=[Depends(require_admin)])
     def full_backup_zip() -> StreamingResponse:
         stamp = now()[:10]
         return StreamingResponse(
@@ -1012,7 +1073,7 @@ def create_app(
             },
         )
 
-    @app.post("/api/backup/restore/volledig")
+    @app.post("/api/backup/restore/volledig", dependencies=[Depends(require_admin)])
     def restore_full_zip(file: UploadFile) -> dict[str, Any]:
         try:
             result = restore_full(db(), settings.data_dir, file.file)
@@ -1023,9 +1084,51 @@ def create_app(
 
     @app.get("/api/opslag")
     def storage() -> dict[str, Any]:
-        return disk_usage(db(), settings.data_dir, settings.reports_dir)
+        return disk_usage(
+            db(),
+            settings.data_dir,
+            settings.reports_dir,
+            settings.backup_dir if nightly_on() else None,
+        )
 
-    @app.post("/api/backup/restore")
+    @app.get("/api/backups", dependencies=[Depends(require_admin)])
+    def nightly_list() -> dict[str, Any]:
+        on = nightly_on()
+        return {
+            "enabled": on,
+            "time": settings.backup_time,
+            "keepDays": settings.backup_keep_days,
+            "backups": nightly_backups(settings.backup_dir) if on and settings.backup_dir else [],
+        }
+
+    def nightly_path(name: str) -> Path:
+        if not settings.backup_dir or not NIGHTLY.fullmatch(name):
+            raise HTTPException(404, "Deze back-up is er niet.")
+        path = settings.backup_dir / name
+        if not path.is_file():
+            raise HTTPException(404, "Deze back-up is er niet (meer).")
+        return path
+
+    @app.get("/api/backups/{name}", dependencies=[Depends(require_admin)])
+    def nightly_download(name: str) -> FileResponse:
+        return FileResponse(
+            nightly_path(name),
+            media_type="application/zip",
+            filename=name,
+            headers={"Cache-Control": "no-store"},
+        )
+
+    @app.post("/api/backups/{name}/restore", dependencies=[Depends(require_admin)])
+    def nightly_restore(name: str) -> dict[str, Any]:
+        with nightly_path(name).open("rb") as file:
+            try:
+                result = restore_full(db(), settings.data_dir, file)
+            except ValueError as exc:
+                raise HTTPException(400, f"Deze back-up kan niet worden teruggezet: {exc}") from exc
+        claim_old_answers(db())
+        return result
+
+    @app.post("/api/backup/restore", dependencies=[Depends(require_admin)])
     def restore(backup: dict[str, Any] = Body(...)) -> dict[str, Any]:
         if backup.get("format") != "huizenjacht-backup":
             raise HTTPException(400, "Dit is geen Huizenjacht-back-up.")
