@@ -26,6 +26,18 @@ export type Release = {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.20.0',
+    date: '2026-11-26',
+    title: 'Inloggen met je telefoon, en niets kwijt zonder bereik',
+    changes: [
+      'Lukt inloggen op een apparaat niet, zoals op een tablet? Kies daar Inloggen met je telefoon, scan de QR-code met je telefoon en bevestig dat de code klopt. Het apparaat is dan ingelogd met jouw account.',
+      'Onder Instellingen → Account zie je op welke apparaten je bent ingelogd, en kun je een apparaat uitloggen.',
+      'Vink je zonder bereik iets af, of geef je een cijfer of notitie, dan blijft dat op je telefoon bewaard en gaat het vanzelf mee zodra er weer verbinding is. Ook als je de app tussendoor sluit.',
+      'Snel achter elkaar afvinken gaat altijd in de goede volgorde naar de server, zodat er geen vinkje meer verdwijnt.',
+      'Een foto of video wordt niet meer dubbel opgeslagen als de verbinding net op het verkeerde moment wegvalt, of als de app in twee tabbladen open staat.',
+    ],
+  },
+  {
     version: '0.19.8',
     date: '2026-11-26',
     title: 'Veiligheidsverbeteringen na een review',
