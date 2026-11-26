@@ -59,7 +59,10 @@ export function plan(
   const chainB = chainOf(b)
   let common = 0
   while (common < chainA.length && common < chainB.length && chainA[common] === chainB[common]) common++
-  return { kind: 'push', hashes: chainB.slice(Math.max(common, 1)) }
+  // Going up to a page that is not right behind this one (such as Huizen after coming from a
+  // house to the settings): open it as a new step rather than doing nothing.
+  const hashes = chainB.slice(Math.max(common, 1))
+  return { kind: 'push', hashes: hashes.length ? hashes : [b] }
 }
 
 export function navigate(to: string): void {

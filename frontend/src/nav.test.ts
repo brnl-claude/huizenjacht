@@ -27,4 +27,10 @@ describe('hierarchical navigation', () => {
       hashes: ['#/huis/a', '#/huis/a/checklist'],
     })
   })
+
+  it('goes up to all houses from a page that came from somewhere else', () => {
+    expect(plan('#/instellingen', '#/', '#/huis/a')).toEqual({ kind: 'push', hashes: ['#/'] })
+    expect(plan('#/vergelijk', '#/', '#/huis/a/checklist')).toEqual({ kind: 'push', hashes: ['#/'] })
+    expect(plan('#/huis/a/checklist', '#/', '#/huis/a')).toEqual({ kind: 'push', hashes: ['#/'] })
+  })
 })

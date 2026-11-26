@@ -19,6 +19,14 @@ export type Release = {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.16.1',
+    date: '2026-11-26',
+    title: 'Huizen-knop en logo werken weer overal',
+    changes: [
+      'De knop Huizen en het logo brengen je weer naar alle huizen, ook als je via een huis bij Vergelijken of Instellingen kwam.',
+    ],
+  },
+  {
     version: '0.16.0',
     date: '2026-11-26',
     title: 'Rustiger kop bij een huis',
