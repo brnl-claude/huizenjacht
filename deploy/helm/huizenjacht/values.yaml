@@ -53,6 +53,12 @@ android:
   certFingerprints: []
   #  - "AB:CD:EF:…"
 
+# A small map of where the house is, in the PDF of a house. The server looks the address up at
+# PDOK (the Dutch government's address register) and fetches OpenStreetMap tiles, both cached
+# on the data volume. false: nothing about a house leaves the server, and the PDF has no map.
+map:
+  enabled: true
+
 # Addresses whose X-Forwarded-For and X-Forwarded-Proto headers the app trusts, such as
 # the pod network your ingress controller runs in ("10.42.0.0/16"); comma-separated IPs
 # or CIDRs. Empty trusts only 127.0.0.1. Never "*".

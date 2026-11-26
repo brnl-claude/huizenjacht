@@ -26,6 +26,17 @@ export type Release = {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.26.0',
+    date: '2026-11-26',
+    title: 'Mooier PDF-rapport',
+    changes: [
+      'Het PDF-rapport begint met de foto van het huis en een kaartje van de buurt ernaast.',
+      'Iconen bij de kenmerken, de beoordeling, de checklist en elk antwoord, en sterren voor de onderdelen.',
+      'Score, cijfers, bezichtiging en bod staan als duidelijke blokken bovenaan.',
+      'Het kaartje komt via de eigen server en wordt bewaard; met map.enabled: false in de Helm chart gaat er niets over een huis naar buiten.',
+    ],
+  },
+  {
     version: '0.25.0',
     date: '2026-11-26',
     title: 'Naar het vorige of volgende huis',

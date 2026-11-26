@@ -43,6 +43,9 @@ class Settings:
     # Try to fetch each house's listing page (Funda) in the background. Off by default: Funda
     # answers servers with a captcha, so the bookmarklet sends the page instead.
     fetch_listings: bool = False
+    # A map of the house in the PDF: the server looks the address up at PDOK and fetches
+    # OpenStreetMap tiles (kept in <data>/kaart). Off: nothing about a house leaves the server.
+    map_enabled: bool = True
     # The Android app (android/): its id and the SHA-256 fingerprints of its signing key, for
     # /.well-known/assetlinks.json. Chrome then shows the app without an address bar.
     android_package: str = "app.huizenjacht"
@@ -87,6 +90,7 @@ def load_settings() -> Settings:
         backup_time=os.environ.get("HJ_BACKUP_TIME", "03:00").strip(),
         backup_timezone=os.environ.get("HJ_BACKUP_TIMEZONE", "Europe/Amsterdam").strip(),
         backup_keep_days=int(os.environ.get("HJ_BACKUP_KEEP_DAYS", "5")),
+        map_enabled=os.environ.get("HJ_MAP", "true").lower() != "false",
         fetch_listings=os.environ.get("HJ_FETCH_LISTINGS", "false").lower() == "true",
         android_package=os.environ.get("HJ_ANDROID_PACKAGE", "").strip() or "app.huizenjacht",
         android_cert_fingerprints=tuple(

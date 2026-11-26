@@ -51,6 +51,7 @@ from .funda import (
 from .funda import (
     listing_page as listing_address,
 )
+from .kaart import MapService
 from .reports import (
     REPORT_SUFFIXES,
     digest,
@@ -223,6 +224,7 @@ def create_app(
     settings: Settings | None = None,
     oidc_transport: Any = None,
     listing_transport: Any = None,
+    map_transport: Any = None,
 ) -> FastAPI:
     settings = settings or load_settings()
     setup_logging()
@@ -820,6 +822,31 @@ def create_app(
             f"Opgeslagen: {name}, {photos} foto's.",
             house=saved["id"],
             link=f"{settings.public_url or ''}/#/huis/{saved['id']}",
+        )
+
+    maps = MapService(settings.data_dir, settings.version, map_transport)
+
+    @app.get("/api/houses/{house_id}/ligging")
+    async def location(house_id: str) -> dict[str, float]:
+        """Where the house is, for the map in the PDF (see kaart.py)."""
+        house = house_or_404(house_id)
+        if not settings.map_enabled:
+            raise HTTPException(404, "De kaart staat uit (HJ_MAP).")
+        fields = {**house["report"], **{k: v for k, v in house["mine"].items() if v}}
+        place = await asyncio.to_thread(maps.locate, fields)
+        if not place:
+            raise HTTPException(404, "Dit adres staat niet op de kaart.")
+        return place
+
+    @app.get("/api/kaart/{z}/{x}/{y}.png", response_model=None)
+    async def map_tile(z: int, x: int, y: int) -> FileResponse:
+        if not settings.map_enabled:
+            raise HTTPException(404, "De kaart staat uit (HJ_MAP).")
+        path = await asyncio.to_thread(maps.tile, z, x, y)
+        if not path:
+            raise HTTPException(404, "Deze kaarttegel is er niet.")
+        return FileResponse(
+            path, media_type="image/png", headers={"Cache-Control": "private, max-age=604800"}
         )
 
     @app.get("/api/houses/{house_id}/photos/{number}", response_model=None)
