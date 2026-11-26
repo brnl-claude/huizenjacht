@@ -137,7 +137,7 @@ export function App() {
       )}
       <main className="main">
         {route.page === 'houses' && <HousesPage />}
-        {route.page === 'house' && <HousePage id={route.id} tab={route.tab} />}
+        {route.page === 'house' && <HousePage key={route.id} id={route.id} tab={route.tab} />}
         {route.page === 'compare' && <ComparePage />}
         {route.page === 'settings' && <SettingsPage section={route.section} health={health} />}
         {route.page === 'receive' && <ReceivePage />}

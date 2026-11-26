@@ -349,6 +349,26 @@ pre {
   font-weight: 550;
   width: fit-content;
 }
+/* Alle huizen on the left, previous and next house on the right. */
+.house-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 38px;
+}
+.house-stepper {
+  display: flex;
+  gap: 4px;
+}
+.house-stepper .icon-btn {
+  color: var(--link);
+  border: 1px solid var(--border);
+}
+.house-stepper .icon-btn[aria-disabled='true'] {
+  opacity: 0.35;
+  cursor: default;
+}
 
 /* Buttons */
 .btn {

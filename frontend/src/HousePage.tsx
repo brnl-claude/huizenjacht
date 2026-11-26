@@ -51,6 +51,7 @@ import {
   type House,
   type Status,
 } from './house'
+import { neighbours, rememberedView } from './houseList'
 import { ListingOverlay, overlayClick } from './ListingOverlay'
 import { DocumentViewer } from './DocumentViewer'
 import { exportPdf } from './pdfExport'
@@ -174,9 +175,12 @@ export function HousePage({ id, tab }: { id: string; tab: string | null }) {
       {/* Only the overview shows the big header; the other tabs start as if scrolled down. */}
       {active === 'overzicht' && (
       <>
-      <a href="#/" className="back">
-        <ArrowLeft size={18} /> Alle huizen
-      </a>
+      <div className="house-topbar">
+        <a href="#/" className="back">
+          <ArrowLeft size={18} /> Alle huizen
+        </a>
+        <HouseStepper houses={houses} id={house.id} />
+      </div>
       <section ref={setHero} className="hero">
         <HeroPhoto
           house={house}
@@ -370,6 +374,38 @@ function DeleteHouse({ house }: { house: House }) {
 
 /** The photos of the house side by side: swipe (or scroll sideways) through them, or use the
  * arrows; a tap opens them all in the gallery at that photo. */
+/** Previous and next house, in the order (and with the search and filter) of the home page.
+ * Moving to another house replaces this page in the history (nav.ts: same parent), so back
+ * still goes to Huizen. */
+function HouseStepper({ houses, id }: { houses: House[]; id: string }) {
+  const { prev, next } = neighbours(houses, rememberedView(), id)
+  if (!prev && !next) return null
+  const link = (h: House | null, dir: 'prev' | 'next') => {
+    const label = dir === 'prev' ? 'Vorig huis' : 'Volgend huis'
+    const icon = dir === 'prev' ? <ChevronLeft size={20} /> : <ChevronRight size={20} />
+    return h ? (
+      <a
+        href={`#/huis/${encodeURIComponent(h.id)}`}
+        className="icon-btn"
+        aria-label={`${label}: ${displayAddress(h)}`}
+        data-tip={`${label}: ${displayAddress(h)}`}
+      >
+        {icon}
+      </a>
+    ) : (
+      <span className="icon-btn" aria-disabled="true" aria-label={`Geen ${label.toLowerCase()}`}>
+        {icon}
+      </span>
+    )
+  }
+  return (
+    <nav className="house-stepper" aria-label="Ander huis">
+      {link(prev, 'prev')}
+      {link(next, 'next')}
+    </nav>
+  )
+}
+
 function HeroPhoto({
   house,
   index,

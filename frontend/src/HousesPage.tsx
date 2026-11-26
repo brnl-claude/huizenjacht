@@ -6,37 +6,25 @@ import {
   formatDateTime,
   formatEuro,
   formatNumber,
-  matchesSearch,
   place,
-  sortHouses,
   SORTS,
   STATUSES,
   type House,
   type SortKey,
-  type Status,
 } from './house'
+import { rememberedView, rememberView, visibleHouses, type Filter } from './houseList'
 import { NewHouseDialog } from './NewHouseDialog'
 import { useStore } from './store'
 import { EnergyLabel, FavoriteButton, Photo, ProgressBar, ScorePill, StatusBadge } from './ui'
 
-type Filter = 'actief' | 'alle' | 'favoriet' | Status
-
-const SORT_KEY = 'hj.sort'
-
-function rememberedSort(): SortKey {
-  try {
-    const v = localStorage.getItem(SORT_KEY)
-    return SORTS.some((s) => s.id === v) ? (v as SortKey) : 'nieuwste'
-  } catch {
-    return 'nieuwste'
-  }
-}
-
 export function HousesPage() {
   const { houses, loading, error, refresh } = useStore()
-  const [query, setQuery] = useState('')
-  const [filter, setFilter] = useState<Filter>('actief')
-  const [sort, setSort] = useState<SortKey>(rememberedSort)
+  const [view, setView] = useState(rememberedView)
+  const { query, filter, sort } = view
+  const change = (next: Partial<typeof view>) => {
+    setView((v) => ({ ...v, ...next }))
+    rememberView(next)
+  }
   const [adding, setAdding] = useState(false)
 
   const counts = useMemo(() => {
@@ -49,16 +37,7 @@ export function HousesPage() {
     return c
   }, [houses])
 
-  const shown = useMemo(() => {
-    const filtered = houses.filter((h) => {
-      if (!matchesSearch(h, query)) return false
-      if (filter === 'alle') return true
-      if (filter === 'actief') return h.status !== 'afgevallen'
-      if (filter === 'favoriet') return h.favoriet
-      return h.status === filter
-    })
-    return sortHouses(filtered, sort)
-  }, [houses, query, filter, sort])
+  const shown = useMemo(() => visibleHouses(houses, view), [houses, view])
 
   const upcoming = useMemo(
     () =>
@@ -123,7 +102,7 @@ export function HousesPage() {
                 type="search"
                 placeholder="Zoek op adres, plaats of wijk"
                 value={query}
-                onChange={(e) => setQuery(e.target.value)}
+                onChange={(e) => change({ query: e.target.value })}
               />
             </label>
             <label className="select sort" data-tip={`Sorteren: ${SORTS.find((s) => s.id === sort)?.label ?? ''}`}>
@@ -131,15 +110,7 @@ export function HousesPage() {
               <span className="visually-hidden">Sorteren</span>
               <select
                 value={sort}
-                onChange={(e) => {
-                  const v = e.target.value as SortKey
-                  setSort(v)
-                  try {
-                    localStorage.setItem(SORT_KEY, v)
-                  } catch {
-                    // not remembered
-                  }
-                }}
+                onChange={(e) => change({ sort: e.target.value as SortKey })}
               >
                 {SORTS.map((s) => (
                   <option key={s.id} value={s.id}>
@@ -158,7 +129,7 @@ export function HousesPage() {
                   role="tab"
                   aria-selected={filter === c.id}
                   className={`chip ${filter === c.id ? 'on' : ''}`}
-                  onClick={() => setFilter(c.id)}
+                  onClick={() => change({ filter: c.id })}
                 >
                   {c.label}
                   <span className="chip-count">{counts[c.id] ?? 0}</span>
