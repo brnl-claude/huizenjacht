@@ -3,7 +3,8 @@ import { Minus, Plus } from 'lucide-react'
 
 /** Pinch zoom for a scrolling box, shared by the document viewer and the photo gallery. */
 
-const ZOOMS = [0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4]
+// Never smaller than the page fits: pinching out always ends at 100%.
+const ZOOMS = [1, 1.25, 1.5, 2, 3, 4]
 export const MIN_ZOOM = ZOOMS[0]
 export const MAX_ZOOM = ZOOMS[ZOOMS.length - 1]
 
@@ -75,7 +76,9 @@ export function usePinchZoom(enabled = true) {
         x: p.x * p.factor - (p.x - el.scrollLeft),
         y: p.y * p.factor - (p.y - el.scrollTop),
       }
-      setZoom(Math.round(p.zoom * p.factor * 100) / 100)
+      const next = Math.round(p.zoom * p.factor * 100) / 100
+      // Close to 100% is 100%.
+      setZoom(next < 1.05 ? 1 : next)
     }
   }
 
