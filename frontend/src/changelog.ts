@@ -26,6 +26,14 @@ export type Release = {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.19.2',
+    date: '2026-11-26',
+    title: 'Geen waarschuwing meer in Obtainium',
+    changes: [
+      'Releases zonder nieuwe Android-app zijn op GitHub een pre-release. Obtainium slaat ze over en waarschuwt niet meer dat updates misschien niet doorkomen.',
+    ],
+  },
+  {
     version: '0.19.1',
     date: '2026-11-26',
     title: 'Uitzoomen stopt bij 100%',

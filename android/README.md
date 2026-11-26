@@ -56,9 +56,11 @@ Er komt alleen een nieuwe app als de app zelf verandert. Zet dan bij de nieuwste
 pull requests die `android/` wijzigen). De app krijgt het versienummer van de nieuwste versie
 met `android`; de versiecode volgt daaruit: `1.2.3` wordt `1002003`, dus elke nieuwe app
 installeert over de vorige. CI bouwt de app bij elke push naar `main` en hangt hem alleen aan
-de release van een versie met `android`. Andere releases hebben geen APK; Obtainium valt dan
-terug op de vorige release met een APK (instelling *Fallback to older releases*, standaard aan),
-en de F-Droid-repository neemt alleen releases met een APK mee.
+de release van een versie met `android`. Andere releases hebben geen APK en zijn een
+*pre-release*: Obtainium slaat die over (zolang *Include prereleases* uit staat), zodat hij ze
+niet meetelt als nieuwere releases die door filters verborgen worden (de waarschuwing *This app
+config may prevent updates*). `releases/latest` is daardoor altijd de nieuwste app. De
+F-Droid-repository neemt alleen releases met een APK mee.
 
 ## Ondertekening
 

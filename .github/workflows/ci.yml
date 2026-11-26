@@ -328,10 +328,14 @@ jobs:
         with:
           name: huizenjacht-apk
           path: ${{ runner.temp }}/apk
+      # A version without Android changes gets no APK and is marked as a pre-release, so
+      # Obtainium (which skips pre-releases) does not count it as a newer release hidden by its
+      # filters, and releases/latest stays the newest app.
       - name: Create the release if the newest changelog version has none
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           APK: ${{ runner.temp }}/apk/huizenjacht.apk
+          ANDROID_RELEASE: ${{ needs.android.outputs.release }}
         run: |
           version=$(node .github/scripts/changelog-notes.mjs version)
           assets=()
@@ -343,9 +347,27 @@ jobs:
             if [ -f "$APK" ] && ! gh release view "v$version" --json assets --jq '.assets[].name' | grep -qx huizenjacht.apk; then
               echo "Adding the Android app to v$version."
               gh release upload "v$version" "$APK"
+              gh release edit "v$version" --prerelease=false --latest
             fi
             exit 0
           fi
           node .github/scripts/changelog-notes.mjs notes > "$RUNNER_TEMP/notes.md"
+          kind=()
+          if [ "$ANDROID_RELEASE" != true ]; then
+            kind=(--prerelease)
+          fi
           gh release create "v$version" --target "$GITHUB_SHA" --title "v$version" \
-            --notes-file "$RUNNER_TEMP/notes.md" "${assets[@]}"
+            --notes-file "$RUNNER_TEMP/notes.md" "${kind[@]}" "${assets[@]}"
+      # Releases from before that rule (0.17.0 and later without an APK) become pre-releases too.
+      - name: Mark older releases without the app as pre-releases
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/releases?per_page=50" \
+            --jq '.[] | select(.prerelease == false and .draft == false)
+                  | select((.tag_name | ltrimstr("v") | split(".") | map(tonumber)) >= [0, 17, 0])
+                  | select([.assets[].name] | index("huizenjacht.apk") | not) | .tag_name' |
+          while read -r tag; do
+            echo "Marking $tag as a pre-release (no huizenjacht.apk)."
+            gh release edit "$tag" --prerelease
+          done
