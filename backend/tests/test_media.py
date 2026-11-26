@@ -106,3 +106,66 @@ def test_the_same_upload_twice_is_kept_once(tmp_path):
         ]
         assert sent[0]["id"] == sent[1]["id"]
         assert len(client.get(f"/api/houses/{house}").json()["media"]) == 1
+
+
+def test_disk_usage_and_full_backup(tmp_path):
+    import io
+    import zipfile
+
+    with make_client(tmp_path) as client:
+        house = client.post("/api/houses", json={"adres": "Kade 2"}).json()["id"]
+        photo = client.post(
+            f"/api/houses/{house}/media",
+            files={
+                "file": ("kelder.jpg", PNG, "image/jpeg"),
+                "thumb": ("thumb.jpg", b"t", "image/jpeg"),
+            },
+        ).json()
+        memo = client.post(
+            f"/api/houses/{house}/media",
+            files={"file": ("memo.webm", b"ogg", "audio/webm")},
+        ).json()
+        listing = tmp_path / "data" / "listings" / house
+        listing.mkdir(parents=True)
+        (listing / "photo-01.jpg").write_bytes(b"f" * 10)
+
+        usage = client.get("/api/opslag").json()
+        cats = usage["categories"]
+        assert cats["fotos"] == {"bytes": len(PNG) + 1, "count": 1}
+        assert cats["memos"] == {"bytes": 3, "count": 1}
+        assert cats["advertenties"] == {"bytes": 10, "count": 1}
+        assert cats["gegevens"]["count"] == 1 and cats["gegevens"]["bytes"] > 0
+        assert usage["disk"]["total"] > 0
+
+        res = client.get("/api/backup/volledig")
+        assert res.status_code == 200 and "volledig.zip" in res.headers["content-disposition"]
+        archive = zipfile.ZipFile(io.BytesIO(res.content))
+        names = set(archive.namelist())
+        assert {
+            "huizenjacht.json",
+            f"media/{photo['id']}",
+            f"media/{photo['id']}.thumb.jpg",
+            f"media/{memo['id']}",
+            f"advertenties/{house}/photo-01.jpg",
+        } <= names
+        assert archive.read(f"media/{photo['id']}") == PNG
+
+        # Everything gone, then back from the ZIP.
+        client.delete(f"/api/houses/{house}")
+        assert not (media_dir(tmp_path) / photo["id"]).exists()
+        restored = client.post(
+            "/api/backup/restore/volledig",
+            files={"file": ("backup.zip", res.content, "application/zip")},
+        ).json()
+        assert restored == {"houses": 1, "media": 2}
+        assert client.get(f"/api/media/{photo['id']}").content == PNG
+        assert client.get(f"/api/media/{photo['id']}/thumb").content == b"t"
+        assert len(client.get(f"/api/houses/{house}").json()["media"]) == 2
+        assert (listing / "photo-01.jpg").read_bytes() == b"f" * 10
+
+        bad = client.post(
+            "/api/backup/restore/volledig",
+            files={"file": ("x.zip", b"geen zip", "application/zip")},
+        )
+        assert bad.status_code == 400
+        assert client.get(f"/api/media/{photo['id']}").content == PNG

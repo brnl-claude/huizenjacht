@@ -26,6 +26,17 @@ export type Release = {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.21.0',
+    date: '2026-11-26',
+    title: 'Zien wat ruimte inneemt, en een back-up met alles erin',
+    changes: [
+      'Onder Instellingen → Gegevens en back-up zie je hoeveel ruimte de app op de server gebruikt, verdeeld over foto’s, video’s, spraakmemo’s, documenten, advertenties en gegevens, en hoeveel er nog vrij is.',
+      'De back-up kan nu ook alles meenemen: foto’s, video’s, spraakmemo’s, documenten en advertenties, samen in één ZIP-bestand. Alleen de gegevens als klein JSON-bestand kan nog steeds.',
+      'Zo’n ZIP-back-up zet je ook weer terug, met alle bestanden erbij.',
+      'Zoeken naar updates staat nu in het blok van de app onder Instellingen → Over, en zegt of je de nieuwste versie hebt.',
+    ],
+  },
+  {
     version: '0.20.0',
     date: '2026-11-26',
     title: 'Inloggen met je telefoon, en niets kwijt zonder bereik',

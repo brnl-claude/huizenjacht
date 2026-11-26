@@ -28,6 +28,7 @@ from fastapi.responses import (
 from starlette.datastructures import UploadFile as StarletteUpload
 
 from . import auth
+from .backup import disk_usage, full_backup, restore_full
 from .config import Settings, load_settings
 from .db import EARLIER, LOCAL, PEOPLE, PERSONAL, Database, first_name, now, person_key
 from .funda import (
@@ -973,6 +974,31 @@ def create_app(
             db().export(),
             headers={"Content-Disposition": f'attachment; filename="huizenjacht-{stamp}.json"'},
         )
+
+    @app.get("/api/backup/volledig")
+    def full_backup_zip() -> StreamingResponse:
+        stamp = now()[:10]
+        return StreamingResponse(
+            full_backup(db(), settings.data_dir, settings.reports_dir),
+            media_type="application/zip",
+            headers={
+                "Content-Disposition": f'attachment; filename="huizenjacht-{stamp}-volledig.zip"',
+                "Cache-Control": "no-store",
+            },
+        )
+
+    @app.post("/api/backup/restore/volledig")
+    def restore_full_zip(file: UploadFile) -> dict[str, Any]:
+        try:
+            result = restore_full(db(), settings.data_dir, file.file)
+        except ValueError as exc:
+            raise HTTPException(400, f"Deze back-up kan niet worden teruggezet: {exc}") from exc
+        claim_old_answers(db())
+        return result
+
+    @app.get("/api/opslag")
+    def storage() -> dict[str, Any]:
+        return disk_usage(db(), settings.data_dir, settings.reports_dir)
 
     @app.post("/api/backup/restore")
     def restore(backup: dict[str, Any] = Body(...)) -> dict[str, Any]:
