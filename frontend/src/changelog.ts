@@ -26,6 +26,17 @@ export type Release = {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.19.2',
+    date: '2026-11-26',
+    title: 'Vloeiender rondkijken op een ingezoomde foto',
+    changes: [
+      'Rondkijken op een ingezoomde foto gaat soepeler. Na een veeg glijdt de foto nog even door, zoals bij het scrollen door een pagina.',
+    ],
+    android: [
+      'Knijpen om te zoomen laadt de pagina niet meer per ongeluk opnieuw. In een geopend venster, zoals een foto, een document of de galerij, werkt omlaag trekken om te verversen niet meer. Op de pagina zelf werkt het nog wel.',
+    ],
+  },
+  {
     version: '0.19.1',
     date: '2026-11-26',
     title: 'Uitzoomen stopt bij 100%',

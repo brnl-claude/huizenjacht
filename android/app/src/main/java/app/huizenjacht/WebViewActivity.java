@@ -74,13 +74,15 @@ public class WebViewActivity extends Activity {
     private static final int REQUEST_CAMERA_FOR_CAPTURE = 3;
 
     // A pull at the top of the page refreshes it, unless it starts in a part of the page that
-    // scrolls on its own and isn't at its top yet.
+    // scrolls on its own and isn't at its top yet, or in an open window (a photo or document
+    // being zoomed, the gallery): there a pull or pinch is meant for the window.
     private static final String PULL_SCRIPT =
             "(function () {"
             + "  if (!window.HuizenjachtAndroid) return;"
             + "  addEventListener('touchstart', function (event) {"
-            + "    var scrolled = false;"
-            + "    for (var el = event.target; el && el !== document.body; el = el.parentElement) {"
+            + "    var scrolled = event.touches.length > 1"
+            + "      || !!(event.target && event.target.closest && event.target.closest('dialog[open]'));"
+            + "    for (var el = event.target; !scrolled && el && el !== document.body; el = el.parentElement) {"
             + "      if (el.scrollTop > 0) { scrolled = true; break; }"
             + "    }"
             + "    window.HuizenjachtAndroid.postMessage(scrolled ? 'inner-scrolled' : 'inner-top');"
