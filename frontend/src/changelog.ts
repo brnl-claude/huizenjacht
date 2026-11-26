@@ -26,6 +26,15 @@ export type Release = {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.25.0',
+    date: '2026-11-26',
+    title: 'Naar het vorige of volgende huis',
+    changes: [
+      'Rechtsboven op een huis staan twee pijlen naar het vorige en volgende huis, in de volgorde van het overzicht, met dezelfde zoekterm en hetzelfde filter. Terug gaat nog steeds naar Alle huizen.',
+      'Zoekterm en filter op het overzicht blijven staan als je een huis opent en weer teruggaat.',
+    ],
+  },
+  {
     version: '0.24.2',
     date: '2026-11-26',
     title: 'Kleinere knoppen op de huiskaarten',
