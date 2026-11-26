@@ -3508,3 +3508,135 @@ a[aria-label],
   display: grid;
   gap: 2px;
 }
+
+/* Priorities and the short viewing */
+.prio-pill {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-block;
+  margin-right: 8px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.5;
+  vertical-align: 1px;
+  cursor: pointer;
+  text-align: center;
+}
+.prio-pill.prio-moet {
+  background: var(--bad-soft);
+  border-color: transparent;
+  color: var(--bad);
+}
+.prio-pill.prio-belangrijk {
+  background: var(--brand-soft);
+  border-color: transparent;
+  color: var(--brand-strong);
+}
+.prio-pill.prio-later {
+  background: var(--purple-soft);
+  border-color: transparent;
+  color: var(--purple);
+}
+.prio-pill.own {
+  border: 1px dashed currentColor;
+}
+.check-meta {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.78rem;
+  font-weight: 400;
+  color: var(--muted);
+}
+.quick-icon {
+  color: var(--brand-strong);
+  margin-right: -4px;
+}
+.quick-tools {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+}
+.quick-minutes {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+}
+.quick-minutes select {
+  font: inherit;
+  padding: 4px 8px;
+  border-radius: var(--radius-small);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+}
+.viewing-timer {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--ok);
+}
+.viewing-timer.over {
+  color: var(--bad);
+}
+.viewing-timer .icon-btn {
+  width: 28px;
+  height: 28px;
+}
+.quick-group.prio-moet {
+  border-left: 4px solid var(--bad);
+}
+.quick-group.prio-belangrijk {
+  border-left: 4px solid var(--brand);
+}
+.quick-warning {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  background: var(--warn-soft);
+  color: var(--warn);
+  font-weight: 600;
+}
+.quick-warning svg {
+  flex: none;
+  margin-top: 2px;
+}
+.quick-more > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 1.05rem;
+  cursor: pointer;
+  list-style: none;
+}
+.quick-more > summary::-webkit-details-marker {
+  display: none;
+}
+.quick-more > summary small {
+  margin-left: auto;
+  color: var(--muted);
+  font-weight: 600;
+}
+.quick-more > summary .chev {
+  transform: rotate(-90deg);
+  transition: transform 0.15s;
+}
+.quick-more[open] > summary .chev {
+  transform: none;
+}
+.quick-more[open] > summary {
+  margin-bottom: 8px;
+}

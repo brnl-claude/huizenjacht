@@ -26,6 +26,20 @@ export type Release = {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.27.0',
+    date: '2026-11-26',
+    title: 'Korte bezichtiging',
+    changes: [
+      'Elk checklistpunt heeft een prioriteit: Moet, Belangrijk, Optioneel of Later (thuis of vóór het bieden).',
+      'Met Korte bezichtiging zie je alleen wat in je tijd past (15 tot 60 minuten), de moet-punten eerst; de rest staat ingeklapt eronder.',
+      'Wat de documenten al in orde vinden zakt een stap, een probleem uit de documenten wordt een moet-punt.',
+      'Tik op de prioriteit bij een punt om die voor dit huis te veranderen; dat geldt voor jullie allebei.',
+      'Een klok telt de bezichtiging af vanaf het moment dat je op Start de klok tikt.',
+      'Punten uit het rapport onder Vóór het bieden staan op Later; Huizen beoordelen kan een punt beginnen met (moet), (optioneel) of (later).',
+      'Bij Instellingen → Checklist zet je de prioriteit van de standaardpunten.',
+    ],
+  },
+  {
     version: '0.26.0',
     date: '2026-11-26',
     title: 'Mooier PDF-rapport',
