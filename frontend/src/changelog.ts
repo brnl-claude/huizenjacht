@@ -26,7 +26,7 @@ export type Release = {
 
 export const CHANGELOG: Release[] = [
   {
-    version: '0.19.6',
+    version: '0.19.7',
     date: '2026-11-26',
     title: 'Veiligheidsverbeteringen na een review',
     changes: [
@@ -35,6 +35,14 @@ export const CHANGELOG: Release[] = [
       'Foto\'s en documenten kunnen geen script meer draaien in de app; onbekende soorten documenten worden alleen gedownload.',
       'Bij een advertentiepagina haalt de server alleen foto\'s van funda.nl op, geen andere adressen.',
       'Uitloggen haalt de offline kopie van je huizen van het apparaat.',
+    ],
+  },
+  {
+    version: '0.19.6',
+    date: '2026-11-26',
+    title: 'Sorteren geldt ook voor favorieten',
+    changes: [
+      'Sorteren in het overzicht werkt weer zoals je verwacht: favorieten staan niet meer altijd bovenaan, maar op hun plek in de gekozen volgorde. Alleen favorieten zien kan met de filterknop Favorieten.',
     ],
   },
   {
