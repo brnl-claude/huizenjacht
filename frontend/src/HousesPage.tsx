@@ -191,6 +191,7 @@ function HouseCard({ house }: { house: House }) {
     house.kamers && `${house.kamers} kamers`,
     house.bouwjaar && `${house.bouwjaar}`,
   ].filter(Boolean)
+  const scored = house.score != null || house.mine.cijfer != null
 
   return (
     <article className={`card house-card ${house.status === 'afgevallen' ? 'dimmed' : ''}`}>
@@ -200,20 +201,35 @@ function HouseCard({ house }: { house: House }) {
           <div className="card-photo-top">
             <StatusBadge status={house.status} />
           </div>
+          {house.mine.bezichtiging && (
+            <span className="card-when" data-tip="Bezichtiging">
+              <Calendar size={14} aria-hidden="true" />
+              <span className="visually-hidden">Bezichtiging </span>
+              {formatDateTime(house.mine.bezichtiging)}
+            </span>
+          )}
         </div>
         <div className="card-body">
-          <h2 className="card-title">{displayAddress(house)}</h2>
-          <p className="card-place">{place(house) || house.wijk || ' '}</p>
-          <p className="card-price">
-            {formatEuro(house.vraagprijs)}
-            {house.prijsPerM2 && <small> · {formatEuro(house.prijsPerM2)}/m²</small>}
-          </p>
-          <p className="card-facts">
-            {facts.map((f, i) => (
-              <span key={i}>{f}</span>
-            ))}
+          <div>
+            <h2 className="card-title">{displayAddress(house)}</h2>
+            <p className="card-place">{place(house) || house.wijk || ' '}</p>
+          </div>
+          <div className="card-price-row">
+            <p className="card-price">
+              {formatEuro(house.vraagprijs)}
+              {house.prijsPerM2 && <small> {formatEuro(house.prijsPerM2)}/m²</small>}
+            </p>
             <EnergyLabel label={house.energielabel} />
-          </p>
+          </div>
+          {facts.length > 0 && (
+            <div className="card-facts">
+              <p>
+                {facts.map((f, i) => (
+                  <span key={i}>{f}</span>
+                ))}
+              </p>
+            </div>
+          )}
         </div>
       </a>
       <FavoriteButton
@@ -222,18 +238,13 @@ function HouseCard({ house }: { house: House }) {
         onToggle={() => void update(house.id, { favoriet: house.favoriet ? null : true })}
       />
       <div className="card-foot">
-        <div className="card-foot-info">
+        {scored && (
           <div className="card-scores">
             <ScorePill value={house.score} label="Rapport" />
             <ScorePill value={house.mine.cijfer} label="Mijn cijfer" />
-            {house.mine.bezichtiging && (
-              <span className="when">
-                <Calendar size={14} /> {formatDateTime(house.mine.bezichtiging)}
-              </span>
-            )}
           </div>
-          {p.done > 0 && <ProgressBar done={p.done} total={p.total} problems={p.probleem} />}
-        </div>
+        )}
+        {p.done > 0 && <ProgressBar done={p.done} total={p.total} problems={p.probleem} />}
         <button
           type="button"
           className={`btn btn-small ${selected ? 'btn-selected' : 'btn-ghost'}`}

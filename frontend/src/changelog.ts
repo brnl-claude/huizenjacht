@@ -26,6 +26,17 @@ export type Release = {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.17.2',
+    date: '2026-11-26',
+    title: 'Rustigere huiskaarten in het overzicht',
+    changes: [
+      'Huiskaarten hebben een vaste indeling: prijs met het energielabel rechts ernaast, de kenmerken op één regel met puntjes ertussen.',
+      'Je bezichtiging staat als datum op de foto, onder de status.',
+      'Cijfers, voortgang en Vergelijk staan onderaan onder een dun lijntje, ook bij de grootste letters netjes uitgelijnd.',
+      'Op je telefoon is de foto iets minder hoog en lopen de filterknoppen door tot de rand, zodat je ziet dat je ze kunt schuiven.',
+    ],
+  },
+  {
     version: '0.17.1',
     date: '2026-11-26',
     title: 'Nieuwtjes sluiten door ernaast te tikken, korter blok Android-app',
