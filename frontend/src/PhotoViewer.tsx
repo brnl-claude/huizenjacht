@@ -73,13 +73,27 @@ export function PhotoViewer({
   const lastTap = useRef({ t: 0, x: 0, y: 0 })
   const [size, setSize] = useState({ w: 0, h: 0 })
   const [natural, setNatural] = useState({ w: 0, h: 0 })
+  const img = useRef<HTMLImageElement>(null)
   const [view, setViewState] = useState<View>(NONE)
-  // The latest view, also between a move and its render (a quick lift of the fingers).
+  // The latest view. While a finger moves (and while the photo glides on after a flick) it is
+  // painted straight onto the photo, without a React render per frame: that keeps it smooth.
   const latest = useRef<View>(NONE)
-  const setView = (v: View) => {
+  const paint = (v: View) => {
     latest.current = v
+    if (img.current) img.current.style.transform = `translate(${v.x}px, ${v.y}px) scale(${v.s})`
+  }
+  const setView = (v: View) => {
+    paint(v)
     setViewState(v)
   }
+  // Recent finger positions, for the speed of a flick.
+  const samples = useRef<{ t: number; x: number; y: number }[]>([])
+  const glide = useRef(0)
+  const stopGlide = () => {
+    cancelAnimationFrame(glide.current)
+    glide.current = 0
+  }
+  useEffect(() => stopGlide, [])
   const [busy, setBusy] = useState(false)
   const count = photos.length
 
@@ -140,6 +154,8 @@ export function PhotoViewer({
 
   function onPointerDown(e: React.PointerEvent) {
     if (e.pointerType === 'mouse' && e.button !== 0) return
+    stopGlide()
+    samples.current = []
     stage.current?.setPointerCapture(e.pointerId)
     if (pointers.current.size === 0) gesture.current = null
     pointers.current.set(e.pointerId, local(e))
@@ -160,15 +176,19 @@ export function PhotoViewer({
       const s = Math.min(MAX_SCALE, Math.max(1, (g.start.s * Math.hypot(a.x - b.x, a.y - b.y)) / g.distance))
       // Zoom around where the fingers started, and let the photo follow them as they move.
       const zoomed = zoomAt(g.start, box, s, g.x, g.y)
-      setView({ s, x: zoomed.x + mx - g.x, y: zoomed.y + my - g.y })
+      paint({ s, x: zoomed.x + mx - g.x, y: zoomed.y + my - g.y })
     } else if (g.fingers === 1) {
       const dx = pts[0].x - g.x
       const dy = pts[0].y - g.y
       if (!g.moved && Math.hypot(dx, dy) < 8) return
       g.moved = true
-      if (g.start.s > 1.01) setView(clamp({ ...g.start, x: g.start.x + dx, y: g.start.y + dy }))
+      if (g.start.s > 1.01) {
+        paint(clamp({ ...g.start, x: g.start.x + dx, y: g.start.y + dy }))
+        const t = e.timeStamp
+        samples.current = [...samples.current.filter((p) => t - p.t < 100), { t, x: pts[0].x, y: pts[0].y }]
+      }
       // Not zoomed: the photo follows a sideways swipe.
-      else setView({ s: 1, x: dx, y: 0 })
+      else paint({ s: 1, x: dx, y: 0 })
     }
   }
 
@@ -198,7 +218,40 @@ export function PhotoViewer({
       setView(NONE)
       return
     }
-    setView(clamp(latest.current))
+    // A flick glides on and slows down, like scrolling a page.
+    const recent = samples.current
+    samples.current = []
+    const first = recent[0]
+    const last = recent[recent.length - 1]
+    const ms = last && first ? last.t - first.t : 0
+    if (ms > 0) startGlide((last.x - first.x) / ms, (last.y - first.y) / ms)
+    else setView(clamp(latest.current))
+  }
+
+  function startGlide(vx: number, vy: number) {
+    if (Math.hypot(vx, vy) < 0.15) return setView(clamp(latest.current))
+    setBusy(true)
+    let before = performance.now()
+    const step = (now: number) => {
+      const dt = Math.min(32, now - before)
+      before = now
+      const v = latest.current
+      const next = clamp({ ...v, x: v.x + vx * dt, y: v.y + vy * dt })
+      // At an edge the photo stops on that side.
+      if (next.x !== v.x + vx * dt) vx = 0
+      if (next.y !== v.y + vy * dt) vy = 0
+      paint(next)
+      const friction = Math.pow(0.995, dt)
+      vx *= friction
+      vy *= friction
+      if (Math.hypot(vx, vy) > 0.02) glide.current = requestAnimationFrame(step)
+      else {
+        glide.current = 0
+        setBusy(false)
+        setViewState(latest.current)
+      }
+    }
+    glide.current = requestAnimationFrame(step)
   }
 
   function tap(at: { x: number; y: number }, beside: boolean, now: number) {
@@ -263,6 +316,7 @@ export function PhotoViewer({
         onWheel={onWheel}
       >
         <img
+          ref={img}
           key={src}
           src={src}
           alt=""
