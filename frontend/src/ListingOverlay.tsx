@@ -1,10 +1,10 @@
 import { useModalDialog } from './nav'
 import { useCallback, useLayoutEffect, useRef, useState, type MouseEvent } from 'react'
-import { AlertTriangle, Download, ExternalLink, Images, Newspaper, RefreshCw, X } from 'lucide-react'
+import { AlertTriangle, Download, ExternalLink, Images, Newspaper, X } from 'lucide-react'
 import { api } from './api'
 import { displayAddress, photoGalleryUrl, photoUrls, type House, type Listing } from './house'
 import { errorText, useStore } from './store'
-import { usePinchZoom, ZoomButtons } from './PinchZoom'
+import { PhotoViewer } from './PhotoViewer'
 
 /** A link that opens the overlay on a plain click, and stays a real link for Ctrl/Cmd/Shift
  * click and the middle button (those open a new tab or window as usual). */
@@ -22,18 +22,9 @@ function when(stamp: string) {
   return new Date(stamp).toLocaleString('nl-NL', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 }
 
-/** How the last fetch of the listing went, with a retry, so a failure is never silent. */
-function ListingStatus({
-  houseId,
-  listing,
-  busy,
-  onRefresh,
-}: {
-  houseId: string
-  listing: Listing
-  busy: boolean
-  onRefresh: () => void
-}) {
+/** How the last fetch of the listing went, so a failure is never silent. A new copy comes
+ * from the bookmarklet: Funda does not let the server fetch it. */
+function ListingStatus({ houseId, listing }: { houseId: string; listing: Listing }) {
   const failed = listing.status !== 'ok'
   const raw = `/api/houses/${encodeURIComponent(houseId)}/listing/raw`
   const photos = listing.photos === 1 ? '1 foto' : `${listing.photos} foto's`
@@ -51,33 +42,33 @@ function ListingStatus({
           <Download size={14} /> Wat de site stuurde
         </a>
       )}
-      <button className="btn btn-small btn-ghost" disabled={busy} onClick={onRefresh}>
-        <RefreshCw size={14} className={busy ? 'spin' : ''} /> {busy ? 'Bezig…' : 'Opnieuw ophalen'}
-      </button>
     </div>
   )
 }
 
-/** All photos under each other, to scroll through and pinch to zoom; it opens at `start`. */
+/** All photos under each other, to scroll through; it opens at `start`. A photo opens on the
+ * whole screen, where it can be zoomed. */
 function PhotoList({ photos, start, onClose }: { photos: string[]; start: number; onClose: () => void }) {
-  const { body, content, zoom, zoomTo, handlers } = usePinchZoom()
+  const body = useRef<HTMLDivElement>(null)
+  const content = useRef<HTMLDivElement>(null)
   const items = useRef<(HTMLDivElement | null)[]>([])
   // Until the person scrolls themselves, keep `start` at the top while the photos above it
   // load and get their real height.
   const pinned = useRef(start > 0)
   const [at, setAt] = useState(start)
   const [loaded, setLoaded] = useState<Set<number>>(() => new Set())
+  const [big, setBig] = useState<number | null>(null)
 
   // Not scrollIntoView: that would also scroll the dialog around the list.
-  const toStart = useCallback(() => {
-    const item = items.current[start]
+  const scrollTo = useCallback((i: number) => {
+    const item = items.current[i]
     if (item) body.current?.scrollTo({ top: item.offsetTop - 6 })
-  }, [body, start])
+  }, [])
 
   // On opening, and again each time a photo got its real height.
   useLayoutEffect(() => {
-    if (start > 0 && pinned.current) toStart()
-  }, [start, toStart, loaded])
+    if (start > 0 && pinned.current) scrollTo(start)
+  }, [start, scrollTo, loaded])
 
   function onLoad(i: number) {
     setLoaded((s) => new Set(s).add(i))
@@ -100,11 +91,7 @@ function PhotoList({ photos, start, onClose }: { photos: string[]; start: number
       <div
         ref={body}
         className="photo-list-scroll"
-        {...handlers}
-        onTouchStart={(e) => {
-          release()
-          handlers.onTouchStart(e)
-        }}
+        onTouchStart={release}
         onWheel={release}
         onKeyDown={release}
         onScroll={onScroll}
@@ -116,7 +103,7 @@ function PhotoList({ photos, start, onClose }: { photos: string[]; start: number
         aria-label="Foto's"
       >
         <div ref={content} className="photo-list-content">
-          <div className="photo-list" style={{ width: `${zoom * 100}%`, maxWidth: `${zoom * 1000}px` }}>
+          <div className="photo-list">
             {photos.map((src, i) => (
               <div
                 key={src}
@@ -125,14 +112,23 @@ function PhotoList({ photos, start, onClose }: { photos: string[]; start: number
                 }}
                 className={`photo-list-item${loaded.has(i) ? '' : ' loading'}`}
               >
-                <img
-                  src={src}
-                  alt={`Foto ${i + 1} van ${photos.length}`}
-                  loading={Math.abs(i - start) <= 2 ? 'eager' : 'lazy'}
-                  referrerPolicy="no-referrer"
-                  onLoad={() => onLoad(i)}
-                  onError={() => onLoad(i)}
-                />
+                <button
+                  className="photo-list-open"
+                  aria-label={`Foto ${i + 1} van ${photos.length} groot bekijken`}
+                  onClick={() => {
+                    release()
+                    setBig(i)
+                  }}
+                >
+                  <img
+                    src={src}
+                    alt=""
+                    loading={Math.abs(i - start) <= 2 ? 'eager' : 'lazy'}
+                    referrerPolicy="no-referrer"
+                    onLoad={() => onLoad(i)}
+                    onError={() => onLoad(i)}
+                  />
+                </button>
               </div>
             ))}
           </div>
@@ -141,15 +137,17 @@ function PhotoList({ photos, start, onClose }: { photos: string[]; start: number
       <span className="photo-list-count" aria-live="polite">
         {at + 1} / {photos.length}
       </span>
-      <div className="photo-list-zoom">
-        <ZoomButtons
-          zoom={zoom}
-          onZoom={(z) => {
-            release()
-            zoomTo(z)
+      {big !== null && (
+        <PhotoViewer
+          photos={photos}
+          index={big}
+          onIndex={setBig}
+          onClose={() => {
+            scrollTo(big)
+            setBig(null)
           }}
         />
-      </div>
+      )}
     </div>
   )
 }
@@ -174,17 +172,6 @@ export function ListingOverlay({
   const url = house.url!
 
   useModalDialog(ref)
-
-  async function refresh() {
-    setBusy(true)
-    try {
-      replace(await api.refreshListing(house.id))
-    } catch (e) {
-      notify(errorText(e), 'error')
-    } finally {
-      setBusy(false)
-    }
-  }
 
   async function upload(file: File | undefined) {
     if (!file) return
@@ -212,8 +199,8 @@ export function ListingOverlay({
     <dialog
       ref={ref}
       className="overlay"
-      onClose={onClose}
-      onCancel={onClose}
+      // Only its own: the photo viewer inside it closes too, and React passes that event up.
+      onClose={(e) => e.target === e.currentTarget && onClose()}
       onClick={(e) => {
         if (e.target !== e.currentTarget) return
         // A click on the backdrop reaches the dialog itself, outside its box.
@@ -243,7 +230,7 @@ export function ListingOverlay({
         </button>
       </header>
 
-      {listing && <ListingStatus houseId={house.id} listing={listing} busy={busy} onRefresh={() => void refresh()} />}
+      {listing && <ListingStatus houseId={house.id} listing={listing} />}
 
       <div className={`overlay-body${tab === 'fotos' && photos.length > 0 ? ' photos-body' : ''}`}>
         {tab === 'advertentie' &&
@@ -264,7 +251,7 @@ export function ListingOverlay({
                   ? 'Funda laat de app de advertentie niet zelf ophalen.'
                   : listing?.status === 'error'
                     ? listing.message
-                    : 'De app probeert de advertentie op de achtergrond op te halen.'}
+                    : 'Haal hem binnen met je bladwijzer.'}
               </p>
               <p className="overlay-hint">
                 Open de advertentie op {host} en klik daar op je bladwijzer <b>Naar Huizenjacht</b>.{' '}
@@ -275,14 +262,11 @@ export function ListingOverlay({
                 Of sla de pagina op met Ctrl+S en{' '}
                 <label className="link-button">
                   upload het bestand
-                  <input type="file" accept=".html,.htm,text/html" hidden onChange={(e) => void upload(e.target.files?.[0])} />
+                  <input type="file" accept=".html,.htm,text/html" hidden disabled={busy} onChange={(e) => void upload(e.target.files?.[0])} />
                 </label>
                 .
               </p>
               <div className="row">
-                <button className="btn btn-ghost" disabled={busy} onClick={() => void refresh()}>
-                  <RefreshCw size={16} className={busy ? 'spin' : ''} /> Nu ophalen
-                </button>
                 <a className="btn btn-primary" href={url} target="_blank" rel="noreferrer">
                   <ExternalLink size={16} /> Open op {host}
                 </a>
@@ -295,10 +279,9 @@ export function ListingOverlay({
             <div className="overlay-empty">
               <Images size={40} />
               <h2>Nog geen foto's</h2>
-              <p className="muted">Ze komen mee zodra de advertentie is opgehaald.</p>
-              <button className="btn btn-ghost" disabled={busy} onClick={() => void refresh()}>
-                <RefreshCw size={16} className={busy ? 'spin' : ''} /> Nu ophalen
-              </button>
+              <p className="muted">
+                Ze komen mee met de advertentie. Open die op {host} en klik op je bladwijzer <b>Naar Huizenjacht</b>.
+              </p>
             </div>
           ) : (
             <PhotoList photos={photos} start={initialPhoto} onClose={() => ref.current?.close()} />

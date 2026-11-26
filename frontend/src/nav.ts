@@ -72,7 +72,7 @@ export function navigate(to: string): void {
   const modal = modalEntry()
   if (step.kind === 'none') return
   if (step.kind === 'back') {
-    history.go(modal ? -2 : -1)
+    history.go(-1 - modalDepth())
     return
   }
   if (step.kind === 'replace') {
@@ -89,8 +89,14 @@ export function navigate(to: string): void {
   announce()
 }
 
+/** How many dialogs the current history entry has open on top of the page. */
+function modalDepth(): number {
+  const modal = (history.state as { modal?: boolean | number } | null)?.modal
+  return modal === true ? 1 : typeof modal === 'number' ? modal : 0
+}
+
 function modalEntry(): boolean {
-  return Boolean((history.state as { modal?: boolean } | null)?.modal)
+  return modalDepth() > 0
 }
 
 let openModals = 0
@@ -126,9 +132,11 @@ export function useModalDialog(ref: RefObject<HTMLDialogElement | null>): void {
     const dialog = ref.current
     if (!dialog) return
     if (!dialog.open) dialog.showModal?.()
-    const isOpenEntry = modalEntry
-    openModals++
-    if (!isOpenEntry()) history.pushState({ ...(history.state ?? {}), modal: true }, '', location.href)
+    // A dialog opened from another one (a photo from the gallery) gets an entry of its own on
+    // top, so back closes only the top one.
+    const depth = ++openModals
+    const isOpenEntry = () => modalDepth() >= depth
+    if (!isOpenEntry()) history.pushState({ ...(history.state ?? {}), modal: depth }, '', location.href)
     let left = false
     const onPop = () => {
       if (isOpenEntry()) return
@@ -148,7 +156,7 @@ export function useModalDialog(ref: RefObject<HTMLDialogElement | null>): void {
       // Gone without closing (its page removed it): drop its entry too, unless it is opening
       // again right away (React's development double mount) or the app navigated on.
       setTimeout(() => {
-        if (!left && openModals === 0 && isOpenEntry()) history.back()
+        if (!left && openModals < depth && isOpenEntry()) history.back()
       })
     }
   }, [ref])
