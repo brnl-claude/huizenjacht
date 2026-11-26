@@ -15,14 +15,15 @@ describe('houses', () => {
     expect(h.prijsPerM2).toBe(3800)
     expect(h.status).toBe('nieuw')
   })
-  it('sorts favourites first and missing values last', () => {
+  it('sorts by the chosen order only, favourites included, and missing values last', () => {
     const list = [
       toHouse(record('a', { vraagprijs: 500000 })),
       toHouse(record('bb', {})),
       toHouse(record('ccc', { vraagprijs: 300000 })),
       toHouse(record('dddd', { vraagprijs: 900000 }, { favoriet: true })),
     ]
-    expect(sortHouses(list, 'prijs').map((h) => h.id)).toEqual(['dddd', 'ccc', 'a', 'bb'])
+    expect(sortHouses(list, 'prijs').map((h) => h.id)).toEqual(['ccc', 'a', 'dddd', 'bb'])
+    expect(sortHouses(list, 'nieuwste').map((h) => h.id)).toEqual(['dddd', 'ccc', 'bb', 'a'])
   })
 })
 
