@@ -219,24 +219,48 @@ jobs:
   # The Android app (android/): a debug build on pull requests to check it builds; on main a
   # release build signed with the key from the repository secrets (see android/README.md),
   # which the release job attaches to the GitHub release as huizenjacht.apk for Obtainium.
-  # Its version is the newest changelog version; the version code follows from it.
+  # Its version is the newest changelog version with `android` changes; the version code
+  # follows from it. Only that version's release gets the APK, so there is a new app only
+  # when the app itself changed.
   android:
     runs-on: ubuntu-latest
     outputs:
       signed: ${{ steps.key.outputs.path != '' }}
+      release: ${{ steps.version.outputs.release }}
     defaults:
       run:
         working-directory: android
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      # A pull request that changes the app must say what changed in it, under `android` of
+      # the newest version in the changelog; otherwise it would get no new APK.
+      - name: Android changes are in the changelog
+        if: github.event_name == 'pull_request'
+        working-directory: .
+        run: |
+          if git diff --name-only "origin/${{ github.base_ref }}...HEAD" | grep -v '\.md$' | grep -q '^android/'; then
+            newest=$(node .github/scripts/changelog-notes.mjs version)
+            android=$(node .github/scripts/changelog-notes.mjs android-version)
+            if [ "$newest" != "$android" ]; then
+              echo "::error::This pull request changes android/: list those changes under android of $newest in frontend/src/changelog.ts."
+              exit 1
+            fi
+          fi
       - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: 17
       - uses: gradle/actions/setup-gradle@v6
       - name: Version from the changelog
+        id: version
         working-directory: .
-        run: echo "HJ_VERSION=$(node .github/scripts/changelog-notes.mjs version)" >> "$GITHUB_ENV"
+        run: |
+          android=$(node .github/scripts/changelog-notes.mjs android-version)
+          newest=$(node .github/scripts/changelog-notes.mjs version)
+          echo "HJ_VERSION=$android" >> "$GITHUB_ENV"
+          echo "release=$([ "$android" = "$newest" ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
       # Only pushes to main get the release key; a pull request (also from a fork) never does.
       - name: Signing key
         id: key
@@ -288,8 +312,9 @@ jobs:
           retention-days: 7
 
   # Creates the GitHub release v<version> for the newest changelog version, once, with the
-  # signed Android app as huizenjacht.apk. A release without the APK (made before the signing
-  # key was in the secrets) gets it on the next run: re-run this workflow on main.
+  # signed Android app as huizenjacht.apk when that version has Android changes. Such a release
+  # without the APK (made before the signing key was in the secrets) gets it on the next run:
+  # re-run this workflow on main.
   release:
     needs: [image, android]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
@@ -299,7 +324,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: actions/download-artifact@v8
-        if: needs.android.outputs.signed == 'true'
+        if: needs.android.outputs.signed == 'true' && needs.android.outputs.release == 'true'
         with:
           name: huizenjacht-apk
           path: ${{ runner.temp }}/apk

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { checklistFor, DEFAULT_CHECKLIST, progress } from './checklist'
 import { photoGalleryUrl, sortHouses, toHouse, type HouseRecord } from './house'
-import { CHANGELOG } from './changelog'
+import { CHANGELOG, latestAndroidRelease, releasesSince } from './changelog'
 
 const record = (id: string, report: HouseRecord['report'], mine: HouseRecord['mine'] = {}): HouseRecord => ({
   id, source: 'report-dir', sourcePath: `${id}.md`, report, reportBody: '', mine,
@@ -74,5 +74,26 @@ describe('answers per person', () => {
     expect(h.mine.cijfer).toBe(8)
     expect(h.status).toBe('bezichtigd')
     expect(h.others).toEqual([{ key: 'ander', naam: 'Partner', kleur: 1, data: { cijfer: 6, notities: 'Te klein' } }])
+  })
+})
+
+describe('news after an update', () => {
+  const log = [
+    { version: '0.3.0', date: '2026-01-03', title: 'c', changes: [] },
+    { version: '0.2.0', date: '2026-01-02', title: 'b', changes: [], android: ['x'] },
+    { version: '0.1.0', date: '2026-01-01', title: 'a', changes: [] },
+  ]
+  it('shows nothing when the newest version was seen', () => {
+    expect(releasesSince('0.3.0', log)).toEqual([])
+  })
+  it('shows every version since the one seen last', () => {
+    expect(releasesSince('0.1.0', log).map((r) => r.version)).toEqual(['0.3.0', '0.2.0'])
+  })
+  it('shows only the newest for someone who never saw one', () => {
+    expect(releasesSince(null, log).map((r) => r.version)).toEqual(['0.3.0'])
+    expect(releasesSince('9.9.9', log).map((r) => r.version)).toEqual(['0.3.0'])
+  })
+  it('knows the newest version with a new Android app', () => {
+    expect(latestAndroidRelease()?.android?.length).toBeGreaterThan(0)
   })
 })

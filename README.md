@@ -92,5 +92,7 @@ hem bijwerkt. Er is ook een F-Droid-repository (zie [`fdroid/`](fdroid/README.md
 ## Versies
 
 Semantic versioning. Elke wijziging die je in de app ziet, krijgt een regel in
-`frontend/src/changelog.ts`; die staat in de app onder Instellingen → Over. CI maakt voor elke
-nieuwe versie een GitHub-release `v<versie>` en tagt het image.
+`frontend/src/changelog.ts`; die staat in de app onder Instellingen → Over, en na een update
+toont de app één keer kort wat er nieuw is. CI maakt voor elke nieuwe versie een GitHub-release
+`v<versie>` en tagt het image. Verandert de Android-app zelf, dan komt dat onder `android` bij
+die versie en krijgt alleen die release een nieuwe APK (zie [`android/`](android/README.md)).

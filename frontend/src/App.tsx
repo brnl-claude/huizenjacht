@@ -11,6 +11,7 @@ import { Logo } from './Logo'
 import { SettingsPage } from './SettingsPage'
 import { SharePage } from './SharePage'
 import { useStore } from './store'
+import { WhatsNew } from './WhatsNew'
 
 export type Route =
   | { page: 'houses' }
@@ -139,6 +140,7 @@ export function App() {
         {route.page === 'receive' && <ReceivePage />}
         {route.page === 'share' && <SharePage id={route.id} />}
       </main>
+      {route.page !== 'receive' && route.page !== 'share' && <WhatsNew />}
       <nav className="tabbar" aria-label="Hoofdmenu">
         {nav.map((item) => (
           <a key={item.href} href={item.href} className={item.active ? 'active' : ''}>
