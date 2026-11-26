@@ -158,7 +158,7 @@ export async function addRecording(houseId: string, item: string | null, blob: B
 async function add(houseId: string, item: string | null, file: Blob, name: string, kind: MediaKind, duration?: number) {
   const made = kind === 'audio' ? {} : await preview(file, kind)
   const entry: Pending = {
-    id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`,
+    id: crypto.randomUUID?.() ?? `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 12)}`,
     houseId,
     item,
     kind,
@@ -190,29 +190,45 @@ export function retry(id: string) {
 
 let flushing = false
 
+/** One tab at a time uploads (Web Locks), so two open tabs never send the same file. */
 async function flush() {
   if (flushing) return
   flushing = true
   try {
-    for (;;) {
-      const next = pending.find((p) => p.state === 'wacht')
-      if (!next) break
-      patch(next.id, { state: 'bezig', progress: 0 })
-      const result = await upload(next)
-      if (result === 'ok') {
-        pending = pending.filter((p) => p.id !== next.id)
-        emit()
-        await idb('readwrite', (s) => s.delete(next.id))
-        onUploaded(next.houseId)
-      } else if (result === 'later') {
-        patch(next.id, { state: 'wacht', progress: undefined })
-        break
-      } else {
-        patch(next.id, { state: 'fout', progress: undefined, error: result.error })
-      }
+    if (navigator.locks) {
+      await navigator.locks.request('huizenjacht-outbox', { ifAvailable: true }, (lock) => (lock ? send() : undefined))
+    } else {
+      await send()
     }
   } finally {
     flushing = false
+  }
+}
+
+async function send() {
+  for (;;) {
+    const next = pending.find((p) => p.state === 'wacht')
+    if (!next) break
+    // Another tab may have sent it meanwhile.
+    if (dbPromise && (await openDb()) && !(await idb('readonly', (s) => s.getKey(next.id)))) {
+      pending = pending.filter((p) => p.id !== next.id)
+      emit()
+      onUploaded(next.houseId)
+      continue
+    }
+    patch(next.id, { state: 'bezig', progress: 0 })
+    const result = await upload(next)
+    if (result === 'ok') {
+      pending = pending.filter((p) => p.id !== next.id)
+      emit()
+      await idb('readwrite', (s) => s.delete(next.id))
+      onUploaded(next.houseId)
+    } else if (result === 'later') {
+      patch(next.id, { state: 'wacht', progress: undefined })
+      break
+    } else {
+      patch(next.id, { state: 'fout', progress: undefined, error: result.error })
+    }
   }
 }
 
@@ -223,6 +239,8 @@ function upload(p: Pending): Promise<'ok' | 'later' | { error: string }> {
     form.append('file', p.file, p.name)
     if (p.thumb) form.append('thumb', p.thumb, 'thumb.jpg')
     if (p.item) form.append('item', p.item)
+    // The same key again when an answer got lost: the server keeps the file once.
+    form.append('key', p.id)
     if (p.duration != null && Number.isFinite(p.duration)) form.append('duration', String(p.duration))
     const xhr = new XMLHttpRequest()
     xhr.open('POST', `/api/houses/${encodeURIComponent(p.houseId)}/media`)

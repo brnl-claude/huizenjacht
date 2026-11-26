@@ -121,6 +121,12 @@ class Database:
         with self._lock:
             self._conn.execute("PRAGMA journal_mode=WAL")
             self._conn.executescript(SCHEMA)
+            # Added in 0.21.0: which device a login is on, and how it logged in.
+            columns = {r["name"] for r in self._conn.execute("PRAGMA table_info(sessions)")}
+            for column in ("device", "via"):
+                if column not in columns:
+                    self._conn.execute(f"ALTER TABLE sessions ADD COLUMN {column} TEXT")
+            self._conn.commit()
             # A failed fetch used to replace the status of a good copy; the copy is what counts.
             self._conn.execute(
                 "UPDATE listings SET status = 'ok', message = NULL"
@@ -609,13 +615,20 @@ class Database:
 
     # Login sessions (only with HJ_AUTH_MODE=oidc)
 
-    def create_session(self, token_hash: str, user: dict[str, Any], days: int) -> None:
+    def create_session(
+        self,
+        token_hash: str,
+        user: dict[str, Any],
+        days: int,
+        device: str | None = None,
+        via: str = "oidc",
+    ) -> None:
         stamp = datetime.now(UTC)
         with self._lock:
             self._conn.execute("DELETE FROM sessions WHERE expires_at < ?", (now(),))
             self._conn.execute(
-                "INSERT INTO sessions (token_hash, subject, name, email, created_at, expires_at)"
-                " VALUES (?, ?, ?, ?, ?, ?)",
+                "INSERT INTO sessions (token_hash, subject, name, email, created_at, expires_at,"
+                " device, via) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     token_hash,
                     user["subject"],
@@ -623,6 +636,8 @@ class Database:
                     user.get("email"),
                     now(),
                     (stamp + timedelta(days=days)).isoformat(timespec="seconds"),
+                    device,
+                    via,
                 ),
             )
             self._conn.commit()
@@ -637,6 +652,38 @@ class Database:
         if not row or row["expires_at"] <= now():
             return None
         return {"subject": row["subject"], "name": row["name"], "email": row["email"]}
+
+    def list_sessions(self, subject: str) -> list[dict[str, Any]]:
+        """Someone's logins that have not ended, newest first. `id` is a short part of the
+        token's hash: enough to end one, never the token itself."""
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT token_hash, device, via, created_at, expires_at FROM sessions"
+                " WHERE subject = ? AND expires_at > ? ORDER BY created_at DESC",
+                (subject, now()),
+            ).fetchall()
+        return [
+            {
+                "id": r["token_hash"][:16],
+                "device": r["device"],
+                "via": r["via"] or "oidc",
+                "createdAt": r["created_at"],
+                "expiresAt": r["expires_at"],
+            }
+            for r in rows
+        ]
+
+    def end_session_of(self, subject: str, session_id: str) -> bool:
+        """End one of this person's own logins, by the id from list_sessions."""
+        if len(session_id) != 16 or not all(c in "0123456789abcdef" for c in session_id):
+            return False
+        with self._lock:
+            cursor = self._conn.execute(
+                "DELETE FROM sessions WHERE subject = ? AND substr(token_hash, 1, 16) = ?",
+                (subject, session_id),
+            )
+            self._conn.commit()
+        return cursor.rowcount > 0
 
     def end_session(self, token_hash: str) -> None:
         with self._lock:

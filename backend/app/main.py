@@ -1,8 +1,10 @@
 """The API and the built PWA."""
 
 import asyncio
+import base64
 import contextlib
 import contextvars
+import hashlib
 import json
 import logging
 import re
@@ -434,10 +436,13 @@ def create_app(
         return size
 
     def store_media(
-        upload: UploadFile, thumb: UploadFile | None = None, **fields: Any
+        upload: UploadFile,
+        thumb: UploadFile | None = None,
+        media_id: str | None = None,
+        **fields: Any,
     ) -> dict[str, Any]:
         kind, mime = media_kind(upload)
-        media_id = secrets.token_urlsafe(12)
+        media_id = media_id or secrets.token_urlsafe(12)
         size = save_upload(upload, media_path(media_id), MAX_MEDIA)
         has_thumb = False
         if thumb is not None and (thumb.content_type or "").startswith("image/"):
@@ -461,10 +466,25 @@ def create_app(
         thumb: UploadFile | None = None,
         item: str = Form(""),
         duration: float | None = Form(None),
+        key: str = Form(""),
     ) -> dict[str, Any]:
         house_or_404(house_id)
+        media_id = None
+        if key:
+            # The outbox sends the same key again when an answer got lost: same file, once.
+            seed = f"{house_id}|{key}".encode()
+            media_id = base64.urlsafe_b64encode(hashlib.sha256(seed).digest())[:22].decode()
+            existing = db().get_media(media_id)
+            if existing:
+                return existing
         return store_media(
-            file, thumb, house_id=house_id, item=item, duration=duration, person=person(request)
+            file,
+            thumb,
+            media_id,
+            house_id=house_id,
+            item=item,
+            duration=duration,
+            person=person(request),
         )
 
     def media_or_404(media_id: str) -> dict[str, Any]:

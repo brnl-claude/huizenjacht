@@ -2,7 +2,16 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { api, ApiError, CLIENT_ID } from './api'
 import { DEFAULT_CHECKLIST, type ChecklistCategory } from './checklist'
 import { startOutbox } from './media'
-import { PERSONAL, toHouse, type House, type HouseRecord, type Mine, type Person } from './house'
+import { toHouse, type House, type HouseRecord, type Mine, type Person } from './house'
+import {
+  addPending,
+  dropPending,
+  loadPending,
+  savePending,
+  settlePending,
+  withPending,
+  type PendingChanges,
+} from './pendingChanges'
 
 type Toast = { id: number; text: string; tone: 'info' | 'error' }
 
@@ -58,6 +67,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([])
   const [me, setMe] = useState('lokaal')
   const [people, setPeople] = useState<Person[]>([])
+  const [pending, setPendingState] = useState<PendingChanges>(loadPending)
+  const pendingRef = useRef(pending)
+  const setPending = useCallback((next: PendingChanges) => {
+    pendingRef.current = next
+    savePending(next)
+    setPendingState(next)
+  }, [])
   const peopleRef = useRef(people)
   useEffect(() => {
     peopleRef.current = people
@@ -145,7 +161,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         void refresh()
         void loadPeople()
       } else if (event.type === 'removed' && event.id) {
-        setRecords((list) => list.filter((r) => r.id !== event.id))
+        const gone = event.id
+        setRecords((list) => list.filter((r) => r.id !== gone))
+        setPending(dropPending(pendingRef.current, gone))
       } else if (event.type === 'house' && event.id) {
         api
           .house(event.id)
@@ -159,34 +177,65 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }
     }
     return () => source.close()
-  }, [refresh, loadPeople, replace])
+  }, [refresh, loadPeople, replace, setPending])
+
+  // Changes go out one at a time and in order; without a connection they wait on this device
+  // (see pendingChanges.ts) and go out as soon as a request gets through again.
+  const sending = useRef(false)
+  const toldOffline = useRef(false)
+  const flushChanges = useCallback(async () => {
+    if (sending.current) return
+    sending.current = true
+    try {
+      for (;;) {
+        const id = Object.keys(pendingRef.current)[0]
+        if (!id) break
+        const sent = pendingRef.current[id]
+        try {
+          replace(await api.updateHouse(id, sent))
+          setPending(settlePending(pendingRef.current, id, sent))
+          toldOffline.current = false
+        } catch (e) {
+          const status = e instanceof ApiError ? e.status : 0
+          if (status === 0 || status === 401 || status === 408 || status === 429 || status >= 500) {
+            if (!toldOffline.current && status !== 401) {
+              toldOffline.current = true
+              notify('Geen verbinding: je wijzigingen staan op dit apparaat en gaan mee zodra er weer verbinding is.')
+            }
+            break
+          }
+          // The server refuses it (the house is gone, say): it will never get through.
+          setPending(dropPending(pendingRef.current, id))
+          notify(`Niet opgeslagen: ${message(e)}`, 'error')
+          void refresh()
+        }
+      }
+    } finally {
+      sending.current = false
+    }
+  }, [notify, refresh, replace, setPending])
+
+  useEffect(() => {
+    void flushChanges()
+    const again = () => void flushChanges()
+    const onVisible = () => document.visibilityState === 'visible' && again()
+    window.addEventListener('online', again)
+    document.addEventListener('visibilitychange', onVisible)
+    const timer = window.setInterval(() => Object.keys(pendingRef.current).length && again(), 15_000)
+    return () => {
+      window.removeEventListener('online', again)
+      document.removeEventListener('visibilitychange', onVisible)
+      window.clearInterval(timer)
+    }
+  }, [flushChanges])
 
   const update = useCallback(
     async (id: string, changes: Partial<Record<keyof Mine, unknown>>) => {
-      // Show the change at once; the server's answer replaces it. Your own answers sit under
-      // your person key, the rest is shared.
-      setRecords((list) =>
-        list.map((r) => {
-          if (r.id !== id) return r
-          const mine = { ...r.mine } as Record<string, unknown>
-          const own = { ...(r.mine.personen?.[me] ?? {}) } as Record<string, unknown>
-          for (const [k, v] of Object.entries(changes)) {
-            const target = (PERSONAL as readonly string[]).includes(k) ? own : mine
-            if (v === null) delete target[k]
-            else target[k] = v
-          }
-          mine.personen = { ...r.mine.personen, [me]: own }
-          return { ...r, mine: mine as Mine }
-        }),
-      )
-      try {
-        replace(await api.updateHouse(id, changes))
-      } catch (e) {
-        notify(`Niet opgeslagen: ${message(e)}`, 'error')
-        void refresh()
-      }
+      // Shown at once (the waiting changes lie over the server's copy), sent in the background.
+      setPending(addPending(pendingRef.current, id, changes))
+      await flushChanges()
     },
-    [notify, refresh, replace, me],
+    [flushChanges, setPending],
   )
 
   const claimAnswers = useCallback(async () => {
@@ -203,12 +252,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       try {
         await api.deleteHouse(id)
         setRecords((list) => list.filter((r) => r.id !== id))
+        setPending(dropPending(pendingRef.current, id))
         setCompare((c) => c.filter((x) => x !== id))
       } catch (e) {
         notify(message(e), 'error')
       }
     },
-    [notify],
+    [notify, setPending],
   )
 
   const saveTemplate = useCallback(
@@ -245,7 +295,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [notify],
   )
 
-  const houses = useMemo(() => records.map((r) => toHouse(r, me, people)), [records, me, people])
+  const houses = useMemo(
+    () => records.map((r) => toHouse(withPending(r, pending[r.id], me), me, people)),
+    [records, pending, me, people],
+  )
   const value: Store = {
     houses,
     loading,

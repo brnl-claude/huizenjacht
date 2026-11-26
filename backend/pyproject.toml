@@ -11,6 +11,7 @@ dependencies = [
     "pyjwt[crypto]>=2.9",
     "python-multipart>=0.0.9",
     "pyyaml>=6",
+    "segno>=1.6.6",
     "uvicorn[standard]>=0.30",
 ]
 

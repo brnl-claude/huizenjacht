@@ -8,6 +8,7 @@ the import hook (which has its own check).
 
 import hashlib
 import html
+import json
 import logging
 import secrets
 import threading
@@ -15,9 +16,10 @@ import time
 from typing import Any
 from urllib.parse import quote
 
-from fastapi import APIRouter, FastAPI, Request
+from fastapi import APIRouter, FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 
+from . import pairing
 from .config import Settings
 from .db import Database
 from .oidc import Identity, LoginRequest, OIDCClient, OIDCError
@@ -30,6 +32,9 @@ STATE_COOKIE = "hj_login"
 # another browser container, a restart): it retries once, then shows the error.
 RETRY_COOKIE = "hj_login_retry"
 RETRY_TTL = 120
+# Set after a login through the provider: this browser can do that, so /api/auth/start goes
+# straight on instead of offering the phone. Not secret.
+VIA_COOKIE = "hj_via"
 # A login must come back from the provider within this many seconds.
 LOGIN_TTL = 600
 MAX_PENDING = 1000
@@ -117,6 +122,73 @@ def install(app: FastAPI, settings: Settings, db: Any, transport: Any = None) ->
     def current_user(request: Request) -> dict[str, Any] | None:
         token = request.cookies.get(cookie_name(SESSION_COOKIE, settings))
         return database().find_session(_hash(token)) if token else None
+
+    def start_session(
+        response: Response, user: dict[str, Any], device: str, via: str = "telefoon"
+    ) -> None:
+        """A new login for `user` on the device that gets `response`."""
+        token = secrets.token_urlsafe(32)
+        database().create_session(
+            _hash(token),
+            {"subject": user["subject"], "name": user.get("name"), "email": user.get("email")},
+            settings.session_days,
+            device=device,
+            via=via,
+        )
+        response.set_cookie(
+            cookie_name(SESSION_COOKIE, settings),
+            token,
+            max_age=settings.session_days * 86400,
+            path="/",
+            httponly=True,
+            secure=settings.https,
+            samesite="lax",
+        )
+
+    @router.get("/start")
+    def start(request: Request, next: str | None = None) -> Response:
+        """Where the app sends someone who is not logged in: straight to the provider when this
+        browser has logged in there before, otherwise a choice, with a QR code for the phone."""
+        target = safe_next(next)
+        if settings.auth_mode != "oidc" or current_user(request) is not None:
+            return RedirectResponse(target, status_code=303)
+        login = f"/api/auth/login?next={quote(target, safe='')}"
+        if request.cookies.get(cookie_name(VIA_COOKIE, settings)) == "oidc":
+            return RedirectResponse(login, status_code=303)
+        return HTMLResponse(
+            start_page(login, target),
+            headers={"Cache-Control": "no-store"},
+        )
+
+    @router.get("/sessions")
+    def sessions(request: Request) -> dict[str, Any]:
+        user = current_user(request)
+        if user is None:
+            raise HTTPException(401, "Log eerst in.")
+        token = request.cookies.get(cookie_name(SESSION_COOKIE, settings), "")
+        return {
+            "current": _hash(token)[:16],
+            "sessions": database().list_sessions(user["subject"]),
+        }
+
+    @router.delete("/sessions/{session_id}", status_code=204)
+    def end_one(session_id: str, request: Request) -> Response:
+        user = current_user(request)
+        if user is None:
+            raise HTTPException(401, "Log eerst in.")
+        if not database().end_session_of(user["subject"], session_id):
+            raise HTTPException(404, "Deze login bestaat niet (meer).")
+        return Response(status_code=204)
+
+    if settings.auth_mode == "oidc":
+        pairing.add_routes(
+            router,
+            public_url=settings.public_url,
+            https=settings.https,
+            cookie_name=lambda name: cookie_name(name, settings),
+            current_user=current_user,
+            start_session=start_session,
+        )
 
     @router.get("/me")
     def me(request: Request) -> dict[str, Any]:
@@ -212,23 +284,22 @@ def install(app: FastAPI, settings: Settings, db: Any, transport: Any = None) ->
                 identity.email,
             )
             return error_page("denied", 403)
-        token = secrets.token_urlsafe(32)
-        database().create_session(
-            _hash(token),
+        response = RedirectResponse(attempt.next, status_code=303)
+        start_session(
+            response,
             {
                 "subject": f"{identity.issuer}|{identity.subject}",
                 "name": identity.name,
                 "email": identity.email,
             },
-            settings.session_days,
+            pairing.device_name(request.headers.get("user-agent", "")),
+            via="oidc",
         )
-        response = RedirectResponse(attempt.next, status_code=303)
         response.set_cookie(
-            cookie_name(SESSION_COOKIE, settings),
-            token,
-            max_age=settings.session_days * 86400,
+            cookie_name(VIA_COOKIE, settings),
+            "oidc",
+            max_age=365 * 86400,
             path="/",
-            httponly=True,
             secure=settings.https,
             samesite="lax",
         )
@@ -263,6 +334,63 @@ def install(app: FastAPI, settings: Settings, db: Any, transport: Any = None) ->
         protected = path.startswith("/api/") and not path.startswith(OPEN_PATHS)
         if protected and current_user(request) is None:
             return JSONResponse(
-                {"detail": "Log eerst in.", "login": "/api/auth/login"}, status_code=401
+                {"detail": "Log eerst in.", "login": "/api/auth/start"}, status_code=401
             )
         return await call_next(request)
+
+
+def start_page(login: str, target: str) -> str:
+    """The choice for a device that is not logged in. The phone option starts a pairing and
+    asks for its outcome every two seconds (see app.pairing)."""
+    login_attr = html.escape(login, quote=True)
+    # A script block: "<" escaped, so the address can never close it.
+    target_js = json.dumps(target).replace("<", "\\u003c")
+    return f"""<!doctype html><html lang="nl"><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1"><title>Inloggen</title>
+<style>body{{font-family:system-ui,sans-serif;background:#f4f4f4;color:#2b2b2b;display:grid;
+place-items:center;min-height:100vh;margin:0}}main{{background:#fff;border-radius:12px;padding:28px;
+max-width:420px;margin:16px;box-shadow:0 4px 14px rgb(0 0 0/8%)}}h1{{margin-top:0}}
+.btn{{display:inline-block;background:#f7a100;color:#fff;padding:12px 20px;border-radius:8px;
+text-decoration:none;font-weight:650;border:0;font-size:1rem;cursor:pointer}}
+.ghost{{background:#fff;color:#0071b3;border:1px solid #ccc}}#qr svg{{width:100%;max-width:260px;
+height:auto;display:block;margin:12px auto}}.code{{font-size:2rem;letter-spacing:.3em;
+text-align:center;font-weight:700;margin:4px 0}}.muted{{color:#666}}[hidden]{{display:none}}</style>
+<main><h1>Inloggen</h1>
+<p><a class="btn" href="{login_attr}">Inloggen</a></p>
+<p class="muted">Lukt inloggen op dit apparaat niet? Log in via je telefoon.</p>
+<p><button class="btn ghost" id="phone" type="button">Inloggen met je telefoon</button></p>
+<section id="pair" hidden>
+<p>Scan deze code met de camera van je telefoon, waarop je al bent ingelogd in Huizenjacht.</p>
+<div id="qr"></div>
+<p class="muted">Controleer dat je telefoon deze code toont:</p><p class="code" id="code"></p>
+<p class="muted" id="state">Wacht op je telefoon…</p></section></main>
+<script>
+const next = {target_js};
+const say = (t) => (document.getElementById("state").textContent = t);
+let timer, started = 0;
+async function begin() {{
+  clearInterval(timer);
+  started = Date.now();
+  const r = await fetch("/api/auth/pair", {{ method: "POST" }});
+  if (!r.ok) return say("Dat lukte niet. Probeer het opnieuw.");
+  const p = await r.json();
+  document.getElementById("pair").hidden = false;
+  document.getElementById("qr").innerHTML = p.qr;
+  document.getElementById("code").textContent = p.code;
+  say("Wacht op je telefoon…");
+  timer = setInterval(check, 2000);
+}}
+async function check() {{
+  const r = await fetch("/api/auth/pair/status", {{ cache: "no-store" }}).catch(() => null);
+  if (!r || !r.ok) return;
+  const s = (await r.json()).status;
+  if (s === "approved") {{ clearInterval(timer); say("Ingelogd."); location.replace(next); }}
+  else if (s === "denied") {{ clearInterval(timer); say("Geweigerd op je telefoon."); }}
+  else if (s === "expired" && Date.now() - started < 240000) {{
+    clearInterval(timer);
+    say("Dit apparaat bewaart geen cookies; zo lukt inloggen met je telefoon niet.");
+  }}
+  else if (s === "expired") {{ say("De code is verlopen; er komt een nieuwe."); begin(); }}
+}}
+document.getElementById("phone").addEventListener("click", begin);
+</script></html>"""

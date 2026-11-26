@@ -9,6 +9,7 @@ import { HousePage } from './HousePage'
 import { HousesPage } from './HousesPage'
 import { Logo } from './Logo'
 import { SettingsPage } from './SettingsPage'
+import { PairPage } from './Pairing'
 import { SharePage } from './SharePage'
 import { useStore } from './store'
 import { WhatsNew } from './WhatsNew'
@@ -20,6 +21,7 @@ export type Route =
   | { page: 'settings'; section: string | null }
   | { page: 'receive' }
   | { page: 'share'; id: string }
+  | { page: 'pair'; id: string }
 
 export function parseRoute(hash: string): Route {
   const parts = hash.replace(/^#\/?/, '').split('/').filter(Boolean).map(decodeURIComponent)
@@ -27,6 +29,7 @@ export function parseRoute(hash: string): Route {
   if (parts[0] === 'vergelijk') return { page: 'compare' }
   if (parts[0] === 'ontvang') return { page: 'receive' }
   if (parts[0] === 'delen' && parts[1]) return { page: 'share', id: parts[1] }
+  if (parts[0] === 'koppel' && parts[1]) return { page: 'pair', id: parts[1] }
   if (parts[0] === 'instellingen') return { page: 'settings', section: parts[1] ?? null }
   return { page: 'houses' }
 }
@@ -139,8 +142,9 @@ export function App() {
         {route.page === 'settings' && <SettingsPage section={route.section} health={health} />}
         {route.page === 'receive' && <ReceivePage />}
         {route.page === 'share' && <SharePage id={route.id} />}
+        {route.page === 'pair' && <PairPage id={route.id} />}
       </main>
-      {route.page !== 'receive' && route.page !== 'share' && <WhatsNew />}
+      {route.page !== 'receive' && route.page !== 'share' && route.page !== 'pair' && <WhatsNew />}
       <nav className="tabbar" aria-label="Hoofdmenu">
         {nav.map((item) => (
           <a key={item.href} href={item.href} className={item.active ? 'active' : ''}>
