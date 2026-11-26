@@ -6,7 +6,8 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      // A new version waits until the person chooses to reload (Settings → Over).
+      // A new version found right after opening the app loads at once; later it waits for the
+      // banner (see src/appUpdate.ts).
       registerType: 'prompt',
       includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
       manifest: {
