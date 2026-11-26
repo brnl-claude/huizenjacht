@@ -157,7 +157,7 @@ export function PhotoViewer({
       const [a, b] = pts
       const mx = (a.x + b.x) / 2
       const my = (a.y + b.y) / 2
-      const s = Math.min(MAX_SCALE, Math.max(0.8, (g.start.s * Math.hypot(a.x - b.x, a.y - b.y)) / g.distance))
+      const s = Math.min(MAX_SCALE, Math.max(1, (g.start.s * Math.hypot(a.x - b.x, a.y - b.y)) / g.distance))
       // Zoom around where the fingers started, and let the photo follow them as they move.
       const zoomed = zoomAt(g.start, box, s, g.x, g.y)
       setView({ s, x: zoomed.x + mx - g.x, y: zoomed.y + my - g.y })

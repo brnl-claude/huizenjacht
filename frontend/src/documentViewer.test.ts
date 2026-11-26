@@ -34,6 +34,7 @@ describe('zoom', () => {
     expect(stepZoom(1.37, -1)).toBe(1.25)
     expect(stepZoom(4, 1)).toBe(4)
     expect(clampZoom(9)).toBe(4)
-    expect(clampZoom(0.1)).toBe(0.5)
+    expect(clampZoom(0.1)).toBe(1)
+    expect(stepZoom(1, -1)).toBe(1)
   })
 })

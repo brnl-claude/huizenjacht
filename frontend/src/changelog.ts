@@ -26,6 +26,14 @@ export type Release = {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.19.1',
+    date: '2026-11-26',
+    title: 'Uitzoomen stopt bij 100%',
+    changes: [
+      'In de fotoweergave en de documentenviewer zoom je niet meer kleiner uit dan 100%. Zo ben je makkelijk weer terug op de gewone grootte.',
+    ],
+  },
+  {
     version: '0.19.0',
     date: '2026-11-26',
     title: 'Foto\'s schermvullend bekijken en inzoomen',
