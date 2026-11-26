@@ -474,6 +474,8 @@ function Account({ me }: { me: Me }) {
         className="btn btn-ghost"
         onClick={async () => {
           await api.logout().catch(() => undefined)
+          // The offline copy of the houses stays on this device otherwise (a shared tablet).
+          await Promise.all(['houses', 'media-thumbs'].map((name) => caches?.delete(name))).catch(() => undefined)
           location.assign('/api/auth/login')
         }}
       >

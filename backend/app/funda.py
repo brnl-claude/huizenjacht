@@ -175,14 +175,12 @@ def save_page(
         old.unlink(missing_ok=True)
     for photo_url in urls:
         try:
-            photo = client.get(
-                photo_url,
-                headers={**HEADERS, "Accept": "image/*", "Referer": page_url},
-                timeout=30,
-                follow_redirects=True,
-            )
+            photo = _get_photo(client, photo_url, page_url)
         except httpx2.HTTPError as exc:
             failures[type(exc).__name__] += 1
+            continue
+        if photo is None:
+            failures["niet van funda.nl"] += 1
             continue
         kind = photo.headers.get("content-type", "")
         if photo.status_code != 200:
@@ -214,6 +212,31 @@ def save_page(
         message = None
     log.info("%s: %s of %s photos saved %s", page_url, saved, len(urls), dict(failures) or "")
     return {"photos": photos, "found": len(urls), "message": message, **summary}
+
+
+def is_photo_host(url: str) -> bool:
+    """Photos only come from Funda over https. The page's HTML comes from a browser, so the
+    server must never fetch any address it names (such as one inside the cluster)."""
+    parts = urlparse(url)
+    host = (parts.hostname or "").lower()
+    return parts.scheme == "https" and (host == "funda.nl" or host.endswith(".funda.nl"))
+
+
+def _get_photo(client: httpx2.Client, url: str, referer: str) -> httpx2.Response | None:
+    """GET a photo, following at most a few redirects, each to a Funda host too."""
+    for _ in range(4):
+        if not is_photo_host(url):
+            return None
+        response = client.get(
+            url,
+            headers={**HEADERS, "Accept": "image/*", "Referer": referer},
+            timeout=30,
+            follow_redirects=False,
+        )
+        if response.status_code not in (301, 302, 303, 307, 308):
+            return response
+        url = urljoin(url, response.headers.get("location", ""))
+    return None
 
 
 def remote_photos(folder: Path) -> list[str]:

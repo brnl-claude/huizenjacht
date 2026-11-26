@@ -55,6 +55,21 @@ MAX_THUMB = 2 * 1024 * 1024
 SHARE_DAYS = 7
 EXPORT_SECONDS = 10 * 60
 EXPORT_LIMIT = 30 * 1024 * 1024
+# All PDFs waiting for their download together; the pod has 512 Mi.
+EXPORTS_TOTAL = 100 * 1024 * 1024
+# Media served from this origin never run as a page (an SVG "photo" could hold a script).
+MEDIA_HEADERS = {
+    "X-Content-Type-Options": "nosniff",
+    "Content-Security-Policy": "sandbox; default-src 'none'; img-src 'self'; media-src 'self'",
+}
+# Documents that a browser shows without running anything of theirs; the rest only downloads.
+INLINE_DOCUMENTS = {".pdf", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".txt"}
+# Sent with every answer: no framing by other sites, no guessing of types, no full referrer.
+SECURITY_HEADERS = {
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "same-origin",
+    "X-Frame-Options": "SAMEORIGIN",
+}
 MEDIA_KINDS = {"image": "foto", "video": "video", "audio": "audio"}
 BOOKMARKLET_TOKEN = "bookmarkletToken"
 # Raise together with BOOKMARKLET_VERSION in frontend/src/Bookmarklet.tsx whenever the
@@ -70,6 +85,24 @@ CORS = {
     "Access-Control-Allow-Methods": "POST, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type",
 }
+
+
+class TooLarge(Exception):
+    """A request body over its limit."""
+
+
+async def read_body(request: Request, limit: int) -> bytes:
+    """The request body, but never more than `limit` bytes in memory: raises TooLarge."""
+    length = request.headers.get("content-length", "")
+    if length.isdigit() and int(length) > limit:
+        raise TooLarge
+    chunks, size = [], 0
+    async for chunk in request.stream():
+        size += len(chunk)
+        if size > limit:
+            raise TooLarge
+        chunks.append(chunk)
+    return b"".join(chunks)
 
 
 def listing_key(url: str) -> str:
@@ -302,7 +335,10 @@ def create_app(
     @app.middleware("http")
     async def remember_client(request: Request, call_next):
         client_id.set(request.headers.get("x-client"))
-        return await call_next(request)
+        response = await call_next(request)
+        for name, value in SECURITY_HEADERS.items():
+            response.headers.setdefault(name, value)
+        return response
 
     def person(request: Request) -> str:
         user = auth.user_of(request)
@@ -443,7 +479,7 @@ def create_app(
         return FileResponse(
             media_path(media_id),
             media_type=found["mime"],
-            headers={"Cache-Control": "private, max-age=31536000, immutable"},
+            headers={"Cache-Control": "private, max-age=31536000, immutable", **MEDIA_HEADERS},
         )
 
     @app.get("/api/media/{media_id}/thumb")
@@ -452,7 +488,9 @@ def create_app(
         if not path.exists():
             raise HTTPException(404, "Geen voorbeeld.")
         return FileResponse(
-            path, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=86400"}
+            path,
+            media_type="image/jpeg",
+            headers={"Cache-Control": "private, max-age=86400", **MEDIA_HEADERS},
         )
 
     @app.put("/api/media/{media_id}/thumb")
@@ -535,15 +573,20 @@ def create_app(
 
     @app.post("/api/export")
     async def put_export(request: Request, naam: str = "export.pdf") -> dict[str, str]:
-        data = await request.body()
-        if len(data) > EXPORT_LIMIT:
-            raise HTTPException(413, "Deze PDF is te groot.")
+        try:
+            data = await read_body(request, EXPORT_LIMIT)
+        except TooLarge:
+            raise HTTPException(413, "Deze PDF is te groot.") from None
         if not data.startswith(b"%PDF-"):
             raise HTTPException(400, "Dit is geen PDF.")
         moment = time.monotonic()
         for key in [k for k, (at, _, _) in exports.items() if moment - at > EXPORT_SECONDS]:
             exports.pop(key, None)
-        while len(exports) >= 20:
+
+        def waiting() -> int:
+            return sum(len(d) for _, _, d in exports.values())
+
+        while exports and (len(exports) >= 20 or waiting() + len(data) > EXPORTS_TOTAL):
             exports.pop(next(iter(exports)))
         name = re.sub(r'[\\/:*?"<>|\x00-\x1f]+', "", naam).strip() or "export.pdf"
         if not name.lower().endswith(".pdf"):
@@ -576,9 +619,10 @@ def create_app(
     @app.post("/api/houses/{house_id}/listing/import")
     async def import_listing(house_id: str, request: Request) -> dict[str, Any]:
         """A listing page as Bram's browser shows it, sent by the bookmarklet."""
-        body = await request.body()
-        if len(body) > MAX_LISTING_PAGE:
-            raise HTTPException(413, "Deze pagina is te groot.")
+        try:
+            body = await read_body(request, MAX_LISTING_PAGE)
+        except TooLarge:
+            raise HTTPException(413, "Deze pagina is te groot.") from None
         try:
             data = json.loads(body)
             url, html = str(data["url"]), str(data["html"])
@@ -624,8 +668,10 @@ def create_app(
         def answer(status: int, message: str, **extra: Any) -> JSONResponse:
             return JSONResponse({"message": message, **extra}, status_code=status, headers=CORS)
 
-        body = await request.body()
-        if len(body) > MAX_LISTING_PAGE:
+        # Open to anyone (no login): never read more than a page into memory.
+        try:
+            body = await read_body(request, MAX_LISTING_PAGE)
+        except TooLarge:
             return answer(413, "Deze pagina is te groot.")
         try:
             data = json.loads(body)
@@ -731,12 +777,13 @@ def create_app(
         path = (folder / name).resolve()
         if not path.is_relative_to(folder.resolve()) or not path.is_file():
             raise HTTPException(404, "Dit document is er niet (meer).")
-        # A web page or SVG would run on the app's own origin; those only download.
-        active = path.suffix.lower() in {".html", ".htm", ".xhtml", ".svg", ".xml", ".js"}
+        # A web page or SVG would run on the app's own origin: only known-safe types show in
+        # the browser, everything else downloads.
+        inline = path.suffix.lower() in INLINE_DOCUMENTS
         return FileResponse(
             path,
             filename=Path(name).name,
-            content_disposition_type="attachment" if download or active else "inline",
+            content_disposition_type="inline" if inline and not download else "attachment",
             headers={"Cache-Control": "private, max-age=300", "X-Content-Type-Options": "nosniff"},
         )
 
@@ -911,7 +958,10 @@ def create_app(
     def restore(backup: dict[str, Any] = Body(...)) -> dict[str, Any]:
         if backup.get("format") != "huizenjacht-backup":
             raise HTTPException(400, "Dit is geen Huizenjacht-back-up.")
-        count = db().restore(backup)
+        try:
+            count = db().restore(backup)
+        except ValueError as exc:
+            raise HTTPException(400, f"Deze back-up kan niet worden teruggezet: {exc}") from exc
         claim_old_answers(db())
         return {"houses": count}
 
