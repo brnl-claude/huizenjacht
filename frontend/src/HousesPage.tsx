@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { ArrowDownUp, Calendar, Check, ExternalLink, FileUp, Plus, Search } from 'lucide-react'
+import { ArrowDownUp, Calendar, Columns3, ExternalLink, FileUp, Plus, Search } from 'lucide-react'
 import { checklistFor, progress } from './checklist'
 import {
   displayAddress,
@@ -248,22 +248,24 @@ function HouseCard({ house }: { house: House }) {
         <div className="card-actions">
           <button
             type="button"
-            className={`btn btn-small ${selected ? 'btn-selected' : 'btn-ghost'}`}
+            className={`btn btn-small btn-icon ${selected ? 'btn-selected' : 'btn-ghost'}`}
+            aria-label={selected ? 'Haal dit huis uit Vergelijken' : 'Zet dit huis bij Vergelijken'}
             aria-pressed={selected}
             data-tip={selected ? 'Haal dit huis uit Vergelijken' : 'Zet dit huis bij Vergelijken'}
             onClick={() => toggleCompare(house.id)}
           >
-            {selected ? <Check size={16} /> : <Plus size={16} />} Vergelijk
+            <Columns3 size={18} />
           </button>
           {house.url && (
             <a
-              className="btn btn-small btn-ad"
+              className="btn btn-small btn-icon btn-ad"
+              aria-label="Open de advertentie"
               href={house.url}
               target="_blank"
               rel="noreferrer"
               data-tip="Open de advertentie in een nieuw tabblad"
             >
-              <ExternalLink size={16} /> Advertentie
+              <ExternalLink size={18} />
             </a>
           )}
         </div>
