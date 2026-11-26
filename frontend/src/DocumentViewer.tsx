@@ -1,6 +1,7 @@
 import { useModalDialog } from './nav'
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { AlertTriangle, Download, FileText, Minus, Plus, X } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { AlertTriangle, Download, FileText, X } from 'lucide-react'
+import { usePinchZoom, ZoomButtons } from './PinchZoom'
 import type { PDFDocumentProxy } from 'pdfjs-dist'
 import type { Document } from './house'
 
@@ -19,87 +20,16 @@ export function documentKind(name: string | undefined): DocumentKind {
   return 'other'
 }
 
-const ZOOMS = [0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4]
-const MIN_ZOOM = ZOOMS[0]
-const MAX_ZOOM = ZOOMS[ZOOMS.length - 1]
-
-export function clampZoom(zoom: number): number {
-  return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom))
-}
-
-/** The next step of the − and + buttons, also from a zoom that pinching left between steps. */
-export function stepZoom(zoom: number, step: 1 | -1): number {
-  const next = step > 0 ? ZOOMS.find((z) => z > zoom + 0.01) : [...ZOOMS].reverse().find((z) => z < zoom - 0.01)
-  return next ?? zoom
-}
-
-type Pinch = { distance: number; x: number; y: number; zoom: number; factor: number }
-
-function touchDistance(t: React.TouchList): number {
-  return Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY)
-}
-
 /** A document of a house, shown inside the app instead of downloaded (Android opens a PDF
  * link as a download). PDFs are drawn with pdf.js, page by page as they scroll into view. */
 export function DocumentViewer({ doc, onClose }: { doc: Document; onClose: () => void }) {
   const ref = useRef<HTMLDialogElement>(null)
-  const body = useRef<HTMLDivElement>(null)
-  const content = useRef<HTMLDivElement>(null)
-  const pinch = useRef<Pinch | null>(null)
-  // Where to scroll after a pinch, so the spot between the fingers stays under them.
-  const anchor = useRef<{ x: number; y: number } | null>(null)
-  const [zoom, setZoom] = useState(1)
   const kind = documentKind(doc.bestand ?? doc.url)
+  const canZoom = kind === 'pdf' || kind === 'image'
+  const { body, content, zoom, zoomTo, handlers } = usePinchZoom(canZoom)
   const url = doc.url!
 
   useModalDialog(ref)
-
-  useLayoutEffect(() => {
-    const el = body.current
-    if (el && anchor.current) {
-      el.scrollLeft = anchor.current.x
-      el.scrollTop = anchor.current.y
-      anchor.current = null
-    }
-  }, [zoom])
-
-  const canZoom = kind === 'pdf' || kind === 'image'
-
-  // Pinching only scales the picture while the fingers move (smooth); when they let go the
-  // document is drawn again, sharp, at the new size.
-  function onTouchStart(e: React.TouchEvent) {
-    const el = body.current
-    if (!canZoom || !el || e.touches.length !== 2) return
-    const box = el.getBoundingClientRect()
-    pinch.current = {
-      distance: touchDistance(e.touches),
-      x: el.scrollLeft + (e.touches[0].clientX + e.touches[1].clientX) / 2 - box.left,
-      y: el.scrollTop + (e.touches[0].clientY + e.touches[1].clientY) / 2 - box.top,
-      zoom,
-      factor: 1,
-    }
-    if (content.current) content.current.style.transformOrigin = `${pinch.current.x}px ${pinch.current.y}px`
-  }
-  function onTouchMove(e: React.TouchEvent) {
-    const p = pinch.current
-    if (!p || e.touches.length !== 2) return
-    p.factor = clampZoom((p.zoom * touchDistance(e.touches)) / p.distance) / p.zoom
-    if (content.current) content.current.style.transform = `scale(${p.factor})`
-  }
-  function onTouchEnd(e: React.TouchEvent) {
-    const p = pinch.current
-    if (!p || e.touches.length >= 2) return
-    pinch.current = null
-    if (content.current) content.current.style.transform = ''
-    const el = body.current
-    if (el && Math.abs(p.factor - 1) > 0.02) {
-      anchor.current = {
-        x: p.x * p.factor - (p.x - el.scrollLeft),
-        y: p.y * p.factor - (p.y - el.scrollTop),
-      }
-      setZoom(Math.round(p.zoom * p.factor * 100) / 100)
-    }
-  }
 
   return (
     <dialog ref={ref} className="overlay doc-viewer" onClose={onClose} onCancel={onClose} aria-label={doc.naam}>
@@ -108,17 +38,7 @@ export function DocumentViewer({ doc, onClose }: { doc: Document; onClose: () =>
           <b>{doc.naam}</b>
           {doc.bestand && !doc.zonderTitel && <span className="muted small">{doc.bestand}</span>}
         </div>
-        {canZoom && (
-          <div className="doc-zoom" role="group" aria-label="Zoomen">
-            <button className="icon-btn" aria-label="Kleiner" disabled={zoom <= MIN_ZOOM} onClick={() => setZoom(stepZoom(zoom, -1))}>
-              <Minus size={18} />
-            </button>
-            <span className="doc-zoom-value">{Math.round(zoom * 100)}%</span>
-            <button className="icon-btn" aria-label="Groter" disabled={zoom >= MAX_ZOOM} onClick={() => setZoom(stepZoom(zoom, 1))}>
-              <Plus size={18} />
-            </button>
-          </div>
-        )}
+        {canZoom && <ZoomButtons zoom={zoom} onZoom={zoomTo} />}
         <a className="icon-btn" href={`${url}?download=1`} aria-label="Downloaden" title="Downloaden">
           <Download size={20} />
         </a>
@@ -129,10 +49,7 @@ export function DocumentViewer({ doc, onClose }: { doc: Document; onClose: () =>
       <div
         ref={body}
         className={`overlay-body doc-body${canZoom ? ' can-pinch' : ''}`}
-        onTouchStart={onTouchStart}
-        onTouchMove={onTouchMove}
-        onTouchEnd={onTouchEnd}
-        onTouchCancel={onTouchEnd}
+        {...handlers}
       >
         <div ref={content} className="doc-content">
           {kind === 'pdf' && <PdfView url={url} zoom={zoom} />}

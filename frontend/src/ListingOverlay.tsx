@@ -1,9 +1,10 @@
 import { useModalDialog } from './nav'
-import { useEffect, useRef, useState, type MouseEvent } from 'react'
-import { AlertTriangle, ChevronLeft, ChevronRight, Download, ExternalLink, Images, Newspaper, RefreshCw, X } from 'lucide-react'
+import { useCallback, useLayoutEffect, useRef, useState, type MouseEvent } from 'react'
+import { AlertTriangle, Download, ExternalLink, Images, Newspaper, RefreshCw, X } from 'lucide-react'
 import { api } from './api'
 import { displayAddress, photoGalleryUrl, photoUrls, type House, type Listing } from './house'
 import { errorText, useStore } from './store'
+import { usePinchZoom, ZoomButtons } from './PinchZoom'
 
 /** A link that opens the overlay on a plain click, and stays a real link for Ctrl/Cmd/Shift
  * click and the middle button (those open a new tab or window as usual). */
@@ -57,6 +58,98 @@ function ListingStatus({
   )
 }
 
+/** All photos under each other, to scroll through and pinch to zoom; it opens at `start`. */
+function PhotoList({ photos, start }: { photos: string[]; start: number }) {
+  const { body, content, zoom, zoomTo, handlers } = usePinchZoom()
+  const items = useRef<(HTMLDivElement | null)[]>([])
+  // Until the person scrolls themselves, keep `start` at the top while the photos above it
+  // load and get their real height.
+  const pinned = useRef(start > 0)
+  const [at, setAt] = useState(start)
+  const [loaded, setLoaded] = useState<Set<number>>(() => new Set())
+
+  // Not scrollIntoView: that would also scroll the dialog around the list.
+  const toStart = useCallback(() => {
+    const item = items.current[start]
+    if (item) body.current?.scrollTo({ top: item.offsetTop - 6 })
+  }, [body, start])
+
+  // On opening, and again each time a photo got its real height.
+  useLayoutEffect(() => {
+    if (start > 0 && pinned.current) toStart()
+  }, [start, toStart, loaded])
+
+  function onLoad(i: number) {
+    setLoaded((s) => new Set(s).add(i))
+  }
+
+  function onScroll() {
+    const el = body.current
+    if (!el) return
+    const line = el.getBoundingClientRect().top + el.clientHeight / 3
+    const i = items.current.findIndex((item) => item && item.getBoundingClientRect().bottom > line)
+    if (i >= 0) setAt(i)
+  }
+
+  const release = () => {
+    pinned.current = false
+  }
+
+  return (
+    <div className="photo-list-wrap">
+      <div
+        ref={body}
+        className="photo-list-scroll"
+        {...handlers}
+        onTouchStart={(e) => {
+          release()
+          handlers.onTouchStart(e)
+        }}
+        onWheel={release}
+        onKeyDown={release}
+        onScroll={onScroll}
+        tabIndex={0}
+        aria-label="Foto's"
+      >
+        <div ref={content} className="photo-list-content">
+          <div className="photo-list" style={{ width: `${zoom * 100}%`, maxWidth: `${zoom * 1000}px` }}>
+            {photos.map((src, i) => (
+              <div
+                key={src}
+                ref={(el) => {
+                  items.current[i] = el
+                }}
+                className={`photo-list-item${loaded.has(i) ? '' : ' loading'}`}
+              >
+                <img
+                  src={src}
+                  alt={`Foto ${i + 1} van ${photos.length}`}
+                  loading={Math.abs(i - start) <= 2 ? 'eager' : 'lazy'}
+                  referrerPolicy="no-referrer"
+                  onLoad={() => onLoad(i)}
+                  onError={() => onLoad(i)}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+      <span className="photo-list-count" aria-live="polite">
+        {at + 1} / {photos.length}
+      </span>
+      <div className="photo-list-zoom">
+        <ZoomButtons
+          zoom={zoom}
+          onZoom={(z) => {
+            release()
+            zoomTo(z)
+          }}
+        />
+      </div>
+    </div>
+  )
+}
+
 export function ListingOverlay({
   house,
   initialTab = 'advertentie',
@@ -71,23 +164,12 @@ export function ListingOverlay({
   const ref = useRef<HTMLDialogElement>(null)
   const { replace, notify } = useStore()
   const [tab, setTab] = useState<Tab>(initialTab)
-  const [photo, setPhoto] = useState<number | null>(initialTab === 'fotos' ? initialPhoto : null)
   const [busy, setBusy] = useState(false)
   const listing = house.record.listing
   const photos = photoUrls(house)
   const url = house.url!
 
   useModalDialog(ref)
-
-  useEffect(() => {
-    if (photo === null) return
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowRight') setPhoto((p) => ((p ?? 0) + 1) % photos.length)
-      if (e.key === 'ArrowLeft') setPhoto((p) => ((p ?? 0) - 1 + photos.length) % photos.length)
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [photo, photos.length])
 
   async function refresh() {
     setBusy(true)
@@ -147,7 +229,7 @@ export function ListingOverlay({
 
       {listing && <ListingStatus houseId={house.id} listing={listing} busy={busy} onRefresh={() => void refresh()} />}
 
-      <div className="overlay-body">
+      <div className={`overlay-body${tab === 'fotos' && photos.length > 0 ? ' photos-body' : ''}`}>
         {tab === 'advertentie' &&
           (listing?.hasPage ? (
             <iframe
@@ -202,32 +284,8 @@ export function ListingOverlay({
                 <RefreshCw size={16} className={busy ? 'spin' : ''} /> Nu ophalen
               </button>
             </div>
-          ) : photo === null ? (
-            <div className="gallery">
-              {photos.map((src, i) => (
-                <button key={src} className="gallery-item" onClick={() => setPhoto(i)} aria-label={`Foto ${i + 1}`}>
-                  <img src={src} alt="" loading="lazy" referrerPolicy="no-referrer" />
-                </button>
-              ))}
-            </div>
           ) : (
-            <div className="viewer">
-              <img src={photos[photo]} referrerPolicy="no-referrer" alt={`Foto ${photo + 1} van ${photos.length}`} />
-              <button className="viewer-nav prev" aria-label="Vorige foto" onClick={() => setPhoto((photo - 1 + photos.length) % photos.length)}>
-                <ChevronLeft size={28} />
-              </button>
-              <button className="viewer-nav next" aria-label="Volgende foto" onClick={() => setPhoto((photo + 1) % photos.length)}>
-                <ChevronRight size={28} />
-              </button>
-              <div className="viewer-bar">
-                <button className="btn btn-small btn-ghost" onClick={() => setPhoto(null)}>
-                  Alle foto's
-                </button>
-                <span>
-                  {photo + 1} / {photos.length}
-                </span>
-              </div>
-            </div>
+            <PhotoList photos={photos} start={initialPhoto} />
           ))}
       </div>
     </dialog>

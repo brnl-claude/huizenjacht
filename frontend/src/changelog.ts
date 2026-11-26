@@ -26,6 +26,16 @@ export type Release = {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.18.0',
+    date: '2026-11-26',
+    title: 'Foto\'s swipen, onder elkaar bekijken en inzoomen',
+    changes: [
+      'Bij een huis veeg je met je vinger naar links of rechts door de foto\'s. De pijltjes werken nog steeds.',
+      'Tik op een foto: alle foto\'s staan dan groot onder elkaar, zodat je er doorheen scrolt. Je begint bij de foto waarop je tikte.',
+      'In die weergave zoom je in met twee vingers, of met de knoppen − en + rechtsonder.',
+    ],
+  },
+  {
     version: '0.17.2',
     date: '2026-11-26',
     title: 'Rustigere huiskaarten in het overzicht',

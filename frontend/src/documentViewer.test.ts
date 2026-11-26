@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { clampZoom, documentKind, stepZoom } from './DocumentViewer'
+import { documentKind } from './DocumentViewer'
+import { clampZoom, stepZoom } from './PinchZoom'
 import { isTabSwipe } from './HousePage'
 
 describe('documentKind', () => {
