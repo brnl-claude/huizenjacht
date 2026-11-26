@@ -91,3 +91,18 @@ def test_android_app_gets_json_and_can_drop_a_share(tmp_path):
         assert share["url"] == f"/#/delen/{share['id']}"
         assert client.delete(f"/api/share/{share['id']}").status_code == 204
         assert list(media_dir(tmp_path).iterdir()) == []
+
+
+def test_the_same_upload_twice_is_kept_once(tmp_path):
+    with make_client(tmp_path) as client:
+        house = client.post("/api/houses", json={"adres": "Kade 2"}).json()["id"]
+        sent = [
+            client.post(
+                f"/api/houses/{house}/media",
+                files={"file": ("kelder.jpg", PNG, "image/jpeg")},
+                data={"key": "abc-123"},
+            ).json()
+            for _ in range(2)
+        ]
+        assert sent[0]["id"] == sent[1]["id"]
+        assert len(client.get(f"/api/houses/{house}").json()["media"]) == 1

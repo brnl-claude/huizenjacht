@@ -1,7 +1,15 @@
 import type { Document, HouseRecord, Mine, Person } from './house'
 import type { Media } from './media'
 
-export class ApiError extends Error {}
+export class ApiError extends Error {
+  /** The HTTP status, or 0 when the server could not be reached. */
+  readonly status: number
+
+  constructor(message: string, status = 0) {
+    super(message)
+    this.status = status
+  }
+}
 
 // Several requests can answer 401 at once; start the login only once, so the attempts do not
 // overwrite each other's login cookie.
@@ -32,7 +40,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
         loggingIn = true
         location.assign(`${body.login}?next=${encodeURIComponent(`/${location.hash}`)}`)
       }
-      throw new ApiError('Je wordt doorgestuurd naar de login…')
+      throw new ApiError('Je wordt doorgestuurd naar de login…', 401)
     }
   }
   if (!response.ok) {
@@ -43,7 +51,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     } catch {
       // keep the generic message
     }
-    throw new ApiError(detail)
+    throw new ApiError(detail, response.status)
   }
   if (response.status === 204) return undefined as T
   return response.json() as Promise<T>
