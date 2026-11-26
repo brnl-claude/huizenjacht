@@ -26,6 +26,14 @@ export type Release = {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.19.6',
+    date: '2026-11-26',
+    title: 'Sorteren geldt ook voor favorieten',
+    changes: [
+      'Sorteren in het overzicht werkt weer zoals je verwacht: favorieten staan niet meer altijd bovenaan, maar op hun plek in de gekozen volgorde. Alleen favorieten zien kan met de filterknop Favorieten.',
+    ],
+  },
+  {
     version: '0.19.5',
     date: '2026-11-26',
     title: 'Geen oude melding Ophalen mislukt meer',
