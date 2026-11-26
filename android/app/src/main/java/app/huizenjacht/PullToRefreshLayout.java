@@ -9,13 +9,14 @@ import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 /**
  * Pull down at the top of the page to load it again. Unlike a plain SwipeRefreshLayout it
  * leaves sideways swipes to the page, even when they drift
- * down a little.
+ * down a little, and pinches with two fingers.
  */
 final class PullToRefreshLayout extends SwipeRefreshLayout {
     private final int mTouchSlop;
     private float mDownX;
     private float mDownY;
     private boolean mSideways;
+    private boolean mPinch;
 
     PullToRefreshLayout(Context context) {
         super(context);
@@ -29,12 +30,15 @@ final class PullToRefreshLayout extends SwipeRefreshLayout {
             mDownX = event.getX();
             mDownY = event.getY();
             mSideways = false;
+            mPinch = false;
+        } else if (action == MotionEvent.ACTION_POINTER_DOWN) {
+            mPinch = true;
         } else if (action == MotionEvent.ACTION_MOVE && !mSideways) {
             float dx = Math.abs(event.getX() - mDownX);
             float dy = Math.abs(event.getY() - mDownY);
             if (dx > mTouchSlop && dx > dy) mSideways = true;
         }
-        if (mSideways) return false;
+        if (mSideways || mPinch) return false;
         return super.onInterceptTouchEvent(event);
     }
 }
