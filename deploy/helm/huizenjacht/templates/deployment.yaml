@@ -152,6 +152,8 @@ spec:
             - name: FORWARDED_ALLOW_IPS
               value: {{ . | quote }}
             {{- end }}
+            - name: HJ_MAP
+              value: {{ .Values.map.enabled | quote }}
             - name: HJ_BACKUP_KEEP_DAYS
               value: {{ ternary .Values.backups.keepDays 0 .Values.backups.enabled | quote }}
             - name: HJ_BACKUP_TIME

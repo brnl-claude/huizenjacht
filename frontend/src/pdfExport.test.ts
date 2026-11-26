@@ -45,6 +45,13 @@ describe('pdf export', () => {
     for (const category of DEFAULT_CHECKLIST) expect(all).toContain(category.titel)
   })
 
+  it('puts the photo and the map side by side under the address', () => {
+    const picture = (w: number) => ({ data: 'data:image/jpeg;base64,AAAA', width: w, height: 100 })
+    const withPictures = pdfDocument(house, categories, people, 'bram', new Date(), { photo: picture(300), map: picture(200) })
+    expect(text(withPictures.content).match(/data:image\/jpeg/g)).toHaveLength(2)
+    expect(text(doc.content)).not.toContain('data:image')
+  })
+
   it('names the file after the house', () => {
     expect(pdfFileName(house)).toBe('Huizenjacht - Kade 2 Delft.pdf')
   })
