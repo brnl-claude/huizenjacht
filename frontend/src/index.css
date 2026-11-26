@@ -3154,6 +3154,7 @@ a[aria-label],
   min-height: 100%;
 }
 .photo-list {
+  max-width: 1000px;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
@@ -3182,12 +3183,104 @@ a[aria-label],
   font-weight: 600;
   pointer-events: none;
 }
-.photo-list-zoom {
+
+
+.photo-list-open {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: zoom-in;
+}
+
+/* One photo on the whole screen, to zoom and swipe. */
+.photo-viewer {
+  border: none;
+  padding: 0;
+  margin: 0;
+  width: 100vw;
+  height: 100dvh;
+  max-width: none;
+  max-height: none;
+  background: #000;
+  color: #fff;
+  overflow: hidden;
+}
+.photo-viewer::backdrop {
+  background: #000;
+}
+.photo-viewer-stage {
   position: absolute;
-  right: 12px;
-  bottom: 10px;
-  border-radius: 999px;
-  background: var(--surface);
-  box-shadow: var(--shadow);
-  padding: 2px 4px;
+  inset: 0;
+  overflow: hidden;
+  touch-action: none;
+  user-select: none;
+  cursor: grab;
+}
+.photo-viewer-stage img {
+  position: absolute;
+  transform-origin: 0 0;
+  will-change: transform;
+  -webkit-user-drag: none;
+}
+.photo-viewer-stage img.settle {
+  transition: transform 0.2s ease-out;
+}
+.photo-viewer-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: max(8px, env(safe-area-inset-top)) 8px 8px 16px;
+  background: linear-gradient(rgb(0 0 0 / 55%), transparent);
+  pointer-events: none;
+}
+.photo-viewer-bar > * {
+  pointer-events: auto;
+}
+.photo-viewer-count {
+  flex: 1;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+.photo-viewer-zoom {
+  display: flex;
+}
+.photo-viewer .icon-btn {
+  color: #fff;
+}
+.photo-viewer .icon-btn:disabled {
+  opacity: 0.35;
+}
+.photo-viewer-nav {
+  position: absolute;
+  top: 50%;
+  z-index: 1;
+  transform: translateY(-50%);
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: none;
+  background: rgb(255 255 255 / 85%);
+  color: #222;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+.photo-viewer-nav.prev {
+  left: 16px;
+}
+.photo-viewer-nav.next {
+  right: 16px;
+}
+@media (hover: none) {
+  /* On a phone you swipe; the arrows would only cover the photo. */
+  .photo-viewer-nav {
+    display: none;
+  }
 }

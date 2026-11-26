@@ -26,6 +26,18 @@ export type Release = {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.19.0',
+    date: '2026-11-26',
+    title: 'Foto\'s schermvullend bekijken en inzoomen',
+    changes: [
+      'Tik in de galerij op een foto: die opent dan schermvullend.',
+      'Daar zoom je met twee vingers of door twee keer te tikken, en sleep je om rond te kijken. Op de computer werkt het scrollwiel en dubbelklikken.',
+      'Veeg naar links of rechts voor de volgende of vorige foto. Op de computer gebruik je de pijltjes.',
+      'Terug of een klik naast de foto brengt je terug in de galerij. In de lijst onder elkaar zoom je niet meer, dat scrolt rustiger.',
+      'De knoppen Opnieuw ophalen en Nu ophalen zijn weg, want ze werkten niet. De advertentie komt binnen via je bladwijzer.',
+    ],
+  },
+  {
     version: '0.18.1',
     date: '2026-11-26',
     title: 'Fotogalerij sluiten door ernaast te klikken',
