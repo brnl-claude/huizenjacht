@@ -11,6 +11,9 @@ const listeners = new Set<() => void>()
 // gets lost.
 const LOAD_AT_ONCE_MS = 15_000
 let openedAt = Date.now()
+// Once someone taps or types, the page no longer loads again by itself: a reload right under a
+// tap feels like the tap did it. The banner offers the new version instead.
+let touched = false
 
 function busyTyping(): boolean {
   const el = document.activeElement
@@ -19,10 +22,13 @@ function busyTyping(): boolean {
 
 export function startServiceWorker(): void {
   if (!('serviceWorker' in navigator)) return
+  for (const type of ['pointerdown', 'keydown']) {
+    document.addEventListener(type, () => (touched = true), { capture: true, passive: true })
+  }
   update = registerSW({
     onNeedRefresh() {
       ready = true
-      if (Date.now() - openedAt < LOAD_AT_ONCE_MS && !busyTyping()) {
+      if (Date.now() - openedAt < LOAD_AT_ONCE_MS && !touched && !busyTyping()) {
         applyUpdate()
         return
       }
@@ -40,6 +46,7 @@ export function startServiceWorker(): void {
       hiddenAt = Date.now()
     } else if (Date.now() - hiddenAt > 60_000) {
       openedAt = Date.now()
+      touched = false
       if (ready && !busyTyping()) applyUpdate()
       else void checkForUpdate().catch(() => undefined)
     }
