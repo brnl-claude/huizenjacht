@@ -7,6 +7,11 @@
  * or deployments. Date it the day it is merged and write each change as one short line in
  * Dutch for the person using the app. CI tags the image with the newest version and creates a
  * GitHub release v<version> with these lines as its notes.
+ *
+ * A version that changes the Android app (android/) also lists those changes under `android`.
+ * Only such a version gets a new APK: CI builds the app with the newest version that has
+ * `android` and attaches it to that release only, so Obtainium and F-Droid offer an update
+ * just when the app itself changed. Web changes reach the app without a new APK.
  */
 
 export type Release = {
@@ -15,9 +20,21 @@ export type Release = {
   date: string
   title: string
   changes: string[]
+  // What changed in the Android app; set only when this version comes with a new APK.
+  android?: string[]
 }
 
 export const CHANGELOG: Release[] = [
+  {
+    version: '0.17.0',
+    date: '2026-11-26',
+    title: 'Nieuwtjes na een update',
+    changes: [
+      'Na een update zie je één keer kort wat er nieuw is. Zijn er meer versies sinds je laatste bezoek, dan zie je ze samen. De link brengt je naar alles in Instellingen → Over.',
+      'In het overzicht van versies staat nu bij welke versie er een nieuwe Android-app kwam, en wat er in de app veranderde.',
+      'Een nieuwe Android-app komt er voortaan alleen als de app zelf verandert. Al het andere krijg je vanzelf via de website, zonder de app bij te werken.',
+    ],
+  },
   {
     version: '0.16.1',
     date: '2026-11-26',
@@ -167,6 +184,10 @@ export const CHANGELOG: Release[] = [
       "Zonder Chrome opent de app voor Opnemen meteen de camera (foto of video) en kun je meerdere bestanden tegelijk kiezen.",
       'Zonder Chrome vraagt de app de eerste keer toestemming voor de camera en de microfoon, voor foto\'s en spraakmemo\'s.',
     ],
+    android: [
+      'Huizenjacht staat in het deelmenu van Android, voor foto\'s, video\'s en audio.',
+      'In het eigen venster (zonder Chrome) opent Opnemen de camera-app, kies je meerdere bestanden tegelijk en vraagt de app om toestemming voor camera en microfoon.',
+    ],
   },
   {
     version: '0.8.0',
@@ -212,6 +233,10 @@ export const CHANGELOG: Release[] = [
       'De app vraagt de eerste keer op welk adres jouw Huizenjacht draait. Inloggen gaat in de app zoals in de browser.',
       'Met Chrome op je telefoon opent de app Huizenjacht in Chrome, zonder adresbalk, en blijf je ingelogd zoals in Chrome. Zonder Chrome gebruikt hij een eigen venster.',
       'Het serveradres wijzig je door het app-icoon ingedrukt te houden en Server wijzigen te kiezen.',
+    ],
+    android: [
+      'De eerste Android-app: opent Huizenjacht in Chrome zonder adresbalk, of in een eigen venster.',
+      'Vraagt bij de eerste start het serveradres; wijzigen via het app-icoon ingedrukt houden.',
     ],
   },
   {
@@ -344,18 +369,31 @@ export function formatReleaseDate(date: string): string {
   })
 }
 
+/** The newest version that came with a new Android app (APK). */
+export function latestAndroidRelease(): Release | undefined {
+  return CHANGELOG.find((r) => r.android?.length)
+}
+
 const SEEN_KEY = 'hj.changelogSeen'
 
-export function unseenCount(): number {
-  let seen: string | null = null
+/**
+ * The versions to show once after an update: those newer than the last one seen, newest
+ * first. Someone who never saw a version (or one this changelog no longer knows) gets only
+ * the newest.
+ */
+export function releasesSince(seen: string | null, changelog: Release[] = CHANGELOG): Release[] {
+  if (seen === changelog[0]?.version) return []
+  const index = seen ? changelog.findIndex((r) => r.version === seen) : -1
+  return changelog.slice(0, index === -1 ? 1 : index)
+}
+
+export function lastSeenVersion(): string | null | undefined {
   try {
-    seen = localStorage.getItem(SEEN_KEY)
+    return localStorage.getItem(SEEN_KEY)
   } catch {
-    return 0
+    // private mode: no news pop-up, since it could not be remembered
+    return undefined
   }
-  if (!seen) return 0
-  const index = CHANGELOG.findIndex((r) => r.version === seen)
-  return index === -1 ? 0 : index
 }
 
 export function markChangelogSeen(): void {

@@ -3041,3 +3041,70 @@ a[aria-label],
 .datetime24 select:disabled {
   opacity: 0.5;
 }
+
+/* Android changes in the changelog, and the news pop-up after an update */
+.android-changes {
+  margin-top: 10px;
+  padding: 8px 12px;
+  border-radius: var(--radius);
+  background: var(--link-soft);
+}
+.android-changes-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--link);
+}
+.android-changes ul {
+  margin: 6px 0 0;
+  padding-left: 20px;
+}
+.android-changes li + li {
+  margin-top: 4px;
+}
+.whats-new > p:first-child {
+  margin-top: 0;
+}
+.whats-new ul {
+  padding-left: 20px;
+}
+.whats-new ul li + li {
+  margin-top: 4px;
+}
+.whats-new-list {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0;
+  display: grid;
+  gap: 8px;
+}
+.whats-new-list li {
+  display: grid;
+  grid-template-columns: 4.2em 1fr;
+  align-items: baseline;
+  gap: 8px;
+}
+.whats-new-list .version {
+  justify-self: start;
+}
+.android-tag {
+  margin-left: 8px;
+  vertical-align: 1px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 650;
+  background: var(--link-soft);
+  color: var(--link);
+}
+.whats-new-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 16px;
+}

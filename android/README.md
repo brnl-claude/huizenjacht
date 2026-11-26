@@ -51,10 +51,14 @@ telefoon en tik op *Toevoegen aan F-Droid*. Die repository heeft dezelfde APK's 
 dus je kunt tussen Obtainium en F-Droid wisselen zonder opnieuw te installeren. Zie
 [`fdroid/`](../fdroid/README.md).
 
-De app heeft hetzelfde versienummer als de rest van Huizenjacht (de nieuwste versie in
-`frontend/src/changelog.ts`). De versiecode volgt daaruit: `1.2.3` wordt `1002003`, dus elke
-nieuwe versie installeert over de vorige. CI bouwt de app bij elke push naar `main` en hangt
-hem aan de release van die versie.
+Er komt alleen een nieuwe app als de app zelf verandert. Zet dan bij de nieuwste versie in
+`frontend/src/changelog.ts` onder `android` wat er in de app veranderde (CI controleert dat bij
+pull requests die `android/` wijzigen). De app krijgt het versienummer van de nieuwste versie
+met `android`; de versiecode volgt daaruit: `1.2.3` wordt `1002003`, dus elke nieuwe app
+installeert over de vorige. CI bouwt de app bij elke push naar `main` en hangt hem alleen aan
+de release van een versie met `android`. Andere releases hebben geen APK; Obtainium valt dan
+terug op de vorige release met een APK (instelling *Fallback to older releases*, standaard aan),
+en de F-Droid-repository neemt alleen releases met een APK mee.
 
 ## Ondertekening
 

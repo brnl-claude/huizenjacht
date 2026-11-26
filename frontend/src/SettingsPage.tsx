@@ -23,7 +23,8 @@ import {
 import { BookmarkletPanel } from './Bookmarklet'
 import { api, type Health, type ImportResult, type ImportStatus, type Me } from './api'
 import { applyUpdate, checkForUpdate, useUpdateReady } from './appUpdate'
-import { CHANGELOG, currentVersion, formatReleaseDate, markChangelogSeen } from './changelog'
+import { CHANGELOG, currentVersion, formatReleaseDate, latestAndroidRelease, markChangelogSeen } from './changelog'
+import { AndroidChanges } from './WhatsNew'
 import { DEFAULT_CHECKLIST, newId, type ChecklistCategory } from './checklist'
 import { LogoMark } from './Logo'
 import { errorText, useStore } from './store'
@@ -489,6 +490,7 @@ function About({ health }: { health: Health | null }) {
   const server = health?.version
   // The app's own WebView says so in its user agent (android/, WebViewActivity).
   const androidApp = /HuizenjachtAndroid\/(\S+)/.exec(navigator.userAgent)?.[1]
+  const androidRelease = latestAndroidRelease()
   return (
     <>
       <section className="panel about">
@@ -540,6 +542,13 @@ function About({ health }: { health: Health | null }) {
       <section className="panel">
         <h2>Android-app</h2>
         {androidApp && <p className="muted small">Je gebruikt nu de Android-app {androidApp}.</p>}
+        {androidRelease && (
+          <p className="muted small">
+            De app zelf is voor het laatst veranderd in versie {androidRelease.version}, van{' '}
+            {formatReleaseDate(androidRelease.date)}. Alleen dan komt er een nieuwe app; al het andere krijg je vanzelf
+            via de website.
+          </p>
+        )}
         <p className="small">
           Huizenjacht staat ook als app op je telefoon, met dit adres als server. Voeg in{' '}
           <a href="https://obtainium.imranr.dev/" target="_blank" rel="noreferrer">
@@ -572,6 +581,7 @@ function About({ health }: { health: Health | null }) {
                   <li key={i}>{c}</li>
                 ))}
               </ul>
+              <AndroidChanges release={r} />
             </li>
           ))}
         </ol>
