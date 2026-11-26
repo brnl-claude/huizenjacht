@@ -26,6 +26,15 @@ export type Release = {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.19.4',
+    date: '2026-11-26',
+    title: 'Nieuwe versie meteen bij openen',
+    changes: [
+      'Staat er een nieuwe versie klaar als je de app opent of er na een tijdje naar terugkeert, dan laadt die meteen. Je hoeft dan niet meer op Vernieuwen te tikken.',
+      'Komt er een nieuwe versie terwijl je de app al even gebruikt, dan zie je nog steeds de melding, zodat je niets kwijtraakt.',
+    ],
+  },
+  {
     version: '0.19.3',
     date: '2026-11-26',
     title: 'Geen waarschuwing meer in Obtainium',
