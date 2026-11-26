@@ -1,5 +1,5 @@
 import { navigate } from './nav'
-import { useEffect, useRef, useState, type TouchEvent } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type TouchEvent } from 'react'
 import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import {
@@ -368,6 +368,8 @@ function DeleteHouse({ house }: { house: House }) {
   )
 }
 
+/** The photos of the house side by side: swipe (or scroll sideways) through them, or use the
+ * arrows; a tap opens them all in the gallery at that photo. */
 function HeroPhoto({
   house,
   index,
@@ -379,26 +381,77 @@ function HeroPhoto({
   onIndex: (n: number) => void
   onOpen: () => void
 }) {
+  const strip = useRef<HTMLDivElement>(null)
   const count = photoUrls(house).length
   const at = count ? index % count : 0
+
+  // Where the strip should be: on mount (it is new after switching tabs), after it was hidden
+  // (the compact header hides it on a phone) and when its width changes.
+  const shown = useRef(at)
+  useLayoutEffect(() => {
+    shown.current = at
+  })
+  useLayoutEffect(() => {
+    const el = strip.current
+    if (!el) return
+    const place = () => {
+      if (el.clientWidth) el.scrollLeft = shown.current * el.clientWidth
+    }
+    place()
+    const observer = new ResizeObserver(place)
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [count])
+
+  function go(n: number) {
+    const el = strip.current
+    if (!el) return
+    const next = (n + count) % count
+    el.scrollTo({ left: next * el.clientWidth, behavior: Math.abs(next - at) > 1 ? 'instant' : 'smooth' })
+  }
+
+  function onScroll() {
+    const el = strip.current
+    if (!el || !el.clientWidth) return
+    const n = Math.round(el.scrollLeft / el.clientWidth)
+    if (n !== at && n >= 0 && n < count) onIndex(n)
+  }
+
+  if (count <= 1) {
+    return (
+      <div className="hero-photo-wrap">
+        <button className="hero-photo-button" onClick={onOpen} disabled={!count || !house.url} aria-label="Foto's bekijken">
+          <Photo house={house} index={0} className="hero-photo" />
+        </button>
+      </div>
+    )
+  }
+
   return (
     <div className="hero-photo-wrap">
-      <button className="hero-photo-button" onClick={onOpen} disabled={!count || !house.url} aria-label="Foto's bekijken">
-        <Photo house={house} index={at} className="hero-photo" />
+      <div className="hero-strip" ref={strip} onScroll={onScroll}>
+        {Array.from({ length: count }, (_, i) => (
+          <button
+            key={i}
+            className="hero-photo-button hero-slide"
+            onClick={onOpen}
+            disabled={!house.url}
+            tabIndex={i === at ? 0 : -1}
+            aria-label={`Foto ${i + 1} van ${count} bekijken`}
+          >
+            <Photo house={house} index={i} className="hero-photo" />
+          </button>
+        ))}
+      </div>
+      <button className="hero-nav prev" aria-label="Vorige foto" onClick={() => go(at - 1)}>
+        <ChevronLeft size={22} />
       </button>
-      {count > 1 && (
-        <>
-          <button className="hero-nav prev" aria-label="Vorige foto" onClick={() => onIndex((at - 1 + count) % count)}>
-            <ChevronLeft size={22} />
-          </button>
-          <button className="hero-nav next" aria-label="Volgende foto" onClick={() => onIndex((at + 1) % count)}>
-            <ChevronRight size={22} />
-          </button>
-          <span className="hero-count">
-            <Images size={14} /> {at + 1} / {count}
-          </span>
-        </>
-      )}
+      <button className="hero-nav next" aria-label="Volgende foto" onClick={() => go(at + 1)}>
+        <ChevronRight size={22} />
+      </button>
+      <span className="hero-count">
+        <Images size={14} /> {at + 1} / {count}
+      </span>
     </div>
   )
 }
