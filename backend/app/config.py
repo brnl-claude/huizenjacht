@@ -38,8 +38,9 @@ class Settings:
     # The https address people open the app on. The login redirect goes there.
     public_url: str = ""
     session_days: int = 30
-    # Fetch photos and a copy of each house's listing page (Funda) in the background.
-    fetch_listings: bool = True
+    # Try to fetch each house's listing page (Funda) in the background. Off by default: Funda
+    # answers servers with a captcha, so the bookmarklet sends the page instead.
+    fetch_listings: bool = False
     # The Android app (android/): its id and the SHA-256 fingerprints of its signing key, for
     # /.well-known/assetlinks.json. Chrome then shows the app without an address bar.
     android_package: str = "app.huizenjacht"
@@ -72,7 +73,7 @@ def load_settings() -> Settings:
         allowed_users=_split(os.environ.get("HJ_ALLOWED_USERS", "")),
         public_url=os.environ.get("HJ_PUBLIC_URL", "").rstrip("/"),
         session_days=int(os.environ.get("HJ_SESSION_DAYS", "30")),
-        fetch_listings=os.environ.get("HJ_FETCH_LISTINGS", "true").lower() != "false",
+        fetch_listings=os.environ.get("HJ_FETCH_LISTINGS", "false").lower() == "true",
         android_package=os.environ.get("HJ_ANDROID_PACKAGE", "").strip() or "app.huizenjacht",
         android_cert_fingerprints=tuple(
             f.upper() for f in _split(os.environ.get("HJ_ANDROID_CERT_FINGERPRINTS", ""))
