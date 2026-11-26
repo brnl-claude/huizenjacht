@@ -26,6 +26,14 @@ export type Release = {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.24.2',
+    date: '2026-11-26',
+    title: 'Kleinere knoppen op de huiskaarten',
+    changes: [
+      'Vergelijk en Advertentie op de huiskaarten zijn nu kleine icoonknoppen. Vergelijk heeft het kolommen-icoon uit het menu, zodat er weer ruimte is voor de voortgang.',
+    ],
+  },
+  {
     version: '0.24.1',
     date: '2026-11-26',
     title: 'Geen onverwacht herladen meer',

@@ -877,7 +877,12 @@ pre {
   display: flex;
   gap: 8px;
 }
-/* Advertentie: yellow outline next to Vergelijk. */
+/* Small square icon buttons; Advertentie has a yellow outline. */
+.btn-icon {
+  width: 38px;
+  min-height: 38px;
+  padding: 0;
+}
 .btn-ad {
   background: var(--surface);
   border: 2px solid var(--brand);
