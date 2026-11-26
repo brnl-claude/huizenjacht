@@ -1,5 +1,6 @@
 /** Houses: what the report says, merged with what Bram adds in the app. */
 
+import type { Priority } from './checklist'
 import type { Media } from './media'
 
 export type CheckState = 'ok' | 'twijfel' | 'probleem'
@@ -75,6 +76,8 @@ export type Mine = Partial<Fields> & {
   bezichtiging?: string
   bod?: number
   checklist?: Record<string, CheckEntry>
+  /** Priorities of checklist points set at this house, shared by everyone. */
+  prioriteiten?: Record<string, Priority>
   /** Each person's own grade, ratings, notes and checklist, by person key. */
   personen?: Record<string, Personal>
 }

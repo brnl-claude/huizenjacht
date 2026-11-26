@@ -29,7 +29,7 @@ import { applyUpdate, checkForUpdate, useUpdateReady } from './appUpdate'
 import { CHANGELOG, currentVersion, formatReleaseDate, latestAndroidRelease, markChangelogSeen } from './changelog'
 import { AndroidChanges } from './WhatsNew'
 import { Devices } from './Pairing'
-import { DEFAULT_CHECKLIST, newId, type ChecklistCategory } from './checklist'
+import { DEFAULT_CHECKLIST, newId, PRIORITIES, withPriorities, type ChecklistCategory, type Priority } from './checklist'
 import { LogoMark } from './Logo'
 import { errorText, useStore } from './store'
 import { FONT_SIZES, fontSizeLabel, rememberedFontSize, setFontSize, type FontSize } from './fontSize'
@@ -156,8 +156,8 @@ function Display() {
 
 function ChecklistEditor() {
   const { template, saveTemplate } = useStore()
-  const [draft, setDraft] = useState<ChecklistCategory[]>(template)
-  useEffect(() => setDraft(template), [template])
+  const [draft, setDraft] = useState<ChecklistCategory[]>(() => withPriorities(template))
+  useEffect(() => setDraft(withPriorities(template)), [template])
   const save = (next: ChecklistCategory[]) => {
     setDraft(next)
     void saveTemplate(next)
@@ -176,6 +176,12 @@ function ChecklistEditor() {
         "- [ ]") of open punten, dan komen die er per huis bovenop. Zonder afvinklijst gebruikt de app de
         aandachtspunten voor de bezichtiging uit het rapport. Een punt verwijderen haalt ook de antwoorden
         daarop uit beeld.
+      </p>
+      <p className="muted">
+        De prioriteit bepaalt wat bij een korte bezichtiging eerst komt: <b>Moet</b> altijd,{' '}
+        <b>Belangrijk</b> als er tijd is, <b>Optioneel</b> alleen met tijd over en <b>Later</b> niet ter
+        plekke maar thuis of vóór het bieden. Bij een huis kun je de prioriteit van een punt ook los
+        aanpassen.
       </p>
       {draft.map((cat, ci) => (
         <section key={cat.id} className="panel edit-category">
@@ -223,6 +229,31 @@ function ChecklistEditor() {
                   }
                   onBlur={() => save(draft)}
                 />
+                <select
+                  className={`prio-pill prio-${item.prio}`}
+                  aria-label="Prioriteit"
+                  value={item.prio}
+                  onChange={(e) =>
+                    save(
+                      draft.map((c, i) =>
+                        i === ci
+                          ? {
+                              ...c,
+                              items: c.items.map((it, j) =>
+                                j === ii ? { ...it, prio: e.target.value as Priority } : it,
+                              ),
+                            }
+                          : c,
+                      ),
+                    )
+                  }
+                >
+                  {PRIORITIES.map((x) => (
+                    <option key={x.id} value={x.id}>
+                      {x.label}
+                    </option>
+                  ))}
+                </select>
                 <button
                   className="icon-btn danger"
                   aria-label="Punt verwijderen"
@@ -240,7 +271,7 @@ function ChecklistEditor() {
             onClick={() =>
               save(
                 draft.map((c, i) =>
-                  i === ci ? { ...c, items: [...c.items, { id: newId(c.id), tekst: 'Nieuw punt' }] } : c,
+                  i === ci ? { ...c, items: [...c.items, { id: newId(c.id), tekst: 'Nieuw punt', prio: 'belangrijk' as Priority }] } : c,
                 ),
               )
             }

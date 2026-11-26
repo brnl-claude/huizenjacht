@@ -27,11 +27,29 @@ import {
   Plus,
   ThumbsDown,
   ThumbsUp,
+  Timer,
   Trash2,
   X,
+  Zap,
 } from 'lucide-react'
 import { api } from './api'
-import { checklistFor, prefilledCount, progress, reportChecklist, type ChecklistCategory } from './checklist'
+import {
+  checklistFor,
+  prefilledCount,
+  progress,
+  quickPlan,
+  rank,
+  reportChecklist,
+  MINUTES_PER_POINT,
+  PRIORITIES,
+  QUICK_MINUTES,
+  type ChecklistCategory,
+  type ChecklistItem,
+  type PlannedPoint,
+  type Priority,
+  type Ranked,
+} from './checklist'
+import { quickMinutes, quickOn, setQuickMinutes, setQuickOn, setViewingStart, timeLeft, viewingStart } from './quickViewing'
 import {
   displayAddress,
   formatEuro,
@@ -640,9 +658,15 @@ function Checklist({
   const ownList = reportChecklist(house.record.reportBody ?? '').length > 0
   const answers = house.mine.checklist ?? {}
   const [onlyOpen, setOnlyOpen] = useState(false)
+  const [quick, setQuick] = useState(quickOn)
+  const [minutes, setMinutes] = useState(quickMinutes)
   // Notes start folded; the button folds or unfolds them at every point at once.
   const [notes, setNotes] = useState({ open: false, turn: 0 })
-  const p = progress(categories, answers)
+  const overrides = house.mine.prioriteiten ?? {}
+  const plan = quick ? quickPlan(categories, minutes, overrides) : null
+  const p = plan
+    ? progress([{ id: 'snel', titel: '', items: plan.now.map((x) => x.item) }], answers)
+    : progress(categories, answers)
   const prefilled = prefilledCount(categories)
 
   function set(itemId: string, entry: CheckEntry | null) {
@@ -651,6 +675,33 @@ function Checklist({
     else next[itemId] = entry
     void update(house.id, { checklist: next })
   }
+
+  function setPrio(itemId: string, prio: Priority | null) {
+    const next = { ...overrides }
+    if (prio) next[itemId] = prio
+    else delete next[itemId]
+    void update(house.id, { prioriteiten: Object.keys(next).length ? next : null })
+  }
+
+  const row = (item: ChecklistItem, ranked: Ranked, category?: string) => (
+    <CheckRow
+      key={item.id}
+      house={house}
+      categories={categories}
+      text={item.tekst}
+      entry={answers[item.id]}
+      others={house.others}
+      itemId={item.id}
+      prefill={item.vooraf}
+      notes={notes}
+      ranked={ranked}
+      category={category}
+      onChange={(entry) => set(item.id, entry)}
+      onPrio={(prio) => setPrio(item.id, prio)}
+    />
+  )
+  const open = (points: PlannedPoint[]) => points.filter((x) => !onlyOpen || !answers[x.item.id]?.s)
+  const quickRows = (points: PlannedPoint[]) => <ul>{open(points).map((x) => row(x.item, x, x.category.titel))}</ul>
 
   return (
     <div className="checklist">
@@ -663,6 +714,17 @@ function Checklist({
         </div>
         <div className="checklist-tools">
           <div className="checklist-switches">
+            <label className="switch">
+              <input
+                type="checkbox"
+                checked={quick}
+                onChange={(e) => {
+                  setQuick(e.target.checked)
+                  setQuickOn(e.target.checked)
+                }}
+              />
+              <Zap size={16} className="quick-icon" /> Korte bezichtiging
+            </label>
             <label className="switch">
               <input type="checkbox" checked={onlyOpen} onChange={(e) => setOnlyOpen(e.target.checked)} />
               Alleen open punten
@@ -687,15 +749,36 @@ function Checklist({
             <span className="show-small">Alles</span> {notes.open ? 'inklappen' : 'uitklappen'}
           </button>
         </div>
+        {quick && (
+          <div className="quick-tools">
+            <label className="quick-minutes">
+              Tijd
+              <select
+                value={minutes}
+                onChange={(e) => {
+                  setMinutes(Number(e.target.value))
+                  setQuickMinutes(Number(e.target.value))
+                }}
+              >
+                {QUICK_MINUTES.map((m) => (
+                  <option key={m} value={m}>
+                    {m} minuten
+                  </option>
+                ))}
+              </select>
+            </label>
+            <ViewingTimer houseId={house.id} minutes={minutes} />
+          </div>
+        )}
       </div>
       <People house={house} />
       <GeneralMedia house={house} categories={categories} />
-      {ownList && (
+      {ownList && !quick && (
         <p className="muted small checklist-source">
           De eerste onderdelen komen uit de afvinklijst en open punten van het rapport van dit huis.
         </p>
       )}
-      {prefilled > 0 && (
+      {prefilled > 0 && !quick && (
         <div className="panel prefill-summary">
           <FileText size={18} />
           <div>
@@ -726,44 +809,150 @@ function Checklist({
           </div>
         </div>
       )}
-      {categories.map((category) => {
-        const items = category.items.filter((i) => !onlyOpen || !answers[i.id]?.s)
-        if (!items.length) return null
-        const cp = progress([category], answers)
-        return (
-          <section key={category.id} className="panel check-category">
-            <h2>
-              {category.titel}
-              {category.fromReport && <span className="badge badge-report">Rapport</span>}
-              {category.fromDocuments && <span className="badge badge-documents">Documenten</span>}
-              <small>
-                {cp.done}/{cp.total}
-              </small>
-            </h2>
-            <ul>
-              {items.map((item) => (
-                <CheckRow
-                  key={item.id}
-                  house={house}
-                  categories={categories}
-                  text={item.tekst}
-                  entry={answers[item.id]}
-                  others={house.others}
-                  itemId={item.id}
-                  prefill={item.vooraf}
-                  notes={notes}
-                  onChange={(entry) => set(item.id, entry)}
-                />
-              ))}
-            </ul>
-          </section>
-        )
-      })}
+      {plan ? (
+        <>
+          <p className="muted small checklist-source">
+            De {plan.now.length} punten voor {minutes} minuten, de belangrijkste eerst (ongeveer{' '}
+            {MINUTES_PER_POINT} minuut per punt).
+            {prefilled > 0 && ' Wat de documenten al in orde vinden staat lager, een probleem in de documenten hoger.'}{' '}
+            Tik op de prioriteit bij een punt om die voor dit huis te veranderen.
+          </p>
+          {plan.tooMany > 0 && (
+            <p className="panel quick-warning small">
+              <AlertTriangle size={16} /> Er {plan.tooMany === 1 ? 'is 1 moet-punt' : `zijn ${plan.tooMany} moet-punten`}{' '}
+              meer dan in {minutes} minuten past. Zet er een paar op Belangrijk, of neem meer tijd.
+            </p>
+          )}
+          {PRIORITIES.filter((x) => x.id !== 'later').map((level) => {
+            const points = plan.now.filter((x) => x.prio === level.id)
+            if (!open(points).length) return null
+            const cp = progress([{ id: level.id, titel: '', items: points.map((x) => x.item) }], answers)
+            return (
+              <section key={level.id} className={`panel check-category quick-group prio-${level.id}`}>
+                <h2>
+                  {QUICK_TITLES[level.id]}
+                  <small>
+                    {cp.done}/{cp.total}
+                  </small>
+                </h2>
+                {quickRows(points)}
+              </section>
+            )
+          })}
+          {[
+            { id: 'spare', titel: `Past niet in ${minutes} minuten`, points: plan.spare },
+            { id: 'later', titel: 'Na de bezichtiging', points: plan.later },
+          ].map(
+            (g) =>
+              open(g.points).length > 0 && (
+                <details key={g.id} className="panel check-category quick-more">
+                  <summary>
+                    <ChevronDown size={18} className="chev" />
+                    {g.titel}
+                    <small>{open(g.points).length}</small>
+                  </summary>
+                  {quickRows(g.points)}
+                </details>
+              ),
+          )}
+        </>
+      ) : (
+        categories.map((category) => {
+          const items = category.items.filter((i) => !onlyOpen || !answers[i.id]?.s)
+          if (!items.length) return null
+          const cp = progress([category], answers)
+          return (
+            <section key={category.id} className="panel check-category">
+              <h2>
+                {category.titel}
+                {category.fromReport && <span className="badge badge-report">Rapport</span>}
+                {category.fromDocuments && <span className="badge badge-documents">Documenten</span>}
+                <small>
+                  {cp.done}/{cp.total}
+                </small>
+              </h2>
+              <ul>{items.map((item) => row(item, rank(item, overrides)))}</ul>
+            </section>
+          )
+        })
+      )}
       <p className="muted small">
-        Punten toevoegen of aanpassen voor alle huizen doe je bij{' '}
+        Punten en hun prioriteit voor alle huizen pas je aan bij{' '}
         <a href="#/instellingen/checklist">Instellingen → Checklist</a>.
       </p>
     </div>
+  )
+}
+
+const QUICK_TITLES: Record<Priority, string> = {
+  moet: 'Moet je zien',
+  belangrijk: 'Belangrijk',
+  optioneel: 'Als er tijd is',
+  later: 'Na de bezichtiging',
+}
+
+/** A clock for the viewing: start it at the door, it counts down the chosen minutes. */
+function ViewingTimer({ houseId, minutes }: { houseId: string; minutes: number }) {
+  const [start, setStart] = useState(() => viewingStart(houseId))
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    if (!start) return
+    const t = setInterval(() => setNow(Date.now()), 15_000)
+    return () => clearInterval(t)
+  }, [start])
+  if (!start)
+    return (
+      <button
+        type="button"
+        className="btn btn-small btn-ghost"
+        onClick={() => {
+          const at = Date.now()
+          setViewingStart(houseId, at)
+          setStart(at)
+          setNow(at)
+        }}
+      >
+        <Timer size={16} /> Start de klok
+      </button>
+    )
+  const left = timeLeft(start, minutes, now)
+  return (
+    <span className={`viewing-timer ${left.over ? 'over' : ''}`} role="timer">
+      <Timer size={16} /> {left.text}
+      <button
+        type="button"
+        className="icon-btn"
+        aria-label="Klok stoppen"
+        onClick={() => {
+          setViewingStart(houseId, null)
+          setStart(null)
+        }}
+      >
+        <X size={14} />
+      </button>
+    </span>
+  )
+}
+
+/** The priority of a point, as a small pill; choosing one sets it for this house. */
+function PrioritySelect({ ranked, onChange }: { ranked: Ranked; onChange: (prio: Priority | null) => void }) {
+  const info = PRIORITIES.find((x) => x.id === ranked.prio)!
+  const tip = [info.hint, ranked.reason, ranked.own && 'aangepast bij dit huis'].filter(Boolean).join(' · ')
+  return (
+    <select
+      className={`prio-pill prio-${ranked.prio} ${ranked.own ? 'own' : ''} ${ranked.reason ? 'moved' : ''}`}
+      value={ranked.prio}
+      aria-label={`Prioriteit: ${info.label}`}
+      data-tip={tip}
+      onChange={(e) => onChange((e.target.value || null) as Priority | null)}
+    >
+      {PRIORITIES.map((x) => (
+        <option key={x.id} value={x.id}>
+          {x.label}
+        </option>
+      ))}
+      {ranked.own && <option value="">Standaard terug</option>}
+    </select>
   )
 }
 
@@ -776,7 +965,10 @@ function CheckRow({
   itemId,
   prefill,
   notes,
+  ranked,
+  category,
   onChange,
+  onPrio,
 }: {
   house: House
   categories: ChecklistCategory[]
@@ -786,7 +978,11 @@ function CheckRow({
   itemId: string
   prefill?: Prefill
   notes: { open: boolean; turn: number }
+  ranked: Ranked
+  /** The group of the point, shown in the quick list where points of all groups mix. */
+  category?: string
   onChange: (entry: CheckEntry | null) => void
+  onPrio: (prio: Priority | null) => void
 }) {
   const { me, people } = useStore()
   const theirs = others
@@ -807,7 +1003,13 @@ function CheckRow({
   return (
     <li className={`check-row ${entry?.s ? `is-${entry.s}` : ''}`}>
       <div className="check-main">
-        <span className="check-text">{text}</span>
+        <span className="check-text">
+          <PrioritySelect ranked={ranked} onChange={onPrio} />
+          {text}
+          {(category || ranked.reason) && (
+            <span className="check-meta">{[category, ranked.reason].filter(Boolean).join(' · ')}</span>
+          )}
+        </span>
         <div className="check-buttons" role="group" aria-label={text}>
           {others.length > 0 && <PersonDot person={personInfo(people, me)} you />}
           {STATES.map((s) => (
