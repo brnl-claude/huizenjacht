@@ -169,3 +169,61 @@ def test_disk_usage_and_full_backup(tmp_path):
         )
         assert bad.status_code == 400
         assert client.get(f"/api/media/{photo['id']}").content == PNG
+
+
+def test_nightly_backups(tmp_path):
+    from datetime import date, datetime
+    from zoneinfo import ZoneInfo
+
+    from fastapi.testclient import TestClient
+
+    from app.backup import next_run, nightly_backups, prune_nightly, write_nightly
+    from app.config import Settings
+    from app.main import create_app
+
+    backups = tmp_path / "backups"
+    settings = Settings(
+        data_dir=tmp_path / "data",
+        reports_dir=None,
+        reports_scan_interval=0,
+        import_token="",
+        version="1",
+        commit_url="",
+        env_label="",
+        env_color="#000",
+        static_dir=tmp_path / "static",
+        backup_dir=backups,
+    )
+    with TestClient(create_app(settings)) as client:
+        house = client.post("/api/houses", json={"adres": "Kade 2"}).json()["id"]
+        photo = client.post(
+            f"/api/houses/{house}/media", files={"file": ("a.jpg", PNG, "image/jpeg")}
+        ).json()
+        db = client.app.state.db
+        for day in range(1, 8):
+            write_nightly(db, settings.data_dir, None, backups, date(2026, 11, day), 5)
+        # Five days kept: the 3rd up to and including the 7th.
+        names = [b["name"] for b in nightly_backups(backups)]
+        assert names == [f"huizenjacht-2026-11-0{d}.zip" for d in (7, 6, 5, 4, 3)]
+        assert not list(backups.glob(".*"))
+
+        listed = client.get("/api/backups").json()
+        assert listed["enabled"] and listed["keepDays"] == 5 and len(listed["backups"]) == 5
+        got = client.get("/api/backups/huizenjacht-2026-11-07.zip")
+        assert got.status_code == 200 and got.content[:2] == b"PK"
+        assert client.get("/api/backups/..%2Fdata").status_code == 404
+        assert client.get("/api/opslag").json()["categories"]["backups"]["count"] == 5
+
+        client.delete(f"/api/houses/{house}")
+        restored = client.post("/api/backups/huizenjacht-2026-11-07.zip/restore").json()
+        assert restored == {"houses": 1, "media": 1}
+        assert client.get(f"/api/media/{photo['id']}").content == PNG
+
+    # After a long pause the newest stays, however old.
+    prune_nightly(backups, date(2027, 1, 1), 5)
+    assert [b["name"] for b in nightly_backups(backups)] == ["huizenjacht-2026-11-07.zip"]
+
+    zone = ZoneInfo("Europe/Amsterdam")
+    assert next_run(datetime(2026, 11, 26, 2, 0, tzinfo=zone), "03:00").hour == 3
+    later = next_run(datetime(2026, 11, 26, 4, 0, tzinfo=zone), "03:00")
+    assert (later.day, later.hour) == (27, 3)

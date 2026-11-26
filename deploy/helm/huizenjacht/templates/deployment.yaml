@@ -116,6 +116,8 @@ spec:
               value: {{ .Values.auth.oidc.allowedGroups | quote }}
             - name: HJ_ALLOWED_USERS
               value: {{ .Values.auth.oidc.allowedUsers | quote }}
+            - name: HJ_ADMIN_GROUPS
+              value: {{ .Values.auth.oidc.adminGroups | quote }}
             - name: HJ_SESSION_DAYS
               value: {{ .Values.auth.sessionDays | quote }}
             {{- with .Values.auth.oidc.caPem }}
@@ -150,6 +152,16 @@ spec:
             - name: FORWARDED_ALLOW_IPS
               value: {{ . | quote }}
             {{- end }}
+            - name: HJ_BACKUP_KEEP_DAYS
+              value: {{ ternary .Values.backups.keepDays 0 .Values.backups.enabled | quote }}
+            - name: HJ_BACKUP_TIME
+              value: {{ .Values.backups.time | quote }}
+            - name: HJ_BACKUP_TIMEZONE
+              value: {{ .Values.backups.timezone | quote }}
+            {{- if .Values.backups.persistence.enabled }}
+            - name: HJ_BACKUP_DIR
+              value: /backups
+            {{- end }}
             {{- with .Values.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -178,6 +190,10 @@ spec:
               mountPath: /tmp
             - name: data
               mountPath: /data
+            {{- if .Values.backups.persistence.enabled }}
+            - name: backups
+              mountPath: /backups
+            {{- end }}
             {{- if or .Values.reports.git.enabled .Values.reports.existingClaim }}
             - name: reports
               mountPath: /reports
@@ -193,6 +209,11 @@ spec:
           {{- else }}
           emptyDir: {}
           {{- end }}
+        {{- if .Values.backups.persistence.enabled }}
+        - name: backups
+          persistentVolumeClaim:
+            claimName: {{ default (printf "%s-backups" (include "hj.fullname" .)) .Values.backups.persistence.existingClaim }}
+        {{- end }}
         {{- if .Values.reports.git.enabled }}
         - name: reports
           emptyDir: {}

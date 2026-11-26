@@ -19,3 +19,26 @@ spec:
     requests:
       storage: {{ .Values.persistence.size }}
 {{- end }}
+{{- $b := .Values.backups.persistence }}
+{{- if and .Values.backups.enabled $b.enabled (not $b.existingClaim) }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "hj.fullname" . }}-backups
+  labels:
+    {{- include "hj.labels" . | nindent 4 }}
+  {{- if $b.keep }}
+  annotations:
+    helm.sh/resource-policy: keep
+  {{- end }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  {{- with $b.storageClass }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ $b.size }}
+{{- end }}

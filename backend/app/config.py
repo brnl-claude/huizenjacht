@@ -35,6 +35,8 @@ class Settings:
     # comma separated. Both empty: everyone the provider lets through.
     allowed_groups: tuple[str, ...] = ()
     allowed_users: tuple[str, ...] = ()
+    # With OIDC only these groups may make, download and restore backups.
+    admin_groups: tuple[str, ...] = ("admins",)
     # The https address people open the app on. The login redirect goes there.
     public_url: str = ""
     session_days: int = 30
@@ -45,6 +47,12 @@ class Settings:
     # /.well-known/assetlinks.json. Chrome then shows the app without an address bar.
     android_package: str = "app.huizenjacht"
     android_cert_fingerprints: tuple[str, ...] = ()
+    # Nightly full backup (the same ZIP as Instellingen → Back-up), kept this many days.
+    # 0 turns it off. The folder may be its own volume, so a lost data volume keeps them.
+    backup_dir: Path | None = None
+    backup_time: str = "03:00"
+    backup_timezone: str = "Europe/Amsterdam"
+    backup_keep_days: int = 5
 
     @property
     def https(self) -> bool:
@@ -53,8 +61,9 @@ class Settings:
 
 def load_settings() -> Settings:
     reports = os.environ.get("HJ_REPORTS_DIR", "").strip()
+    data_dir = Path(os.environ.get("HJ_DATA_DIR", "./data"))
     return Settings(
-        data_dir=Path(os.environ.get("HJ_DATA_DIR", "./data")),
+        data_dir=data_dir,
         reports_dir=Path(reports) if reports else None,
         reports_scan_interval=int(os.environ.get("HJ_REPORTS_SCAN_INTERVAL", "300")),
         import_token=os.environ.get("HJ_IMPORT_TOKEN", ""),
@@ -71,8 +80,13 @@ def load_settings() -> Settings:
         oidc_ca_pem=os.environ.get("HJ_OIDC_CA_PEM", ""),
         allowed_groups=_split(os.environ.get("HJ_ALLOWED_GROUPS", "")),
         allowed_users=_split(os.environ.get("HJ_ALLOWED_USERS", "")),
+        admin_groups=_split(os.environ.get("HJ_ADMIN_GROUPS", "admins")),
         public_url=os.environ.get("HJ_PUBLIC_URL", "").rstrip("/"),
         session_days=int(os.environ.get("HJ_SESSION_DAYS", "30")),
+        backup_dir=Path(os.environ.get("HJ_BACKUP_DIR", "").strip() or data_dir / "backups"),
+        backup_time=os.environ.get("HJ_BACKUP_TIME", "03:00").strip(),
+        backup_timezone=os.environ.get("HJ_BACKUP_TIMEZONE", "Europe/Amsterdam").strip(),
+        backup_keep_days=int(os.environ.get("HJ_BACKUP_KEEP_DAYS", "5")),
         fetch_listings=os.environ.get("HJ_FETCH_LISTINGS", "false").lower() == "true",
         android_package=os.environ.get("HJ_ANDROID_PACKAGE", "").strip() or "app.huizenjacht",
         android_cert_fingerprints=tuple(

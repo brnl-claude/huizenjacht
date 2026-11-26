@@ -16,6 +16,7 @@ import shutil
 import time
 import zipfile
 from collections.abc import Iterator
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import IO, Any
 
@@ -29,6 +30,8 @@ _MEDIA_NAME = re.compile(r"media/([A-Za-z0-9_-]{8,40})(\.thumb\.jpg)?")
 _LISTING_NAME = re.compile(
     r"advertenties/([a-z0-9][a-z0-9-]{0,99})/([A-Za-z0-9][A-Za-z0-9._-]{0,99})"
 )
+
+NIGHTLY = re.compile(r"huizenjacht-(\d{4}-\d{2}-\d{2})\.zip")
 
 MEDIA_CATEGORY = {"foto": "fotos", "video": "videos", "audio": "memos"}
 
@@ -51,11 +54,13 @@ def _files(folder: Path) -> Iterator[Path]:
         yield path
 
 
-def disk_usage(db: Database, data_dir: Path, reports_dir: Path | None) -> dict[str, Any]:
+def disk_usage(
+    db: Database, data_dir: Path, reports_dir: Path | None, backup_dir: Path | None = None
+) -> dict[str, Any]:
     """Bytes and file count per category, and how full the data volume is."""
     usage = {
         key: {"bytes": 0, "count": 0}
-        for key in ("fotos", "videos", "memos", "documenten", "advertenties", "gegevens")
+        for key in ("fotos", "videos", "memos", "documenten", "advertenties", "gegevens", "backups")
     }
     media = data_dir / "media"
     for media_id, kind in db.media_sizes():
@@ -73,6 +78,10 @@ def disk_usage(db: Database, data_dir: Path, reports_dir: Path | None) -> dict[s
     for path in data_dir.glob("huizenjacht.sqlite*"):
         usage["gegevens"]["bytes"] += _size(path)
     usage["gegevens"]["count"] = db.house_count()
+    if backup_dir:
+        for found in nightly_backups(backup_dir):
+            usage["backups"]["bytes"] += found["size"]
+            usage["backups"]["count"] += 1
     try:
         disk = shutil.disk_usage(data_dir)
         volume = {"total": disk.total, "free": disk.free}
@@ -203,3 +212,65 @@ def restore_full(db: Database, data_dir: Path, upload: IO[bytes]) -> dict[str, i
         shutil.rmtree(old, ignore_errors=True)
     shutil.rmtree(staging, ignore_errors=True)
     return {"houses": houses, "media": len(media_ids)}
+
+
+# Nightly backups: <backup dir>/huizenjacht-<date>.zip, one per day.
+
+
+def nightly_backups(backup_dir: Path) -> list[dict[str, Any]]:
+    """The nightly backups, newest first."""
+    if not backup_dir.is_dir():
+        return []
+    found = []
+    for path in backup_dir.iterdir():
+        if NIGHTLY.fullmatch(path.name) and path.is_file():
+            stat = path.stat()
+            found.append(
+                {
+                    "name": path.name,
+                    "size": stat.st_size,
+                    "createdAt": datetime.fromtimestamp(stat.st_mtime, UTC).isoformat(
+                        timespec="seconds"
+                    ),
+                }
+            )
+    return sorted(found, key=lambda f: f["name"], reverse=True)
+
+
+def write_nightly(
+    db: Database,
+    data_dir: Path,
+    reports_dir: Path | None,
+    backup_dir: Path,
+    day: date,
+    keep_days: int,
+) -> Path:
+    """Write the full backup of `day`, then remove those older than `keep_days` days."""
+    backup_dir.mkdir(parents=True, exist_ok=True)
+    target = backup_dir / f"huizenjacht-{day.isoformat()}.zip"
+    partial = target.with_name(f".{target.name}.part")
+    try:
+        with partial.open("wb") as out:
+            for chunk in full_backup(db, data_dir, reports_dir):
+                out.write(chunk)
+        partial.replace(target)
+    finally:
+        partial.unlink(missing_ok=True)
+    prune_nightly(backup_dir, day, keep_days)
+    return target
+
+
+def prune_nightly(backup_dir: Path, today: date, keep_days: int) -> None:
+    """Keep the backups of the last `keep_days` days (today included). The newest one always
+    stays, also when the server was off for a while."""
+    oldest = today - timedelta(days=keep_days - 1)
+    for found in nightly_backups(backup_dir)[1:]:
+        if date.fromisoformat(NIGHTLY.fullmatch(found["name"]).group(1)) < oldest:
+            (backup_dir / found["name"]).unlink(missing_ok=True)
+
+
+def next_run(now: datetime, at: str) -> datetime:
+    """The next moment at `at` (HH:MM) in now's time zone, after now."""
+    hour, minute = (int(part) for part in at.split(":"))
+    run = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+    return run if run > now else run + timedelta(days=1)

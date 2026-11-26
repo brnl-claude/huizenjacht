@@ -3372,6 +3372,32 @@ a[aria-label],
 .storage-gegevens {
   --swatch: #8a929b;
 }
+.storage-backups {
+  --swatch: #b08a5a;
+}
+.nightly-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 12px;
+}
+.nightly-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  padding: 10px 0;
+}
+.nightly-list li + li {
+  border-top: 1px solid var(--border);
+}
+.nightly-list .nightly-name {
+  flex: 1;
+  min-width: 10rem;
+}
+.nightly-list .nightly-actions {
+  display: flex;
+  gap: 8px;
+}
 .storage-total {
   margin: 0 0 10px;
 }

@@ -67,6 +67,15 @@ def is_allowed(identity: Identity, settings: Settings) -> bool:
     return any(g in identity.groups for g in settings.allowed_groups)
 
 
+def is_admin(user: dict[str, Any] | None, settings: Settings) -> bool:
+    """May manage backups (make, download, restore). Without login everyone may."""
+    if settings.auth_mode != "oidc":
+        return True
+    if user is None:
+        return False
+    return any(g in settings.admin_groups for g in user.get("groups") or [])
+
+
 ERRORS = {
     "denied": "Je account heeft geen toegang tot Huizenjacht.",
     "expired": "Het inloggen duurde te lang of is in een ander tabblad begonnen.",
@@ -130,7 +139,13 @@ def install(app: FastAPI, settings: Settings, db: Any, transport: Any = None) ->
         token = secrets.token_urlsafe(32)
         database().create_session(
             _hash(token),
-            {"subject": user["subject"], "name": user.get("name"), "email": user.get("email")},
+            {
+                "subject": user["subject"],
+                "name": user.get("name"),
+                "email": user.get("email"),
+                # A phone login (pairing) gets the groups of the login that approved it.
+                "groups": user.get("groups") or [],
+            },
             settings.session_days,
             device=device,
             via=via,
@@ -193,8 +208,9 @@ def install(app: FastAPI, settings: Settings, db: Any, transport: Any = None) ->
     @router.get("/me")
     def me(request: Request) -> dict[str, Any]:
         if settings.auth_mode != "oidc":
-            return {"mode": "none", "user": None}
-        return {"mode": "oidc", "user": current_user(request)}
+            return {"mode": "none", "user": None, "admin": True}
+        user = current_user(request)
+        return {"mode": "oidc", "user": user, "admin": is_admin(user, settings)}
 
     @router.get("/login")
     def login(request: Request, next: str | None = None) -> Response:
@@ -291,6 +307,7 @@ def install(app: FastAPI, settings: Settings, db: Any, transport: Any = None) ->
                 "subject": f"{identity.issuer}|{identity.subject}",
                 "name": identity.name,
                 "email": identity.email,
+                "groups": identity.groups,
             },
             pairing.device_name(request.headers.get("user-agent", "")),
             via="oidc",

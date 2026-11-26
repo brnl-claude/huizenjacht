@@ -151,7 +151,8 @@ class Database:
             self._conn.executescript(SCHEMA)
             # Added in 0.21.0: which device a login is on, and how it logged in.
             columns = {r["name"] for r in self._conn.execute("PRAGMA table_info(sessions)")}
-            for column in ("device", "via"):
+            # groups: the provider's groups at login (JSON list), for who may manage backups.
+            for column in ("device", "via", "groups"):
                 if column not in columns:
                     self._conn.execute(f"ALTER TABLE sessions ADD COLUMN {column} TEXT")
             self._conn.commit()
@@ -656,7 +657,7 @@ class Database:
             self._conn.execute("DELETE FROM sessions WHERE expires_at < ?", (now(),))
             self._conn.execute(
                 "INSERT INTO sessions (token_hash, subject, name, email, created_at, expires_at,"
-                " device, via) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                " device, via, groups) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     token_hash,
                     user["subject"],
@@ -666,6 +667,7 @@ class Database:
                     (stamp + timedelta(days=days)).isoformat(timespec="seconds"),
                     device,
                     via,
+                    json.dumps([str(g) for g in user.get("groups") or []]),
                 ),
             )
             self._conn.commit()
@@ -674,12 +676,18 @@ class Database:
     def find_session(self, token_hash: str) -> dict[str, Any] | None:
         with self._lock:
             row = self._conn.execute(
-                "SELECT subject, name, email, expires_at FROM sessions WHERE token_hash = ?",
+                "SELECT subject, name, email, expires_at, groups FROM sessions"
+                " WHERE token_hash = ?",
                 (token_hash,),
             ).fetchone()
         if not row or row["expires_at"] <= now():
             return None
-        return {"subject": row["subject"], "name": row["name"], "email": row["email"]}
+        return {
+            "subject": row["subject"],
+            "name": row["name"],
+            "email": row["email"],
+            "groups": json.loads(row["groups"] or "[]"),
+        }
 
     def list_sessions(self, subject: str) -> list[dict[str, Any]]:
         """Someone's logins that have not ended, newest first. `id` is a short part of the
