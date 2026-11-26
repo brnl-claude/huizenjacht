@@ -26,6 +26,14 @@ export type Release = {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.24.0',
+    date: '2026-11-26',
+    title: 'Advertentie vanaf het overzicht',
+    changes: [
+      'Op de huiskaarten in het overzicht staat nu een knop Advertentie met gele rand, rechts naast Vergelijk. Die opent de Funda-advertentie in een nieuw tabblad.',
+    ],
+  },
+  {
     version: '0.23.0',
     date: '2026-11-26',
     title: 'Elke nacht een back-up',

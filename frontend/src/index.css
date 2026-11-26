@@ -872,8 +872,19 @@ pre {
 .card-foot .progress-text {
   white-space: nowrap;
 }
-.card-foot .btn {
+.card-foot .card-actions {
   grid-column: 2;
+  display: flex;
+  gap: 8px;
+}
+/* Advertentie: yellow outline next to Vergelijk. */
+.btn-ad {
+  background: var(--surface);
+  border: 2px solid var(--brand);
+  color: var(--text);
+}
+.btn-ad:hover {
+  background: var(--brand-soft);
 }
 /* Favourite: a round button in the top right corner of the photo */
 .fav-photo {
