@@ -26,7 +26,7 @@ export type Release = {
 
 export const CHANGELOG: Release[] = [
   {
-    version: '0.19.7',
+    version: '0.19.8',
     date: '2026-11-26',
     title: 'Veiligheidsverbeteringen na een review',
     changes: [
@@ -35,6 +35,17 @@ export const CHANGELOG: Release[] = [
       'Foto\'s en documenten kunnen geen script meer draaien in de app; onbekende soorten documenten worden alleen gedownload.',
       'Bij een advertentiepagina haalt de server alleen foto\'s van funda.nl op, geen andere adressen.',
       'Uitloggen haalt de offline kopie van je huizen van het apparaat.',
+    ],
+  },
+  {
+    version: '0.19.7',
+    date: '2026-11-26',
+    title: 'Niet meer per ongeluk verversen',
+    changes: [
+      'Heb je al getikt kort na het openen, dan laadt een nieuwe versie niet meer vanzelf onder je vinger. Je krijgt dan de melding om te vernieuwen.',
+    ],
+    android: [
+      'Omlaag trekken om te verversen werkt alleen nog bij een duidelijke trek recht omlaag, ver genoeg over het scherm. Een tik, of een vinger die bij het tikken een beetje schuift, ververst niet meer.',
     ],
   },
   {
