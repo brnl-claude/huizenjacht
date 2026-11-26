@@ -28,8 +28,11 @@ export const CHANGELOG: Release[] = [
   {
     version: '0.17.1',
     date: '2026-11-26',
-    title: 'Nieuwtjes sluiten door ernaast te tikken',
-    changes: ['Het venster met nieuwtjes na een update sluit je nu ook door ernaast te tikken.'],
+    title: 'Nieuwtjes sluiten door ernaast te tikken, korter blok Android-app',
+    changes: [
+      'Het venster met nieuwtjes na een update sluit je nu ook door ernaast te tikken.',
+      'Het blok Android-app in Instellingen → Over is korter. In de app zelf staat alleen welke versie je hebt.',
+    ],
   },
   {
     version: '0.17.0',
