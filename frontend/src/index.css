@@ -3322,12 +3322,12 @@ a[aria-label],
   align-items: center;
   justify-content: space-between;
   gap: 10px 16px;
-  padding: 12px 14px;
   border-radius: var(--radius-small);
-  background: var(--surface-2);
-  border: 1px solid var(--border);
+  border: 1px solid transparent;
 }
+/* Only a new version that is ready to load gets a coloured block. */
 .update-row.ready {
+  padding: 12px 14px;
   background: var(--brand-soft);
   border-color: var(--brand);
 }

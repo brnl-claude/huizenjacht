@@ -26,6 +26,17 @@ export type Release = {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.22.0',
+    date: '2026-11-26',
+    title: 'Alle foto’s van een advertentie',
+    changes: [
+      'De bladwijzer neemt nu alle foto’s van een Funda-advertentie mee, niet alleen de eerste paar: hij haalt zelf ook de fotopagina van het huis op. Dat werkt op de advertentie en op de fotopagina (…/media/fotos/).',
+      'Foto’s worden opgeslagen op 1440 pixels breed: scherp genoeg om in te zoomen, zonder dat een huis met veertig foto’s veel ruimte inneemt.',
+      'De bladwijzer is daarvoor vernieuwd (versie 3). Zet hem opnieuw neer via Instellingen → Bladwijzer; de oude zegt op Funda dat hij verouderd is.',
+      'Zoeken naar updates onder Instellingen → Over staat niet meer in een grijs vlak.',
+    ],
+  },
+  {
     version: '0.21.0',
     date: '2026-11-26',
     title: 'Zien wat ruimte inneemt, en een back-up met alles erin',

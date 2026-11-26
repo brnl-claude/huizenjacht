@@ -39,6 +39,9 @@ from .funda import (
     remote_photos,
     save_page,
 )
+from .funda import (
+    listing_page as listing_address,
+)
 from .reports import (
     REPORT_SUFFIXES,
     digest,
@@ -77,7 +80,7 @@ MEDIA_KINDS = {"image": "foto", "video": "video", "audio": "audio"}
 BOOKMARKLET_TOKEN = "bookmarkletToken"
 # Raise together with BOOKMARKLET_VERSION in frontend/src/Bookmarklet.tsx whenever the
 # bookmarklet code changes, so an old bookmarklet in someone's browser is refused.
-BOOKMARKLET_VERSION = 2
+BOOKMARKLET_VERSION = 3
 BOOKMARKLET_OUTDATED = (
     "Deze bladwijzer is verouderd. "
     "Zet hem opnieuw neer via Instellingen → Bladwijzer in Huizenjacht."
@@ -217,7 +220,9 @@ def create_app(
     def listing_folder(house_id: str) -> Path:
         return settings.data_dir / "listings" / slugify(house_id)
 
-    def fetch_one(house_id: str, url: str, html: str | None = None) -> str | None:
+    def fetch_one(
+        house_id: str, url: str, html: str | None = None, photos_html: str | None = None
+    ) -> str | None:
         """Fetch a house's listing page and photos, or keep `html` that the browser sent;
         record how it went. Returns what went wrong, or None. A failure never replaces a good
         copy (see Database.save_listing), so the caller says it to whoever sent the page."""
@@ -226,7 +231,9 @@ def create_app(
                 if html is None:
                     result = fetch_listing(url, listing_folder(house_id), client)
                 else:
-                    result = save_page(html, url, listing_folder(house_id), client)
+                    result = save_page(
+                        html, url, listing_folder(house_id), client, photos_html=photos_html
+                    )
             except Blocked as exc:
                 log.warning("Listing of %s blocked: %s", house_id, exc)
                 db().save_listing(house_id, url, "blocked", str(exc))
@@ -646,15 +653,22 @@ def create_app(
             raise HTTPException(413, "Deze pagina is te groot.") from None
         try:
             data = json.loads(body)
-            url, html = str(data["url"]), str(data["html"])
-        except (ValueError, KeyError, TypeError) as exc:
+            url, html = listing_address(str(data["url"])), str(data["html"])
+            photos_html = data.get("photos")
+        except (ValueError, KeyError, TypeError, AttributeError) as exc:
             raise HTTPException(400, "Stuur url en html mee.") from exc
         if not url.startswith(("http://", "https://")):
             raise HTTPException(400, "Dit is geen webadres.")
         if not db().get_house(house_id):
             raise HTTPException(404, "Dit huis bestaat niet (meer).")
         async with listing_lock:
-            failed = await asyncio.to_thread(fetch_one, house_id, url, html)
+            failed = await asyncio.to_thread(
+                fetch_one,
+                house_id,
+                url,
+                html,
+                photos_html if isinstance(photos_html, str) else None,
+            )
         if failed:
             raise HTTPException(422, failed)
         return house_or_404(house_id)
@@ -696,8 +710,13 @@ def create_app(
             return answer(413, "Deze pagina is te groot.")
         try:
             data = json.loads(body)
-            token, url, html = str(data["token"]), str(data["url"]), str(data["html"])
-        except (ValueError, KeyError, TypeError):
+            token, url, html = (
+                str(data["token"]),
+                listing_address(str(data["url"])),
+                str(data["html"]),
+            )
+            photos_html = data.get("photos")
+        except (ValueError, KeyError, TypeError, AttributeError):
             return answer(400, "Stuur token, url en html mee.")
         expected = db().get_setting(BOOKMARKLET_TOKEN)
         if not isinstance(expected, str) or not secrets.compare_digest(token, expected):
@@ -728,7 +747,13 @@ def create_app(
                 "daarna kun je de advertentie hier opslaan.",
             )
         async with listing_lock:
-            failed = await asyncio.to_thread(fetch_one, house["id"], url, html)
+            failed = await asyncio.to_thread(
+                fetch_one,
+                house["id"],
+                url,
+                html,
+                photos_html if isinstance(photos_html, str) else None,
+            )
         if failed:
             return answer(422, failed)
         saved = house_or_404(house["id"])

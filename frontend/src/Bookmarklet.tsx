@@ -13,13 +13,19 @@ import { errorText, useStore } from './store'
  * it only after Bram confirms, so another site cannot slip a page in.
  */
 
-type Page = { type: 'huizenjacht-page'; url: string; html: string; v?: number }
+type Page = {
+  type: 'huizenjacht-page'
+  url: string
+  html: string
+  photos?: string
+  v?: number
+}
 
 /**
  * Raise together with BOOKMARKLET_VERSION in backend/app/main.py whenever the code below
  * changes: the server and #/ontvang refuse a bookmarklet with another version.
  */
-export const BOOKMARKLET_VERSION = 2
+export const BOOKMARKLET_VERSION = 3
 const OUTDATED = 'Deze bladwijzer is verouderd. Zet hem opnieuw neer via Instellingen → Bladwijzer.'
 
 export function bookmarkletCode(origin: string, token: string): string {
@@ -28,7 +34,7 @@ export function bookmarkletCode(origin: string, token: string): string {
   // Sends the page in the background and shows a note on the page itself. Only when the site
   // blocks that request does it fall back to opening Huizenjacht in a new tab.
   return (
-    `javascript:(()=>{const a=${app},d={v:${BOOKMARKLET_VERSION},token:${key},url:location.href,html:document.documentElement.outerHTML};` +
+    `javascript:(()=>{const a=${app},k=${key},here=document.documentElement.outerHTML;` +
     `const e=document.createElement('div');` +
     `e.style.cssText='position:fixed;z-index:2147483647;right:16px;bottom:16px;max-width:380px;padding:12px 16px;border-radius:10px;font:15px/1.4 system-ui,sans-serif;color:#fff;background:#2b2b2b;box-shadow:0 6px 24px rgba(0,0,0,.3)';` +
     `const say=(m,bad,h,t)=>{e.textContent='Huizenjacht: '+m;e.style.background=bad?'#c0392b':'#2b2b2b';` +
@@ -38,12 +44,19 @@ export function bookmarkletCode(origin: string, token: string): string {
     `if(!/(^|\\.)funda\\.nl$/i.test(location.hostname)||!/^(\\/en)?\\/(detail\\/)?(koop|huur)\\/[^/]+\\/[^/]+/i.test(location.pathname)){` +
     `say('de bladwijzer werkt alleen op een huis op funda.nl. Open eerst een advertentie.',true);setTimeout(()=>e.remove(),8000);return}` +
     `say('bezig met opslaan…');` +
+    // The listing shows only a few photos; its photo page (/media/fotos/) has them all. The
+    // bookmarklet works on either and fetches the other one itself, from the same site.
+    `const p=location.pathname.match(/^(.*?\\/\\d{6,10})(\\/|$)/),onMedia=!!p&&/^\\/media(\\/|$)/.test(location.pathname.slice(p[1].length)),` +
+    `base=p?location.origin+p[1]+'/':location.href,` +
+    `get=u=>fetch(u,{credentials:'include'}).then(r=>r.ok?r.text():'').catch(()=>'');` +
+    `(p?get(onMedia?base:base+'media/fotos/'):Promise.resolve('')).then(o=>{` +
+    `const d={v:${BOOKMARKLET_VERSION},token:k,url:onMedia?base:location.href,html:onMedia?o||here:here,photos:onMedia?here:o};` +
     `fetch(a+'/api/bookmarklet/page',{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify(d)})` +
     `.then(r=>r.json().then(j=>{say(j.message,!r.ok,r.ok&&j.house?a+'/#/huis/'+encodeURIComponent(j.house):j.outdated?a+'/#/instellingen/bladwijzer':0,r.ok?'Bekijk':'Bijwerken');setTimeout(()=>e.remove(),r.ok?6000:12000)}))` +
     `.catch(()=>{say('deze site houdt het versturen tegen, Huizenjacht opent in een nieuw tabblad.',true);` +
     `const w=window.open(a+'/#/ontvang','huizenjacht');if(!w)return;` +
     `const f=v=>{if(v.source===w&&v.origin===a&&v.data&&v.data.type==='huizenjacht-ready'){` +
-    `w.postMessage({type:'huizenjacht-page',v:d.v,url:d.url,html:d.html},a);removeEventListener('message',f)}};addEventListener('message',f)})})()`
+    `w.postMessage({type:'huizenjacht-page',v:d.v,url:d.url,html:d.html,photos:d.photos},a);removeEventListener('message',f)}};addEventListener('message',f)})})})()`
   )
 }
 
@@ -99,7 +112,13 @@ export function ReceivePage() {
       const d = e.data as Partial<Page> | null
       if (e.source !== opener || !d || d.type !== 'huizenjacht-page') return
       if (typeof d.url !== 'string' || typeof d.html !== 'string' || !/^https?:\/\//.test(d.url)) return
-      setPage({ type: d.type, url: d.url, html: d.html, v: typeof d.v === 'number' ? d.v : undefined })
+      setPage({
+        type: d.type,
+        url: d.url,
+        html: d.html,
+        photos: typeof d.photos === 'string' ? d.photos : undefined,
+        v: typeof d.v === 'number' ? d.v : undefined,
+      })
     }
     window.addEventListener('message', onMessage)
     // Nothing secret in this message, and the opener's address is not known in advance.
@@ -121,7 +140,7 @@ export function ReceivePage() {
     setError(null)
     try {
       const id = target
-      const record = await api.importListing(id, page.url, page.html)
+      const record = await api.importListing(id, page.url, page.html, page.photos)
       replace(record)
       if (record.listing?.status !== 'ok') {
         setError(record.listing?.message ?? 'De pagina kon niet worden opgeslagen.')
@@ -143,8 +162,8 @@ export function ReceivePage() {
         <section className="panel">
           <p>Deze pagina ontvangt een advertentie van de bladwijzer "Naar Huizenjacht".</p>
           <p className="muted">
-            Zet de bladwijzer eerst in je browser via <a href="#/instellingen/bladwijzer">Instellingen → Bladwijzer</a>, open
-            dan een huis op Funda en klik erop.
+            Zet de bladwijzer eerst in je browser via <a href="#/instellingen/bladwijzer">Instellingen → Bladwijzer</a>,
+            open dan een huis op Funda en klik erop.
           </p>
         </section>
       </div>
@@ -233,8 +252,7 @@ export function ReceivePage() {
         {error && <div className="notice notice-error">{error}</div>}
         <div className="row">
           <button className="btn btn-primary" disabled={!target || busy} onClick={() => void save()}>
-            <Download size={16} />{' '}
-            {busy ? 'Bezig met opslaan…' : 'Opslaan in Huizenjacht'}
+            <Download size={16} /> {busy ? 'Bezig met opslaan…' : 'Opslaan in Huizenjacht'}
           </button>
         </div>
         <p className="muted small">
@@ -273,7 +291,8 @@ export function BookmarkletPanel() {
         <h2>Advertenties naar Huizenjacht sturen</h2>
         <p>
           Funda laat de app de advertenties niet zelf ophalen: servers krijgen een captcha. Met deze bladwijzer stuur je
-          de pagina die jij op Funda ziet op de achtergrond naar Huizenjacht, met de foto's. Je blijft gewoon op Funda.
+          de pagina die jij op Funda ziet op de achtergrond naar Huizenjacht, met alle foto's van de advertentie. Je
+          blijft gewoon op Funda.
         </p>
         <ol className="steps">
           <li>
@@ -290,9 +309,9 @@ export function BookmarkletPanel() {
           </li>
         </ol>
         <p className="muted small">
-          De bladwijzer bevat een eigen sleutel, zodat alleen jij pagina's naar je app kunt sturen. Deel hem dus niet. Op
-          een telefoon maak je een bladwijzer met de code hieronder als adres. Dit is versie {BOOKMARKLET_VERSION}; zegt de
-          bladwijzer op Funda dat hij verouderd is, zet hem dan hier opnieuw neer.
+          De bladwijzer bevat een eigen sleutel, zodat alleen jij pagina's naar je app kunt sturen. Deel hem dus niet.
+          Op een telefoon maak je een bladwijzer met de code hieronder als adres. Dit is versie {BOOKMARKLET_VERSION};
+          zegt de bladwijzer op Funda dat hij verouderd is, zet hem dan hier opnieuw neer.
         </p>
       </section>
       <section className="panel">

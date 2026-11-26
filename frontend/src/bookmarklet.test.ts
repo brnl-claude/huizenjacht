@@ -23,6 +23,57 @@ describe('bookmarklet', () => {
 
   it('sends the same version the server expects', () => {
     expect(backend).toContain(`BOOKMARKLET_VERSION = ${BOOKMARKLET_VERSION}\n`)
-    expect(bookmarkletCode('https://huizen.example', 'sleutel')).toContain(`{v:${BOOKMARKLET_VERSION},token:`)
+    expect(bookmarkletCode('https://huizen.example', 'sleutel')).toContain(`{v:${BOOKMARKLET_VERSION},token:k,`)
+  })
+})
+
+/** Runs the bookmarklet on a fake Funda page and returns what it posts to the app. */
+async function run(path: string): Promise<Record<string, string>> {
+  const posted: Record<string, string>[] = []
+  const location = {
+    hostname: 'www.funda.nl',
+    pathname: path,
+    origin: 'https://www.funda.nl',
+    href: 'https://www.funda.nl' + path,
+  }
+  const el = {
+    style: {},
+    append: () => undefined,
+    remove: () => undefined,
+    textContent: '',
+  }
+  const document = {
+    documentElement: { outerHTML: '<html>deze pagina</html>' },
+    createElement: () => ({ ...el }),
+    body: { append: () => undefined },
+  }
+  const fetch = async (url: string, init?: { body?: string }) => {
+    if (url.startsWith('https://huizen.example')) {
+      posted.push(JSON.parse(init!.body!))
+      return { ok: true, json: async () => ({ message: 'ok', house: 'h' }) }
+    }
+    return { ok: true, text: async () => `<html>opgehaald ${url}</html>` }
+  }
+  const code = bookmarkletCode('https://huizen.example', 'sleutel').replace(/^javascript:/, '')
+  new Function('location', 'document', 'fetch', 'setTimeout', code)(location, document, fetch, () => 0)
+  for (let i = 0; i < 20 && !posted.length; i++) await new Promise((r) => globalThis.setTimeout(r, 1))
+  return posted[0]
+}
+
+describe('bookmarklet photos', () => {
+  const base = '/detail/koop/velp-ge/huis-laan-45/44544340/'
+
+  it('fetches the photo page along with the listing', async () => {
+    const sent = await run(base)
+    expect(sent.url).toBe('https://www.funda.nl' + base)
+    expect(sent.html).toBe('<html>deze pagina</html>')
+    expect(sent.photos).toBe(`<html>opgehaald https://www.funda.nl${base}media/fotos/</html>`)
+  })
+
+  it('fetches the listing when it runs on the photo page', async () => {
+    const sent = await run(base + 'media/fotos/')
+    expect(sent.url).toBe('https://www.funda.nl' + base)
+    expect(sent.html).toBe(`<html>opgehaald https://www.funda.nl${base}</html>`)
+    expect(sent.photos).toBe('<html>deze pagina</html>')
   })
 })
