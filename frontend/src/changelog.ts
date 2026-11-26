@@ -26,6 +26,14 @@ export type Release = {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.24.1',
+    date: '2026-11-26',
+    title: 'Geen onverwacht herladen meer',
+    changes: [
+      'Een nieuwe versie laadt alleen nog vanzelf als je de app vers opstart. Keer je terug naar de app die nog openstond, dan blijft alles staan en zie je de melding dat er een nieuwe versie klaarstaat.',
+    ],
+  },
+  {
     version: '0.24.0',
     date: '2026-11-26',
     title: 'Advertentie vanaf het overzicht',

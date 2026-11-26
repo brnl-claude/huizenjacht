@@ -6,11 +6,11 @@ let update: ((reload?: boolean) => Promise<void>) | null = null
 let registration: ServiceWorkerRegistration | undefined
 const listeners = new Set<() => void>()
 
-// A new version found this soon after opening the app (or coming back to it) loads right away:
-// nobody is in the middle of something yet. Later it waits for the banner, so nothing typed
-// gets lost.
+// A new version found this soon after the page loaded (a fresh start of the app) loads right
+// away: nobody is in the middle of something yet. Later, also when coming back to an app that
+// was still open, it waits for the banner, so nothing typed or read gets interrupted.
 const LOAD_AT_ONCE_MS = 15_000
-let openedAt = Date.now()
+const openedAt = Date.now()
 // Once someone taps or types, the page no longer loads again by itself: a reload right under a
 // tap feels like the tap did it. The banner offers the new version instead.
 let touched = false
@@ -38,17 +38,14 @@ export function startServiceWorker(): void {
       registration = reg
     },
   })
-  // Back to the app after a while (also after updating the Android app, which keeps the
-  // page): look for a new version and treat it as just opened.
+  // Back to the app after a while: look for a new version, but only offer it in the banner.
+  // The page stays as it was; the new version loads by itself on the next fresh start.
   let hiddenAt = 0
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') {
       hiddenAt = Date.now()
     } else if (Date.now() - hiddenAt > 60_000) {
-      openedAt = Date.now()
-      touched = false
-      if (ready && !busyTyping()) applyUpdate()
-      else void checkForUpdate().catch(() => undefined)
+      void checkForUpdate().catch(() => undefined)
     }
   })
 }
