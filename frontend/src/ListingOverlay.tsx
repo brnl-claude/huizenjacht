@@ -59,7 +59,7 @@ function ListingStatus({
 }
 
 /** All photos under each other, to scroll through and pinch to zoom; it opens at `start`. */
-function PhotoList({ photos, start }: { photos: string[]; start: number }) {
+function PhotoList({ photos, start, onClose }: { photos: string[]; start: number; onClose: () => void }) {
   const { body, content, zoom, zoomTo, handlers } = usePinchZoom()
   const items = useRef<(HTMLDivElement | null)[]>([])
   // Until the person scrolls themselves, keep `start` at the top while the photos above it
@@ -108,6 +108,10 @@ function PhotoList({ photos, start }: { photos: string[]; start: number }) {
         onWheel={release}
         onKeyDown={release}
         onScroll={onScroll}
+        onClick={(e) => {
+          // A click beside the photos (the dark sides on a wide screen) closes the gallery.
+          if (e.target === e.currentTarget || e.target === content.current) onClose()
+        }}
         tabIndex={0}
         aria-label="Foto's"
       >
@@ -205,7 +209,19 @@ export function ListingOverlay({
   })()
 
   return (
-    <dialog ref={ref} className="overlay" onClose={onClose} onCancel={onClose} aria-label="Advertentie">
+    <dialog
+      ref={ref}
+      className="overlay"
+      onClose={onClose}
+      onCancel={onClose}
+      onClick={(e) => {
+        if (e.target !== e.currentTarget) return
+        // A click on the backdrop reaches the dialog itself, outside its box.
+        const r = e.currentTarget.getBoundingClientRect()
+        if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) e.currentTarget.close()
+      }}
+      aria-label="Advertentie"
+    >
       <header className="overlay-head">
         <div className="overlay-title">
           <b>{displayAddress(house)}</b>
@@ -285,7 +301,7 @@ export function ListingOverlay({
               </button>
             </div>
           ) : (
-            <PhotoList photos={photos} start={initialPhoto} />
+            <PhotoList photos={photos} start={initialPhoto} onClose={() => ref.current?.close()} />
           ))}
       </div>
     </dialog>
