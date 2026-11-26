@@ -248,7 +248,9 @@ export function sortHouses(houses: House[], key: SortKey): House[] {
         1,
       ),
   }
-  return list.sort((a, b) => Number(b.favoriet) - Number(a.favoriet) || by[key](a, b))
+  // Only the chosen order counts: favourites are not pinned on top (they have their own filter).
+  // Equal houses keep the newest first.
+  return list.sort((a, b) => by[key](a, b) || by.nieuwste(a, b))
 }
 
 export function matchesSearch(house: House, query: string): boolean {
