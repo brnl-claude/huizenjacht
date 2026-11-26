@@ -6,7 +6,7 @@ import httpx2
 from fastapi.testclient import TestClient
 
 from app.config import Settings
-from app.funda import clean_page, photo_urls
+from app.funda import clean_page, download_address, listing_page, photo_urls
 from app.main import BOOKMARKLET_VERSION, create_app
 
 URL = "https://www.funda.nl/detail/koop/ergens/huis-laan-1/123/"
@@ -234,3 +234,70 @@ def test_old_failure_on_a_good_copy_is_cleared(tmp_path):
     database.close()
     listing = Database(path).get_house("laan-1")["listing"]
     assert listing["status"] == "ok" and listing["message"] is None and listing["photos"] == 3
+
+
+MEDIA = "https://cloud.funda.nl/valentina_media/236/703"
+
+
+def photo_page(numbers: range) -> str:
+    """Like Funda's /media/fotos/ page: every photo, sizes in the query."""
+    imgs = "".join(
+        f'<img srcset="{MEDIA}/{n}.jpg?options=width=464 238w, '
+        f'{MEDIA}/{n}.jpg?options=width=1080 722w" alt="Foto {n} van Laan 1" '
+        f'src="{MEDIA}/{n}.jpg?options=width=1080">'
+        for n in numbers
+    )
+    return f"<html><head><title>Laan 1 | Funda</title></head><body>{imgs}</body></html>"
+
+
+def test_the_photo_page_brings_every_photo_in_its_order():
+    listing = (
+        '<html><head><meta property="og:title" content="Laan 1"></head><body>'
+        f'<img src="{MEDIA}/203.jpg?options=width=720"><img src="{MEDIA}/999.jpg"></body></html>'
+    )
+    urls = photo_urls(listing, URL, photo_page(range(200, 234)))
+    assert len(urls) == 35
+    assert urls[:2] == [f"{MEDIA}/200.jpg", f"{MEDIA}/201.jpg"]
+    # A photo only the listing shows still comes along, after the others.
+    assert urls[-1] == f"{MEDIA}/999.jpg"
+
+
+def test_photos_are_downloaded_at_a_sensible_size():
+    assert download_address(f"{MEDIA}/200.jpg") == f"{MEDIA}/200.jpg?options=width=1440"
+    assert download_address(f"{IMG}_1440x960.jpg") == f"{IMG}_1440x960.jpg"
+
+
+def test_media_pages_belong_to_the_listing():
+    base = "https://www.funda.nl/detail/koop/velp-ge/huis-laan-1/44544340/"
+    assert listing_page(base + "media/fotos/") == base
+    assert listing_page(base + "media/") == base
+    assert listing_page(base) == base
+
+
+def test_bookmarklet_brings_the_photo_page_along(tmp_path):
+    asked: list[str] = []
+
+    def handle(request: httpx2.Request) -> httpx2.Response:
+        asked.append(str(request.url))
+        return httpx2.Response(200, content=b"jpg", headers={"content-type": "image/jpeg"})
+
+    url = "https://www.funda.nl/detail/koop/velp-ge/huis-laan-1/44544340/"
+    with make_custom(tmp_path, handle) as client:
+        house = client.post("/api/houses", json={"adres": "Laan 1", "url": url}).json()
+        token = client.get("/api/bookmarklet").json()["token"]
+        sent = client.post(
+            "/api/bookmarklet/page",
+            content=json.dumps(
+                {
+                    "v": BOOKMARKLET_VERSION,
+                    "token": token,
+                    "url": url + "media/fotos/",
+                    "html": PAGE,
+                    "photos": photo_page(range(200, 240)),
+                }
+            ),
+        )
+        assert sent.status_code == 200, sent.text
+        assert "42 foto's" in sent.json()["message"]
+        assert client.get(f"/api/houses/{house['id']}").json()["listing"]["photos"] == 42
+    assert f"{MEDIA}/200.jpg?options=width=1440" in asked

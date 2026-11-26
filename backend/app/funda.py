@@ -10,6 +10,7 @@ import json
 import logging
 import re
 from collections import Counter
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 from urllib.parse import urljoin, urlparse
@@ -25,9 +26,13 @@ HEADERS = {
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     "Accept-Language": "nl-NL,nl;q=0.9,en;q=0.6",
 }
-MAX_PHOTOS = 40
+MAX_PHOTOS = 100
+# Funda's photo server scales a photo when asked; the bare address is the full original
+# (often 2 MB+). 1440 pixels wide is sharp on any phone and keeps a house with 40 photos small.
+PHOTO_WIDTH = 1440
 REMOTE_PHOTOS = "remote-photos.json"
 MAX_PHOTO_BYTES = 8 * 1024 * 1024
+PHOTO_DOWNLOADS = 6
 # Always a block page, whatever its size.
 BLOCK_TEXT = "Je bent bijna op de pagina die je zoekt"
 # Also found on real pages (in scripts), so only a block page when the page is small.
@@ -55,13 +60,17 @@ def _unescape(html: str) -> str:
     return html.replace("\\u002F", "/").replace("\\u002f", "/").replace("\\/", "/")
 
 
-def photo_urls(html: str, page_url: str) -> list[str]:
-    """Photo addresses in the order they appear, one per photo, the largest size seen."""
+def photo_urls(html: str, page_url: str, photos_html: str | None = None) -> list[str]:
+    """Photo addresses in the order they appear, one per photo, the largest size seen.
+
+    `photos_html` is the listing's photo page (/media/fotos/), which has every photo in
+    Funda's order; the listing itself only shows the first few. Its photos come first."""
     best: dict[str, tuple[int, str]] = {}
     order: list[str] = []
+    candidates = [m.group(0) for m in _PHOTO.finditer(_unescape(photos_html or ""))]
     soup = BeautifulSoup(html, "html.parser")
     og = soup.find("meta", attrs={"property": "og:image"})
-    candidates = [og["content"]] if og and og.get("content") else []
+    candidates += [og["content"]] if og and og.get("content") else []
     candidates += [m.group(0) for m in _PHOTO.finditer(_unescape(html))]
     for url in candidates:
         url = urljoin(page_url, url)
@@ -74,6 +83,12 @@ def photo_urls(html: str, page_url: str) -> list[str]:
         elif width > best[key][0]:
             best[key] = (width, url)
     return [best[k][1] for k in order][:MAX_PHOTOS]
+
+
+def listing_page(url: str) -> str:
+    """The listing itself for an address on one of its media pages, such as
+    /detail/koop/velp-ge/huis-x/44544340/media/fotos/ (the bookmarklet works on both)."""
+    return re.sub(r"(/\d{6,10})/media(?:/[^?#]*)?(?=$|[?#])", r"\1/", url, count=1)
 
 
 def clean_page(html: str, page_url: str) -> str:
@@ -156,28 +171,51 @@ def check_page(html: str, label: str) -> None:
         )
 
 
+def download_address(url: str) -> str:
+    """The address to download a photo from: a bare Funda photo at PHOTO_WIDTH."""
+    if "?" in url or _SIZE_SUFFIX.search(url) or not _PHOTO.fullmatch(url):
+        return url
+    return f"{url}?options=width={PHOTO_WIDTH}"
+
+
 def save_page(
-    html: str, page_url: str, folder: Path, client: httpx2.Client, label: str = "browser"
+    html: str,
+    page_url: str,
+    folder: Path,
+    client: httpx2.Client,
+    label: str = "browser",
+    photos_html: str | None = None,
 ) -> dict[str, Any]:
-    """Keep a listing page that is known to be good, and download its photos.
+    """Keep a listing page that is known to be good, and download its photos, also those on
+    the listing's photo page when the bookmarklet sent it along (`photos_html`).
 
     Photos the app cannot download (the photo server may refuse it as well) are kept as
     addresses, so the browser can still show them."""
     folder.mkdir(parents=True, exist_ok=True)
     (folder / "raw.html").write_text(html, encoding="utf-8")
     check_page(html, label)
-    urls = photo_urls(html, page_url)
+    if photos_html:
+        (folder / "raw-photos.html").write_text(photos_html, encoding="utf-8")
+    urls = photo_urls(html, page_url, photos_html)
     summary = page_summary(html)
 
     saved = 0
     failures: Counter[str] = Counter()
     for old in [*folder.glob("photo-*"), folder / REMOTE_PHOTOS]:
         old.unlink(missing_ok=True)
-    for photo_url in urls:
+
+    def get(photo_url: str) -> httpx2.Response | Exception | None:
         try:
-            photo = _get_photo(client, photo_url, page_url)
+            return _get_photo(client, download_address(photo_url), page_url)
         except httpx2.HTTPError as exc:
-            failures[type(exc).__name__] += 1
+            return exc
+
+    # A few at a time: forty photos one by one keep the bookmarklet waiting too long.
+    with ThreadPoolExecutor(max_workers=PHOTO_DOWNLOADS) as pool:
+        downloads = list(pool.map(get, urls))
+    for photo in downloads:
+        if isinstance(photo, Exception):
+            failures[type(photo).__name__] += 1
             continue
         if photo is None:
             failures["niet van funda.nl"] += 1

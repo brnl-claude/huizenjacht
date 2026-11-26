@@ -134,10 +134,10 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify(changes),
     }),
-  importListing: (id: string, url: string, html: string) =>
+  importListing: (id: string, url: string, html: string, photos?: string) =>
     request<HouseRecord>(`/api/houses/${encodeURIComponent(id)}/listing/import`, {
       method: 'POST',
-      body: JSON.stringify({ url, html }),
+      body: JSON.stringify({ url, html, photos }),
     }),
   bookmarklet: () => request<{ token: string }>('/api/bookmarklet'),
   bookmarkletRotate: () => request<{ token: string }>('/api/bookmarklet/rotate', { method: 'POST' }),
