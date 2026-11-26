@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { ArrowDownUp, Calendar, Check, FileUp, Plus, Search } from 'lucide-react'
+import { ArrowDownUp, Calendar, Check, ExternalLink, FileUp, Plus, Search } from 'lucide-react'
 import { checklistFor, progress } from './checklist'
 import {
   displayAddress,
@@ -245,15 +245,28 @@ function HouseCard({ house }: { house: House }) {
           </div>
         )}
         {p.done > 0 && <ProgressBar done={p.done} total={p.total} problems={p.probleem} />}
-        <button
-          type="button"
-          className={`btn btn-small ${selected ? 'btn-selected' : 'btn-ghost'}`}
-          aria-pressed={selected}
-          data-tip={selected ? 'Haal dit huis uit Vergelijken' : 'Zet dit huis bij Vergelijken'}
-          onClick={() => toggleCompare(house.id)}
-        >
-          {selected ? <Check size={16} /> : <Plus size={16} />} Vergelijk
-        </button>
+        <div className="card-actions">
+          <button
+            type="button"
+            className={`btn btn-small ${selected ? 'btn-selected' : 'btn-ghost'}`}
+            aria-pressed={selected}
+            data-tip={selected ? 'Haal dit huis uit Vergelijken' : 'Zet dit huis bij Vergelijken'}
+            onClick={() => toggleCompare(house.id)}
+          >
+            {selected ? <Check size={16} /> : <Plus size={16} />} Vergelijk
+          </button>
+          {house.url && (
+            <a
+              className="btn btn-small btn-ad"
+              href={house.url}
+              target="_blank"
+              rel="noreferrer"
+              data-tip="Open de advertentie in een nieuw tabblad"
+            >
+              <ExternalLink size={16} /> Advertentie
+            </a>
+          )}
+        </div>
       </div>
     </article>
   )
