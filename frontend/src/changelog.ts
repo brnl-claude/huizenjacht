@@ -26,6 +26,14 @@ export type Release = {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.18.1',
+    date: '2026-11-26',
+    title: 'Fotogalerij sluiten door ernaast te klikken',
+    changes: [
+      'Klik je op een groot scherm naast de foto\'s in de galerij, of buiten het venster, dan sluit het en ben je terug bij het huis.',
+    ],
+  },
+  {
     version: '0.18.0',
     date: '2026-11-26',
     title: 'Foto\'s swipen, onder elkaar bekijken en inzoomen',
