@@ -32,6 +32,7 @@ RETRY_COOKIE = "hj_login_retry"
 RETRY_TTL = 120
 # A login must come back from the provider within this many seconds.
 LOGIN_TTL = 600
+MAX_PENDING = 1000
 # The bookmarklet page endpoint checks its own token (the browser sends no cookie there).
 OPEN_PATHS = ("/api/health", "/api/auth/", "/api/import/hook", "/api/bookmarklet/page")
 
@@ -137,6 +138,9 @@ def install(app: FastAPI, settings: Settings, db: Any, transport: Any = None) ->
             cutoff = time.monotonic() - LOGIN_TTL
             for key in [k for k, v in pending.items() if v.created < cutoff]:
                 del pending[key]
+            # Anyone can start a login: keep memory bounded, dropping the oldest attempts.
+            while len(pending) >= MAX_PENDING:
+                del pending[next(iter(pending))]
             pending[attempt.state] = attempt
         response = RedirectResponse(url, status_code=303)
         response.set_cookie(

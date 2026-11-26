@@ -8,6 +8,7 @@ checklist answers sit under mine["personen"][<person key>].
 
 import hashlib
 import json
+import re
 import sqlite3
 import threading
 from collections.abc import Callable
@@ -663,8 +664,22 @@ class Database:
         }
 
     def restore(self, backup: dict[str, Any]) -> int:
+        """Replace all houses and settings, all or nothing. Raises ValueError for a bad backup."""
         houses = backup.get("houses", [])
-        with self._lock:
+        settings = backup.get("settings", {})
+        if not isinstance(houses, list) or not isinstance(settings, dict):
+            raise ValueError("houses en settings ontbreken")
+        for h in houses:
+            if not isinstance(h, dict) or not all(
+                isinstance(h.get(k), str) for k in ("id", "source", "created_at", "updated_at")
+            ):
+                raise ValueError("een huis mist id, source of datum")
+            # An id becomes part of folder names (documents, listings).
+            if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,99}", h["id"]):
+                raise ValueError(f"ongeldig huis-id {h['id']!r}")
+        with self._lock, self._conn:
+            # `with self._conn`: commit at the end, roll back on any error, so a backup that
+            # fails halfway never leaves the houses deleted.
             self._conn.execute("DELETE FROM houses")
             self._conn.execute("DELETE FROM settings")
             for h in houses:
@@ -684,10 +699,9 @@ class Database:
                         h["updated_at"],
                     ),
                 )
-            for key, value in backup.get("settings", {}).items():
+            for key, value in settings.items():
                 self._conn.execute(
-                    "INSERT INTO settings (key, value) VALUES (?, ?)", (key, json.dumps(value))
+                    "INSERT INTO settings (key, value) VALUES (?, ?)", (str(key), json.dumps(value))
                 )
-            self._conn.commit()
         self._changed(None)
         return len(houses)

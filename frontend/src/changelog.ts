@@ -26,6 +26,18 @@ export type Release = {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.19.8',
+    date: '2026-11-26',
+    title: 'Veiligheidsverbeteringen na een review',
+    changes: [
+      'Een kapotte back-up terugzetten wist je huizen niet meer: het gaat helemaal goed of er verandert niets.',
+      'De server neemt van de bladwijzer nooit meer dan een pagina aan, zodat niemand hem met een enorme upload kan laten vastlopen.',
+      'Foto\'s en documenten kunnen geen script meer draaien in de app; onbekende soorten documenten worden alleen gedownload.',
+      'Bij een advertentiepagina haalt de server alleen foto\'s van funda.nl op, geen andere adressen.',
+      'Uitloggen haalt de offline kopie van je huizen van het apparaat.',
+    ],
+  },
+  {
     version: '0.19.7',
     date: '2026-11-26',
     title: 'Niet meer per ongeluk verversen',
