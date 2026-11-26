@@ -104,8 +104,6 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify(changes),
     }),
-  refreshListing: (id: string) =>
-    request<HouseRecord>(`/api/houses/${encodeURIComponent(id)}/listing/refresh`, { method: 'POST' }),
   importListing: (id: string, url: string, html: string) =>
     request<HouseRecord>(`/api/houses/${encodeURIComponent(id)}/listing/import`, {
       method: 'POST',

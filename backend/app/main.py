@@ -181,9 +181,10 @@ def create_app(
     def listing_folder(house_id: str) -> Path:
         return settings.data_dir / "listings" / slugify(house_id)
 
-    def fetch_one(house_id: str, url: str, html: str | None = None) -> None:
+    def fetch_one(house_id: str, url: str, html: str | None = None) -> str | None:
         """Fetch a house's listing page and photos, or keep `html` that the browser sent;
-        record how it went."""
+        record how it went. Returns what went wrong, or None. A failure never replaces a good
+        copy (see Database.save_listing), so the caller says it to whoever sent the page."""
         with httpx2.Client(transport=listing_transport) as client:
             try:
                 if html is None:
@@ -193,17 +194,16 @@ def create_app(
             except Blocked as exc:
                 log.warning("Listing of %s blocked: %s", house_id, exc)
                 db().save_listing(house_id, url, "blocked", str(exc))
-                return
+                return str(exc)
             except NotAListing as exc:
                 log.warning("Listing of %s: %s", house_id, exc)
                 db().save_listing(house_id, url, "error", str(exc))
-                return
+                return str(exc)
             except Exception as exc:
                 log.exception("Listing of %s failed", house_id)
-                db().save_listing(
-                    house_id, url, "error", f"Ophalen mislukt: {type(exc).__name__}: {exc}"
-                )
-                return
+                message = f"Ophalen mislukt: {type(exc).__name__}: {exc}"
+                db().save_listing(house_id, url, "error", message)
+                return message
         db().save_listing(
             house_id,
             url,
@@ -214,6 +214,7 @@ def create_app(
             title=result.get("title"),
             description=result.get("description"),
         )
+        return None
 
     async def fetch_listings_forever() -> None:
         # Give the first import of reports a moment, so new houses are found right away.
@@ -588,7 +589,9 @@ def create_app(
         if not db().get_house(house_id):
             raise HTTPException(404, "Dit huis bestaat niet (meer).")
         async with listing_lock:
-            await asyncio.to_thread(fetch_one, house_id, url, html)
+            failed = await asyncio.to_thread(fetch_one, house_id, url, html)
+        if failed:
+            raise HTTPException(422, failed)
         return house_or_404(house_id)
 
     def bookmarklet_token(rotate: bool = False) -> str:
@@ -658,12 +661,12 @@ def create_app(
                 "daarna kun je de advertentie hier opslaan.",
             )
         async with listing_lock:
-            await asyncio.to_thread(fetch_one, house["id"], url, html)
+            failed = await asyncio.to_thread(fetch_one, house["id"], url, html)
+        if failed:
+            return answer(422, failed)
         saved = house_or_404(house["id"])
         listing = saved.get("listing") or {}
         name = saved["mine"].get("adres") or saved["report"].get("adres") or saved["id"]
-        if listing.get("status") != "ok":
-            return answer(422, listing.get("message") or "De pagina kon niet worden opgeslagen.")
         photos = listing.get("photos", 0)
         return answer(
             200,

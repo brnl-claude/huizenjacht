@@ -120,6 +120,12 @@ class Database:
         with self._lock:
             self._conn.execute("PRAGMA journal_mode=WAL")
             self._conn.executescript(SCHEMA)
+            # A failed fetch used to replace the status of a good copy; the copy is what counts.
+            self._conn.execute(
+                "UPDATE listings SET status = 'ok', message = NULL"
+                " WHERE status != 'ok' AND has_page = 1"
+            )
+            self._conn.commit()
 
     def _changed(self, house_id: str | None, removed: bool = False) -> None:
         if self.on_change:
@@ -582,7 +588,9 @@ class Database:
             old = self._conn.execute(
                 "SELECT status, photos, has_page FROM listings WHERE house_id = ?", (house_id,)
             ).fetchone()
-            # A failed retry keeps the photos and page of an earlier good fetch.
+            # A failed try never replaces a good copy: that copy, and its status, stay.
+            if status != "ok" and old and old["status"] == "ok" and old["has_page"]:
+                return
             if status != "ok" and old and old["photos"]:
                 photos, has_page = old["photos"], bool(old["has_page"])
             self._conn.execute(

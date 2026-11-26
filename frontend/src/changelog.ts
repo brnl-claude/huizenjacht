@@ -26,6 +26,16 @@ export type Release = {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.19.5',
+    date: '2026-11-26',
+    title: 'Geen oude melding Ophalen mislukt meer',
+    changes: [
+      'De server probeert advertenties niet meer zelf op te halen, want Funda blokkeert dat. Advertenties komen alleen nog binnen via de bladwijzer of een opgeslagen pagina.',
+      'Mislukt een nieuwe poging, dan blijft de goede kopie gewoon staan, zonder rode melding. Je krijgt de fout alleen te zien op het moment zelf.',
+      'Oude meldingen Ophalen mislukt bij huizen die al een goede kopie hebben, zijn opgeruimd.',
+    ],
+  },
+  {
     version: '0.19.4',
     date: '2026-11-26',
     title: 'Nieuwe versie meteen bij openen',

@@ -146,8 +146,11 @@ def test_page_from_the_browser_is_kept(tmp_path):
         captcha = "<title>Je bent bijna op de pagina die je zoekt</title>"
         again = client.post(
             f"/api/houses/{house['id']}/listing/import", json={"url": URL, "html": captcha}
-        ).json()["listing"]
-        assert again["status"] == "blocked" and again["photos"] == 2  # old copy stays
+        )
+        assert again.status_code == 422 and "captcha" in again.json()["detail"]
+        # The good copy stays, without a failure notice on it.
+        kept = client.get(f"/api/houses/{house['id']}").json()["listing"]
+        assert kept["status"] == "ok" and kept["photos"] == 2 and kept["message"] is None
 
 
 def test_bookmarklet_sends_a_page_in_the_background(tmp_path):
@@ -193,3 +196,41 @@ def test_bookmarklet_sends_a_page_in_the_background(tmp_path):
         client.post("/api/bookmarklet/rotate")
         old = client.post("/api/bookmarklet/page", content=json.dumps(page))
         assert old.status_code == 403
+
+
+def test_failed_try_keeps_a_good_copy(tmp_path):
+    calls = {"blocked": False}
+
+    def handle(request: httpx2.Request) -> httpx2.Response:
+        return handler(calls["blocked"])(request)
+
+    with make_custom(tmp_path, handle) as client:
+        house = client.post("/api/houses", json={"adres": "Laan 1", "url": URL}).json()
+        client.post(f"/api/houses/{house['id']}/listing/refresh")
+        calls["blocked"] = True
+        listing = client.post(f"/api/houses/{house['id']}/listing/refresh").json()["listing"]
+        assert listing["status"] == "ok" and listing["message"] is None and listing["photos"] == 2
+
+
+def test_background_fetching_is_off_by_default(monkeypatch):
+    from app.config import load_settings
+
+    monkeypatch.delenv("HJ_FETCH_LISTINGS", raising=False)
+    assert load_settings().fetch_listings is False
+    monkeypatch.setenv("HJ_FETCH_LISTINGS", "true")
+    assert load_settings().fetch_listings is True
+
+
+def test_old_failure_on_a_good_copy_is_cleared(tmp_path):
+    from app.db import Database
+
+    path = tmp_path / "huizenjacht.sqlite"
+    database = Database(path)
+    database.create_manual("laan-1", {"adres": "Laan 1", "url": URL})
+    database.save_listing("laan-1", URL, "ok", photos=3, has_page=True)
+    # As an older version stored it: a captcha on top of a good copy.
+    database._conn.execute("UPDATE listings SET status = 'blocked', message = 'captcha'")
+    database._conn.commit()
+    database.close()
+    listing = Database(path).get_house("laan-1")["listing"]
+    assert listing["status"] == "ok" and listing["message"] is None and listing["photos"] == 3
