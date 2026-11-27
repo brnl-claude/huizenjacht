@@ -34,6 +34,7 @@ import {
 import { api } from './api'
 import {
   checklistFor,
+  pointNumbers,
   prefilledCount,
   progress,
   quickPlan,
@@ -183,6 +184,8 @@ export function HousePage({ id, tab }: { id: string; tab: string | null }) {
   }
   const active = TABS.find((t) => t.id === tab)?.id ?? 'overzicht'
   const categories = checklistFor(house, template, withStandard)
+  // Numbered over the whole list, with the standard list, so no switch changes a number.
+  const numbers = pointNumbers(withStandard ? categories : checklistFor(house, template, true), categories)
   const p = progress(categories, house.mine.checklist)
   const selected = compare.includes(house.id)
   const stuck = active !== 'overzicht' || heroGone
@@ -267,7 +270,7 @@ export function HousePage({ id, tab }: { id: string; tab: string | null }) {
               disabled={exporting}
               onClick={() => {
                 setExporting(true)
-                exportPdf(house, categories, people, me)
+                exportPdf(house, categories, people, me, numbers)
                   .catch((e) => notify(e instanceof Error ? e.message : 'PDF maken mislukt.', 'error'))
                   .finally(() => setExporting(false))
               }}
@@ -328,7 +331,7 @@ export function HousePage({ id, tab }: { id: string; tab: string | null }) {
 
       <div key={active} className={`house-tab${slide?.tab === active ? ` slide-from-${slide.from}` : ''}`}>
         {active === 'overzicht' && <Overview house={house} />}
-        {active === 'checklist' && <Checklist house={house} categories={categories} documents={documents} onOpen={setViewing} />}
+        {active === 'checklist' && <Checklist house={house} categories={categories} numbers={numbers} documents={documents} onOpen={setViewing} />}
         {active === 'rapport' && <Report house={house} />}
         {active === 'notities' && <MyReview house={house} />}
         {active === 'documenten' && <Documents house={house} documents={documents} onOpen={setViewing} />}
@@ -645,11 +648,13 @@ function People({ house }: { house: House }) {
 function Checklist({
   house,
   categories,
+  numbers,
   documents,
   onOpen,
 }: {
   house: House
   categories: ChecklistCategory[]
+  numbers: Record<string, number>
   documents: Document[]
   onOpen: (doc: Document) => void
 }) {
@@ -688,6 +693,7 @@ function Checklist({
       house={house}
       categories={categories}
       text={item.tekst}
+      number={numbers[item.id]}
       entry={answers[item.id]}
       others={house.others}
       itemId={item.id}
@@ -915,6 +921,7 @@ function CheckRow({
   house,
   categories,
   text,
+  number,
   entry,
   others,
   itemId,
@@ -928,6 +935,8 @@ function CheckRow({
   house: House
   categories: ChecklistCategory[]
   text: string
+  /** The point's fixed number in the list of this house. */
+  number?: number
   entry?: CheckEntry
   others: Other[]
   itemId: string
@@ -959,6 +968,11 @@ function CheckRow({
     <li className={`check-row ${entry?.s ? `is-${entry.s}` : ''}`}>
       <div className="check-main">
         <span className="check-text">
+          {number !== undefined && (
+            <span className="check-nr" aria-label={`Punt ${number}`}>
+              {number}
+            </span>
+          )}
           <PrioritySelect ranked={ranked} onChange={onPrio} />
           {text}
           {(category || ranked.reason) && (
