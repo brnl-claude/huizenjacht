@@ -5,7 +5,7 @@
  */
 
 import type { Content, ContentTable, TDocumentDefinitions, TableCell } from 'pdfmake/interfaces'
-import { progress, type ChecklistCategory } from './checklist'
+import { pointNumbers, progress, type ChecklistCategory } from './checklist'
 import {
   ASPECTS,
   displayAddress,
@@ -613,7 +613,7 @@ function categoryIcon(category: ChecklistCategory): IconName {
   return CATEGORY_ICONS[category.id] ?? 'clipboardCheck'
 }
 
-function checklist(categories: ChecklistCategory[], answers: Answers[]): Content[] {
+function checklist(categories: ChecklistCategory[], answers: Answers[], numbers: Record<string, number>): Content[] {
   const several = answers.length > 1
   const mine = answers[0].data.checklist ?? {}
   const p = progress(categories, mine)
@@ -697,7 +697,18 @@ function checklist(categories: ChecklistCategory[], answers: Answers[]): Content
         } as Content)
       }
       body.push([
-        { stack: [{ text: item.tekst, color: C.text }, ...notes], margin: [25, 0, 0, 0] },
+        {
+          stack: [
+            {
+              text: [
+                ...(numbers[item.id] !== undefined ? [{ text: `${numbers[item.id]}. `, color: C.faint, bold: true }] : []),
+                { text: item.tekst, color: C.text },
+              ],
+            },
+            ...notes,
+          ],
+          margin: [25, 0, 0, 0],
+        },
         ...answers.map((a) => pill(a.data.checklist?.[item.id]?.s) as TableCell),
       ])
     }
@@ -727,6 +738,7 @@ export function pdfDocument(
   me: string,
   exported = new Date(),
   pics: Pictures = {},
+  numbers: Record<string, number> = pointNumbers(categories),
 ): TDocumentDefinitions {
   const answers = answersOf(house, people, me)
   const title = [displayAddress(house), house.plaats].filter(Boolean).join(', ')
@@ -735,7 +747,7 @@ export function pdfDocument(
     pageMargins: [MARGIN_X, 32, MARGIN_X, 40],
     info: { title: `${title} – Huizenjacht`, creator: 'Huizenjacht' },
     defaultStyle: { font: 'Roboto', fontSize: 9, lineHeight: 1.22, color: C.text },
-    content: [...header(house, exported, pics), ...assessment(house, answers), ...checklist(categories, answers)],
+    content: [...header(house, exported, pics), ...assessment(house, answers), ...checklist(categories, answers, numbers)],
     footer: (page, pages) =>
       ({
       margin: [MARGIN_X, 12, MARGIN_X, 0],
@@ -795,8 +807,9 @@ export async function exportPdf(
   categories: ChecklistCategory[],
   people: Person[],
   me: string,
+  numbers?: Record<string, number>,
 ): Promise<void> {
-  const blob = await makePdf(pdfDocument(house, categories, people, me, new Date(), await pdfPictures(house)))
+  const blob = await makePdf(pdfDocument(house, categories, people, me, new Date(), await pdfPictures(house), numbers))
   const name = pdfFileName(house)
   if (inAndroidWebView()) {
     const response = await fetch(`/api/export?naam=${encodeURIComponent(name)}`, {

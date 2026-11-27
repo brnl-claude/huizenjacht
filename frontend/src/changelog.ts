@@ -26,6 +26,16 @@ export type Release = {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.28.0',
+    date: '2026-11-27',
+    title: 'Genummerde checklist',
+    changes: [
+      'Elk punt in de checklist heeft een nummer, zodat je samen makkelijk naar een punt verwijst.',
+      'Het nummer blijft hetzelfde bij Korte bezichtiging, Alleen open punten en zonder de standaardlijst.',
+      'Het PDF-rapport toont dezelfde nummers.',
+    ],
+  },
+  {
     version: '0.27.1',
     date: '2026-11-27',
     title: 'Zonder klok',

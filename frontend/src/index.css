@@ -3509,6 +3509,19 @@ a[aria-label],
   gap: 2px;
 }
 
+/* Fixed number of a checklist point; filters never change it. */
+.check-nr {
+  display: inline-block;
+  min-width: 1.6em;
+  margin-right: 6px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  vertical-align: 1px;
+}
+
 /* Priorities and the short viewing */
 .prio-pill {
   appearance: none;

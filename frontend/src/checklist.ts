@@ -328,6 +328,19 @@ function withPrefill(
   return [...first, ...added, ...rest]
 }
 
+/**
+ * A fixed number for every point: its place in the whole list of the house, so filters such
+ * as Korte bezichtiging, Alleen open punten or the standard list switched off never change it.
+ * Points of a later list that the first does not have get the numbers after it.
+ */
+export function pointNumbers(...lists: ChecklistCategory[][]): Record<string, number> {
+  const numbers: Record<string, number> = {}
+  let n = 0
+  for (const list of lists)
+    for (const category of list) for (const item of category.items) numbers[item.id] ??= ++n
+  return numbers
+}
+
 /** How many points have a prefilled answer. */
 export function prefilledCount(categories: ChecklistCategory[]): number {
   return categories.reduce((n, c) => n + c.items.filter((i) => i.vooraf).length, 0)
