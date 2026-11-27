@@ -27,7 +27,6 @@ import {
   Plus,
   ThumbsDown,
   ThumbsUp,
-  Timer,
   Trash2,
   X,
   Zap,
@@ -49,7 +48,7 @@ import {
   type Priority,
   type Ranked,
 } from './checklist'
-import { quickMinutes, quickOn, setQuickMinutes, setQuickOn, setViewingStart, timeLeft, viewingStart } from './quickViewing'
+import { quickMinutes, quickOn, setQuickMinutes, setQuickOn } from './quickViewing'
 import {
   displayAddress,
   formatEuro,
@@ -767,7 +766,6 @@ function Checklist({
                 ))}
               </select>
             </label>
-            <ViewingTimer houseId={house.id} minutes={minutes} />
           </div>
         )}
       </div>
@@ -889,49 +887,6 @@ const QUICK_TITLES: Record<Priority, string> = {
   belangrijk: 'Belangrijk',
   optioneel: 'Als er tijd is',
   later: 'Na de bezichtiging',
-}
-
-/** A clock for the viewing: start it at the door, it counts down the chosen minutes. */
-function ViewingTimer({ houseId, minutes }: { houseId: string; minutes: number }) {
-  const [start, setStart] = useState(() => viewingStart(houseId))
-  const [now, setNow] = useState(() => Date.now())
-  useEffect(() => {
-    if (!start) return
-    const t = setInterval(() => setNow(Date.now()), 15_000)
-    return () => clearInterval(t)
-  }, [start])
-  if (!start)
-    return (
-      <button
-        type="button"
-        className="btn btn-small btn-ghost"
-        onClick={() => {
-          const at = Date.now()
-          setViewingStart(houseId, at)
-          setStart(at)
-          setNow(at)
-        }}
-      >
-        <Timer size={16} /> Start de klok
-      </button>
-    )
-  const left = timeLeft(start, minutes, now)
-  return (
-    <span className={`viewing-timer ${left.over ? 'over' : ''}`} role="timer">
-      <Timer size={16} /> {left.text}
-      <button
-        type="button"
-        className="icon-btn"
-        aria-label="Klok stoppen"
-        onClick={() => {
-          setViewingStart(houseId, null)
-          setStart(null)
-        }}
-      >
-        <X size={14} />
-      </button>
-    </span>
-  )
 }
 
 /** The priority of a point, as a small pill; choosing one sets it for this house. */

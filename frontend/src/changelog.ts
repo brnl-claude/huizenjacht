@@ -26,6 +26,12 @@ export type Release = {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.27.1',
+    date: '2026-11-27',
+    title: 'Zonder klok',
+    changes: ['De aftellende klok bij Korte bezichtiging is weg; de tijdkeuze en de prioriteiten blijven.'],
+  },
+  {
     version: '0.27.0',
     date: '2026-11-26',
     title: 'Korte bezichtiging',
