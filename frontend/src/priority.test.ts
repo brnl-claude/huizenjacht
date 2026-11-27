@@ -10,7 +10,6 @@ import {
   type ChecklistCategory,
 } from './checklist'
 import { toHouse, type Fields, type HouseRecord } from './house'
-import { timeLeft } from './quickViewing'
 
 const body = `## Open punten
 
@@ -107,12 +106,5 @@ describe('quickPlan', () => {
     const must = cats.flatMap((c) => c.items).filter((i) => rank(i).prio === 'moet').length
     expect(plan.now).toHaveLength(must)
     expect(plan.tooMany).toBe(must - 5)
-  })
-})
-
-describe('timeLeft', () => {
-  it('counts down and then over time', () => {
-    expect(timeLeft(0, 30, 60_000 * 12.5)).toEqual({ text: 'nog 18 min', over: false })
-    expect(timeLeft(0, 30, 60_000 * 33)).toEqual({ text: '3 min over tijd', over: true })
   })
 })

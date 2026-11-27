@@ -3560,7 +3560,6 @@ a[aria-label],
 .quick-tools {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   flex-wrap: wrap;
   gap: 8px 12px;
   border-top: 1px solid var(--border);
@@ -3579,21 +3578,6 @@ a[aria-label],
   border: 1px solid var(--border);
   background: var(--surface);
   color: var(--text);
-}
-.viewing-timer {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  color: var(--ok);
-}
-.viewing-timer.over {
-  color: var(--bad);
-}
-.viewing-timer .icon-btn {
-  width: 28px;
-  height: 28px;
 }
 .quick-group.prio-moet {
   border-left: 4px solid var(--bad);
