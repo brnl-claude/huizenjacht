@@ -29,6 +29,7 @@ def test_public_link_shows_overview_and_report_only(tmp_path):
         assert "Het dak is <strong>oud</strong>." in text
         assert "<script>" not in text and 'href="javascript' not in text
         assert "Geheime notitie" not in text
+        assert "https://www.google.com/maps/search/?api=1&amp;query=Laan%201%2C%20Utrecht" in text
         assert res.headers["x-robots-tag"].startswith("noindex")
         assert "default-src 'none'" in res.headers["content-security-policy"]
         assert client.put("/api/houses/laan-1/publiek", json={}).json()["token"] == link["token"]
@@ -65,7 +66,13 @@ def test_public_photos_and_delete_house(tmp_path):
         folder.mkdir(parents=True)
         (folder / "photo-000.jpg").write_bytes(b"jpg")
         link = client.put("/api/houses/laan-1/publiek", json={}).json()
-        assert "/foto/0" in client.get(link["path"]).text
+        text = client.get(link["path"]).text
+        assert "/foto/0" in text
+        assert (
+            f'<meta property="og:image" content="http://testserver{link["path"]}/foto/0">' in text
+        )
+        assert '<meta property="og:title" content="Laan 1">' in text
+        assert "€ 300.000 · Utrecht" in text
         assert client.get(f"{link['path']}/foto/0").content == b"jpg"
         client.delete("/api/houses/laan-1")
         assert client.get(link["path"]).status_code == 404

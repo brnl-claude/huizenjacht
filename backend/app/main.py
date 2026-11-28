@@ -1219,12 +1219,14 @@ def create_app(
         return len(photo_files(folder)) or len(remote_photos(folder))
 
     @app.get("/gedeeld/{token}", include_in_schema=False)
-    def shared_page(token: str) -> Response:
+    def shared_page(token: str, request: Request) -> Response:
         found = shared_house(token)
         if not found:
             return Response(publiek.gone(), 404, publiek.PAGE_HEADERS, "text/html")
         house = found[0]
-        text = publiek.page(house, token, shared_photo_count(house["id"]))
+        # The link preview (WhatsApp) needs absolute addresses.
+        base = settings.public_url or str(request.base_url).rstrip("/")
+        text = publiek.page(house, token, shared_photo_count(house["id"]), base)
         return Response(text, 200, publiek.PAGE_HEADERS, "text/html")
 
     @app.get("/gedeeld/{token}/foto/{number}", include_in_schema=False, response_model=None)
