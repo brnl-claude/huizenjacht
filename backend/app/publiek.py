@@ -126,29 +126,30 @@ def page(house: dict[str, Any], token: str, photos: int, base: str = "") -> str:
     preview = _preview(
         address, _summary(f, place), image, f"{base}/gedeeld/{token}" if base else ""
     )
-    parts = [f"<header><h1>{e(address)}</h1>"]
+    parts = [f"<header><div class='title'><h1>{e(address)}</h1>"]
     where = ", ".join(x for x in (place, str(f.get("wijk") or "")) if x)
     if where:
         parts.append(f"<p class='muted'>{e(where)}</p>")
+    parts.append("</div>")
     links = []
     url = str(f.get("url") or "")
     if url.startswith("https://"):
-        links.append((url, "Advertentie"))
+        links.append((url, ICON_LINK, "Advertentie"))
     if f.get("adres"):
         # Like mapsUrl() in frontend/src/house.ts.
         where = ", ".join(x for x in (str(f["adres"]), place) if x)
-        links.append(
-            (f"https://www.google.com/maps/search/?api=1&query={quote(where)}", "Google Maps")
-        )
+        maps = f"https://www.google.com/maps/search/?api=1&query={quote(where, safe='')}"
+        links.append((maps, ICON_PIN, "Kaart"))
     if links:
+        # The same buttons as at the top of a house in the app (.hero-actions).
         parts.append(
-            "<p class='links'>"
+            "<div class='actions'>"
             + "".join(
-                f"<a class='btn' href='{e(u, quote=True)}' rel='noreferrer noopener'"
-                f" target='_blank'>{t}</a>"
-                for u, t in links
+                f"<a href='{e(u, quote=True)}' rel='noreferrer noopener' target='_blank'>"
+                f"{_icon(i)}<span>{t}</span></a>"
+                for u, i, t in links
             )
-            + "</p>"
+            + "</div>"
         )
     parts.append("</header>")
     if photos:
@@ -172,6 +173,25 @@ def page(house: dict[str, Any], token: str, photos: int, base: str = "") -> str:
     )
     parts.append("<footer class='muted'>Gedeeld via Huizenjacht · alleen lezen</footer>")
     return _document(address, "".join(parts), preview)
+
+
+# Lucide icons, as in the app: external-link and map-pin.
+ICON_LINK = (
+    '<path d="M15 3h6v6"/><path d="M10 14 21 3"/>'
+    '<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>'
+)
+ICON_PIN = (
+    '<path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993'
+    ' 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/>'
+)
+
+
+def _icon(paths: str) -> str:
+    return (
+        '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"'
+        ' stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        f"{paths}</svg>"
+    )
 
 
 def _summary(f: dict[str, Any], place: str) -> str:
@@ -269,9 +289,9 @@ def _document(title: str, body: str, head: str = "") -> str:
 
 STYLE = """
 :root{--bg:#f4f4f4;--card:#fff;--text:#2b2b2b;--muted:#666;--line:#e3e3e3;--accent:#f7a100;
---link:#0071b3;--plus:#2e8540;--min:#c0392b}
+--link:#0071b3;--link-soft:#e6f1f8;--plus:#2e8540;--min:#c0392b}
 @media (prefers-color-scheme:dark){:root{--bg:#16181b;--card:#202327;--text:#e8e8e8;
---muted:#a0a4a8;--line:#34383d;--link:#5fb4ea}}
+--muted:#a0a4a8;--line:#34383d;--link:#5fb4ea;--link-soft:#13283a}}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);
 font-family:system-ui,-apple-system,"Segoe UI",sans-serif;line-height:1.5}
 main{max-width:860px;margin:0 auto;padding:16px}
@@ -301,7 +321,13 @@ border-bottom-color:var(--accent)}#t1:focus-visible~nav label[for=t1],
 box-shadow:0 2px 8px rgb(0 0 0/6%);overflow-wrap:anywhere}.report img{max-width:100%}
 .report table{border-collapse:collapse;display:block;overflow-x:auto}
 .report th,.report td{border:1px solid var(--line);padding:4px 8px;text-align:left}
-a{color:var(--link)}.links{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 0}
+a{color:var(--link)}
+.actions{display:flex;margin:12px -8px 0;padding-top:8px;border-top:1px solid var(--line)}
+.actions a{flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:center;gap:4px;
+padding:8px 2px;border-radius:8px;color:var(--link);font-size:.75rem;font-weight:600;
+text-decoration:none}.actions a:hover{background:var(--link-soft)}
+@media (min-width:700px){header{display:flex;align-items:center;justify-content:space-between;
+gap:16px}.actions{margin:0;padding:0;border:0;gap:4px}.actions a{flex:0 0 auto;padding:8px 14px}}
 .btn{display:inline-block;background:var(--accent);color:#fff;padding:10px 18px;border-radius:8px;
 text-decoration:none;font-weight:650}footer{text-align:center;font-size:.85rem;margin:24px 0}
 """

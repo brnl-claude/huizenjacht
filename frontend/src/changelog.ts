@@ -26,6 +26,14 @@ export type Release = {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.29.2',
+    date: '2026-11-28',
+    title: 'Knoppen op de gedeelde pagina',
+    changes: [
+      'De knoppen Advertentie en Kaart op een gedeelde pagina zien eruit als in de app en staan op een groot scherm rechts naast het adres.',
+    ],
+  },
+  {
     version: '0.29.1',
     date: '2026-11-28',
     title: 'Mooier delen',
