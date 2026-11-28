@@ -26,6 +26,17 @@ export type Release = {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.29.0',
+    date: '2026-11-28',
+    title: 'Huis delen zonder inloggen',
+    changes: [
+      'Met de knop Delen bij een huis maak je een link die iemand zonder account kan openen.',
+      'Die ziet alleen de tabs Overzicht en Rapport met de foto\'s van de advertentie, en kan niets aanpassen.',
+      'Checklist, Mijn beoordeling, notities, bod, eigen foto\'s en memo\'s en documenten blijven privé.',
+      'Maak een nieuwe link of stop met delen wanneer je wilt; de oude link werkt dan meteen niet meer.',
+    ],
+  },
+  {
     version: '0.28.0',
     date: '2026-11-27',
     title: 'Genummerde checklist',

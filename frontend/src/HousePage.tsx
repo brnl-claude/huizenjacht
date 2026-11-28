@@ -30,6 +30,7 @@ import {
   Trash2,
   X,
   Zap,
+  Share2,
 } from 'lucide-react'
 import { api } from './api'
 import {
@@ -75,6 +76,7 @@ import { DocumentViewer } from './DocumentViewer'
 import { exportPdf } from './pdfExport'
 import { GeneralMedia, MediaActions, MediaTiles } from './Media'
 import { Dialog, HouseForm } from './NewHouseDialog'
+import { PublicLinkDialog } from './PublicLink'
 import { useStore } from './store'
 import { EnergyLabel, FavoriteButton, personColor, PersonDot, Photo, ProgressBar, ScorePill } from './ui'
 
@@ -140,6 +142,7 @@ export function HousePage({ id, tab }: { id: string; tab: string | null }) {
   const [exporting, setExporting] = useState(false)
   const house = houses.find((h) => h.id === id)
   const [editing, setEditing] = useState(false)
+  const [sharing, setSharing] = useState(false)
   const [overlayState, setOverlayState] = useState<{ house: string; tab: 'advertentie' | 'fotos'; photo: number } | null>(null)
   // Belongs to one house: going to another house (back button, link) leaves it closed.
   const overlay = overlayState?.house === id ? overlayState : null
@@ -278,6 +281,10 @@ export function HousePage({ id, tab }: { id: string; tab: string | null }) {
               <FileDown size={20} />
               <span>{exporting ? 'Bezig…' : 'PDF'}</span>
             </button>
+            <button data-tip="Deel dit huis met iemand zonder account" onClick={() => setSharing(true)}>
+              <Share2 size={20} />
+              <span>Delen</span>
+            </button>
           </div>
           {house.url && house.record.listing?.status !== 'ok' && (
             <a
@@ -347,6 +354,8 @@ export function HousePage({ id, tab }: { id: string; tab: string | null }) {
           onClose={() => setOverlay(null)}
         />
       )}
+
+      {sharing && <PublicLinkDialog house={house} onClose={() => setSharing(false)} />}
 
       {editing && (
         <Dialog title="Gegevens aanpassen" onClose={() => setEditing(false)}>

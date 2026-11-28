@@ -242,3 +242,15 @@ def test_only_admins_manage_backups(tmp_path):
         assert client.get("/api/auth/me").json()["admin"] is True
         assert client.get("/api/backup").status_code == 200
         assert client.get("/api/backup/volledig").status_code == 200
+
+
+def test_public_link_works_without_login(tmp_path):
+    client, provider = make(tmp_path)
+    with client:
+        provider.log_in(client, "bram", [])
+        client.post("/api/houses", json={"adres": "Kade 2"})
+        link = client.put("/api/houses/kade-2/publiek", json={}).json()
+        client.post("/api/auth/logout")
+        assert client.put("/api/houses/kade-2/publiek", json={}).status_code == 401
+        res = client.get(link["path"])
+        assert res.status_code == 200 and "Kade 2" in res.text

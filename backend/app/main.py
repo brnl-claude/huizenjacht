@@ -28,7 +28,7 @@ from fastapi.responses import (
 )
 from starlette.datastructures import UploadFile as StarletteUpload
 
-from . import auth
+from . import auth, publiek
 from .backup import (
     NIGHTLY,
     disk_usage,
@@ -460,6 +460,7 @@ def create_app(
         if not db().delete_house(house_id):
             raise HTTPException(404, "Dit huis bestaat niet (meer).")
         remove_media_files(files)
+        drop_public_link(house_id)
         return Response(status_code=204)
 
     # Photos, videos and voice memos
@@ -1022,7 +1023,7 @@ def create_app(
     @app.put("/api/settings/{key}")
     def put_setting(key: str, value: Any = Body(..., embed=True)) -> dict[str, Any]:
         valid = re.fullmatch(r"[a-z][a-zA-Z0-9-]{0,40}", key)
-        if not valid or key in {PEOPLE, BOOKMARKLET_TOKEN}:
+        if not valid or key in {PEOPLE, BOOKMARKLET_TOKEN, publiek.SETTING}:
             raise HTTPException(400, "Onbekende instelling.")
         db().set_setting(key, value)
         return {"value": value}
@@ -1165,6 +1166,80 @@ def create_app(
             raise HTTPException(400, f"Deze back-up kan niet worden teruggezet: {exc}") from exc
         claim_old_answers(db())
         return {"houses": count}
+
+    # Public links (app.publiek): a read-only page of one house, without logging in.
+
+    def public_links() -> dict[str, dict[str, Any]]:
+        links = db().get_setting(publiek.SETTING, {})
+        return links if isinstance(links, dict) else {}
+
+    def public_link_of(house_id: str) -> tuple[str, dict[str, Any]] | None:
+        return next(((t, x) for t, x in public_links().items() if x.get("house") == house_id), None)
+
+    def drop_public_link(house_id: str) -> None:
+        links = {t: x for t, x in public_links().items() if x.get("house") != house_id}
+        db().set_setting(publiek.SETTING, links)
+
+    def public_view(token: str, link: dict[str, Any]) -> dict[str, Any]:
+        return {"token": token, "path": f"/gedeeld/{token}", "created": link.get("created")}
+
+    @app.get("/api/houses/{house_id}/publiek")
+    def get_public_link(house_id: str) -> dict[str, Any] | None:
+        house_or_404(house_id)
+        found = public_link_of(house_id)
+        return public_view(*found) if found else None
+
+    @app.put("/api/houses/{house_id}/publiek")
+    def put_public_link(house_id: str, body: dict[str, Any] = Body(...)) -> dict[str, Any]:
+        house_or_404(house_id)
+        links = public_links()
+        found = public_link_of(house_id)
+        if found and not body.get("nieuw"):
+            token, link = found
+        else:
+            if found:
+                links.pop(found[0])
+            token, link = publiek.new_token(), {"house": house_id, "created": now()}
+        links[token] = link
+        db().set_setting(publiek.SETTING, links)
+        return public_view(token, link)
+
+    @app.delete("/api/houses/{house_id}/publiek", status_code=204)
+    def delete_public_link(house_id: str) -> Response:
+        drop_public_link(house_id)
+        return Response(status_code=204)
+
+    def shared_house(token: str) -> tuple[dict[str, Any], dict[str, Any]] | None:
+        link = public_links().get(token) if 20 <= len(token) <= 64 else None
+        house = db().get_house(str(link.get("house"))) if link else None
+        return (house, link) if house and link else None
+
+    def shared_photo_count(house_id: str) -> int:
+        folder = listing_folder(house_id)
+        return len(photo_files(folder)) or len(remote_photos(folder))
+
+    @app.get("/gedeeld/{token}", include_in_schema=False)
+    def shared_page(token: str) -> Response:
+        found = shared_house(token)
+        if not found:
+            return Response(publiek.gone(), 404, publiek.PAGE_HEADERS, "text/html")
+        house = found[0]
+        text = publiek.page(house, token, shared_photo_count(house["id"]))
+        return Response(text, 200, publiek.PAGE_HEADERS, "text/html")
+
+    @app.get("/gedeeld/{token}/foto/{number}", include_in_schema=False, response_model=None)
+    def shared_photo(token: str, number: int) -> FileResponse | RedirectResponse:
+        found = shared_house(token)
+        if not found or number >= publiek.MAX_PHOTOS:
+            raise HTTPException(404, "Deze foto is er niet.")
+        folder = listing_folder(found[0]["id"])
+        files = photo_files(folder)
+        if 0 <= number < len(files):
+            return FileResponse(files[number], headers=publiek.HEADERS)
+        remote = remote_photos(folder)
+        if not files and 0 <= number < len(remote):
+            return RedirectResponse(remote[number], status_code=302, headers=publiek.HEADERS)
+        raise HTTPException(404, "Deze foto is er niet.")
 
     @app.api_route("/api/{rest:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE"])
     def api_not_found(rest: str) -> None:
