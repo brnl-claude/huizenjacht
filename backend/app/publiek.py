@@ -11,6 +11,7 @@ import html
 import json
 import secrets
 from typing import Any
+from urllib.parse import quote
 
 from markdown_it import MarkdownIt
 
@@ -111,17 +112,44 @@ def _markdown(text: str) -> str:
     return md.render(text)
 
 
-def page(house: dict[str, Any], token: str, photos: int) -> str:
+def page(house: dict[str, Any], token: str, photos: int, base: str = "") -> str:
     """The tabs Overzicht and Rapport of the app, read-only. Switching tabs works without
-    scripts (radio buttons), since the page allows none."""
+    scripts (radio buttons), since the page allows none. `base` (https://host) makes the
+    link preview in WhatsApp and the like absolute."""
     f = fields(house)
     e = html.escape
     address = str(f.get("adres") or f.get("titel") or "Een huis")
     place = " ".join(str(f[k]) for k in ("postcode", "plaats") if f.get(k))
+    image = f"{base}/gedeeld/{token}/foto/0" if photos else ""
+    if not image and str(f.get("foto") or "").startswith("https://"):
+        image = str(f["foto"])
+    preview = _preview(
+        address, _summary(f, place), image, f"{base}/gedeeld/{token}" if base else ""
+    )
     parts = [f"<header><h1>{e(address)}</h1>"]
     where = ", ".join(x for x in (place, str(f.get("wijk") or "")) if x)
     if where:
         parts.append(f"<p class='muted'>{e(where)}</p>")
+    links = []
+    url = str(f.get("url") or "")
+    if url.startswith("https://"):
+        links.append((url, "Advertentie"))
+    if f.get("adres"):
+        # Like mapsUrl() in frontend/src/house.ts.
+        where = ", ".join(x for x in (str(f["adres"]), place) if x)
+        links.append(
+            (f"https://www.google.com/maps/search/?api=1&query={quote(where)}", "Google Maps")
+        )
+    if links:
+        parts.append(
+            "<p class='links'>"
+            + "".join(
+                f"<a class='btn' href='{e(u, quote=True)}' rel='noreferrer noopener'"
+                f" target='_blank'>{t}</a>"
+                for u, t in links
+            )
+            + "</p>"
+        )
     parts.append("</header>")
     if photos:
         imgs = "".join(
@@ -142,14 +170,40 @@ def page(house: dict[str, Any], token: str, photos: int) -> str:
         )
         + "</div>"
     )
-    url = str(f.get("url") or "")
-    if url.startswith("https://"):
-        parts.append(
-            f"<p><a class='btn' href='{e(url, quote=True)}' rel='noreferrer noopener'"
-            " target='_blank'>Bekijk de advertentie</a></p>"
-        )
     parts.append("<footer class='muted'>Gedeeld via Huizenjacht · alleen lezen</footer>")
-    return _document(address, "".join(parts))
+    return _document(address, "".join(parts), preview)
+
+
+def _summary(f: dict[str, Any], place: str) -> str:
+    """One line for the link preview: price, size, rooms and place."""
+    bits = []
+    if f.get("vraagprijs") not in (None, ""):
+        bits.append(_fact(f["vraagprijs"], "€"))
+    if f.get("woonoppervlakte") not in (None, ""):
+        bits.append(_fact(f["woonoppervlakte"], "m²"))
+    if f.get("kamers") not in (None, ""):
+        bits.append(f"{f['kamers']} kamers")
+    if place:
+        bits.append(place)
+    return " · ".join(bits)
+
+
+def _preview(title: str, description: str, image: str, url: str) -> str:
+    """Open Graph tags: the title, a line and the photo that chat apps show with the link."""
+    e = html.escape
+    tags = [("og:type", "website"), ("og:title", title), ("og:site_name", "Huizenjacht")]
+    if description:
+        tags.append(("og:description", description))
+    if url:
+        tags.append(("og:url", url))
+    if image:
+        tags.append(("og:image", image))
+    out = "".join(f'<meta property="{k}" content="{e(v, quote=True)}">' for k, v in tags)
+    if description:
+        out += f'<meta name="description" content="{e(description, quote=True)}">'
+    if image:
+        out += '<meta name="twitter:card" content="summary_large_image">'
+    return out
 
 
 def _overview(f: dict[str, Any]) -> str:
@@ -205,8 +259,8 @@ def gone() -> str:
     )
 
 
-def _document(title: str, body: str) -> str:
-    return f"""<!doctype html><html lang="nl"><head><meta charset="utf-8">
+def _document(title: str, body: str, head: str = "") -> str:
+    return f"""<!doctype html><html lang="nl"><head><meta charset="utf-8">{head}
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow"><meta name="referrer" content="no-referrer">
 <meta name="color-scheme" content="light dark"><title>{html.escape(title)}</title>
@@ -247,7 +301,7 @@ border-bottom-color:var(--accent)}#t1:focus-visible~nav label[for=t1],
 box-shadow:0 2px 8px rgb(0 0 0/6%);overflow-wrap:anywhere}.report img{max-width:100%}
 .report table{border-collapse:collapse;display:block;overflow-x:auto}
 .report th,.report td{border:1px solid var(--line);padding:4px 8px;text-align:left}
-a{color:var(--link)}
+a{color:var(--link)}.links{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 0}
 .btn{display:inline-block;background:var(--accent);color:#fff;padding:10px 18px;border-radius:8px;
 text-decoration:none;font-weight:650}footer{text-align:center;font-size:.85rem;margin:24px 0}
 """

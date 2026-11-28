@@ -26,6 +26,16 @@ export type Release = {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.29.1',
+    date: '2026-11-28',
+    title: 'Mooier delen',
+    changes: [
+      'Het venster Delen sluit als je ernaast klikt.',
+      'Een gedeelde link toont in WhatsApp een voorbeeld met de foto, het adres, de prijs en de plaats.',
+      'De gedeelde pagina heeft knoppen naar de advertentie en naar Google Maps.',
+    ],
+  },
+  {
     version: '0.29.0',
     date: '2026-11-28',
     title: 'Huis delen zonder inloggen',

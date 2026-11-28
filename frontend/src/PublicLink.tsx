@@ -39,7 +39,7 @@ export function PublicLinkDialog({ house, onClose }: { house: House; onClose: ()
       .catch(() => notify('Kopiëren lukte niet; selecteer de link en kopieer hem zelf.', 'error'))
 
   return (
-    <Dialog title="Delen zonder inloggen" onClose={onClose}>
+    <Dialog title="Delen zonder inloggen" onClose={onClose} closeOnBackdrop>
       <p className="muted small">
         Iedereen met deze link ziet de tabs Overzicht en Rapport van {displayAddress(house)}, alleen
         lezen en zonder in te loggen. Checklist, Mijn beoordeling, notities, bod, eigen foto's en
