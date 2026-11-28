@@ -129,7 +129,7 @@ export type Me = {
 }
 
 /** A public read-only link to one house (/gedeeld/<token>), for someone without an account. */
-export type PublicLink = { token: string; path: string; created: string; fotos: boolean; rapport: boolean }
+export type PublicLink = { token: string; path: string; created: string }
 
 export const api = {
   me: () => request<Me>('/api/auth/me'),
@@ -159,10 +159,11 @@ export const api = {
       body: JSON.stringify({ url, html, photos }),
     }),
   publicLink: (id: string) => request<PublicLink | null>(`/api/houses/${encodeURIComponent(id)}/publiek`),
-  savePublicLink: (id: string, changes: { fotos?: boolean; rapport?: boolean; nieuw?: boolean }) =>
+  /** Make the link, or with `nieuw` replace it so the old one stops working. */
+  savePublicLink: (id: string, nieuw = false) =>
     request<PublicLink>(`/api/houses/${encodeURIComponent(id)}/publiek`, {
       method: 'PUT',
-      body: JSON.stringify(changes),
+      body: JSON.stringify({ nieuw }),
     }),
   stopPublicLink: (id: string) =>
     request<void>(`/api/houses/${encodeURIComponent(id)}/publiek`, { method: 'DELETE' }),

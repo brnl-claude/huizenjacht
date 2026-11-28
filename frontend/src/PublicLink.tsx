@@ -6,25 +6,17 @@ import { Dialog } from './NewHouseDialog'
 import { useStore } from './store'
 
 /** Share a house with someone who has no account: a read-only page behind a long random link.
- * The page shows the address, the facts and, if allowed, the listing's photos and the
- * report's summary. Notes, checklist, grades, bid and own media never leave the app. */
+ * The page shows the tabs Overzicht and Rapport, read-only, with the listing's photos. Checklist,
+ * Mijn beoordeling (notes, grades, bid) and own media never leave the app. */
 export function PublicLinkDialog({ house, onClose }: { house: House; onClose: () => void }) {
   const { notify } = useStore()
   const [link, setLink] = useState<PublicLink | null | undefined>(undefined)
   const [busy, setBusy] = useState(false)
-  const [fotos, setFotos] = useState(true)
-  const [rapport, setRapport] = useState(false)
 
   useEffect(() => {
     api
       .publicLink(house.id)
-      .then((l) => {
-        setLink(l)
-        if (l) {
-          setFotos(l.fotos)
-          setRapport(l.rapport)
-        }
-      })
+      .then(setLink)
       .catch((e) => {
         setLink(null)
         notify(e instanceof Error ? e.message : 'Ophalen mislukt.', 'error')
@@ -38,8 +30,7 @@ export function PublicLinkDialog({ house, onClose }: { house: House; onClose: ()
       .catch((e) => notify(e instanceof Error ? e.message : 'Dat lukte niet.', 'error'))
       .finally(() => setBusy(false))
   }
-  const save = (changes: { fotos?: boolean; rapport?: boolean; nieuw?: boolean }) =>
-    run(() => api.savePublicLink(house.id, { fotos, rapport, ...changes }))
+  const save = (nieuw = false) => run(() => api.savePublicLink(house.id, nieuw))
   const url = link ? `${location.origin}${link.path}` : ''
   const copy = () =>
     navigator.clipboard
@@ -50,36 +41,10 @@ export function PublicLinkDialog({ house, onClose }: { house: House; onClose: ()
   return (
     <Dialog title="Delen zonder inloggen" onClose={onClose}>
       <p className="muted small">
-        Iedereen met deze link ziet het adres en de kenmerken van {displayAddress(house)}, zonder in te
-        loggen. Notities, checklist, cijfers, bod, bezichtiging, eigen foto's en memo's en documenten
-        blijven privé.
+        Iedereen met deze link ziet de tabs Overzicht en Rapport van {displayAddress(house)}, alleen
+        lezen en zonder in te loggen. Checklist, Mijn beoordeling, notities, bod, eigen foto's en
+        memo's en documenten blijven privé.
       </p>
-      <div className="public-options">
-        <label className="switch">
-          <input
-            type="checkbox"
-            checked={fotos}
-            disabled={busy}
-            onChange={(e) => {
-              setFotos(e.target.checked)
-              if (link) save({ fotos: e.target.checked })
-            }}
-          />
-          Foto's van de advertentie
-        </label>
-        <label className="switch">
-          <input
-            type="checkbox"
-            checked={rapport}
-            disabled={busy}
-            onChange={(e) => {
-              setRapport(e.target.checked)
-              if (link) save({ rapport: e.target.checked })
-            }}
-          />
-          Samenvatting, plus- en minpunten uit het rapport
-        </label>
-      </div>
       {link === undefined ? (
         <p className="muted">Laden…</p>
       ) : link ? (
@@ -106,7 +71,7 @@ export function PublicLinkDialog({ house, onClose }: { house: House; onClose: ()
               className="btn btn-ghost"
               disabled={busy}
               data-tip="Maak een nieuwe link; de oude werkt dan niet meer"
-              onClick={() => confirm('Een nieuwe link maken? De oude link werkt dan niet meer.') && save({ nieuw: true })}
+              onClick={() => confirm('Een nieuwe link maken? De oude link werkt dan niet meer.') && save(true)}
             >
               <RefreshCw size={16} /> Nieuwe link
             </button>
@@ -124,7 +89,7 @@ export function PublicLinkDialog({ house, onClose }: { house: House; onClose: ()
         </>
       ) : (
         <div className="form-actions">
-          <button className="btn btn-primary" disabled={busy} onClick={() => save({})}>
+          <button className="btn btn-primary" disabled={busy} onClick={() => save()}>
             <Share2 size={16} /> Link maken
           </button>
         </div>

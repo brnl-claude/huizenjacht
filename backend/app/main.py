@@ -1187,7 +1187,7 @@ def create_app(
     def get_public_link(house_id: str) -> dict[str, Any] | None:
         house_or_404(house_id)
         found = public_link_of(house_id)
-        return {**public_view(*found), **publiek.options(found[1])} if found else None
+        return public_view(*found) if found else None
 
     @app.put("/api/houses/{house_id}/publiek")
     def put_public_link(house_id: str, body: dict[str, Any] = Body(...)) -> dict[str, Any]:
@@ -1200,14 +1200,9 @@ def create_app(
             if found:
                 links.pop(found[0])
             token, link = publiek.new_token(), {"house": house_id, "created": now()}
-        for key in ("fotos", "rapport"):
-            if key in body:
-                link[key] = bool(body[key])
-        link.setdefault("fotos", True)
-        link.setdefault("rapport", False)
         links[token] = link
         db().set_setting(publiek.SETTING, links)
-        return {**public_view(token, link), **publiek.options(link)}
+        return public_view(token, link)
 
     @app.delete("/api/houses/{house_id}/publiek", status_code=204)
     def delete_public_link(house_id: str) -> Response:
@@ -1228,15 +1223,14 @@ def create_app(
         found = shared_house(token)
         if not found:
             return Response(publiek.gone(), 404, publiek.PAGE_HEADERS, "text/html")
-        house, link = found
-        count = shared_photo_count(house["id"]) if publiek.options(link)["fotos"] else 0
-        text = publiek.page(house, link, token, count)
+        house = found[0]
+        text = publiek.page(house, token, shared_photo_count(house["id"]))
         return Response(text, 200, publiek.PAGE_HEADERS, "text/html")
 
     @app.get("/gedeeld/{token}/foto/{number}", include_in_schema=False, response_model=None)
     def shared_photo(token: str, number: int) -> FileResponse | RedirectResponse:
         found = shared_house(token)
-        if not found or not publiek.options(found[1])["fotos"] or number >= publiek.MAX_PHOTOS:
+        if not found or number >= publiek.MAX_PHOTOS:
             raise HTTPException(404, "Deze foto is er niet.")
         folder = listing_folder(found[0]["id"])
         files = photo_files(folder)

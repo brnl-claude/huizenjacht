@@ -9,31 +9,29 @@ def report(tmp_path: Path) -> Path:
     (reports / "huizen" / "laan-1.md").write_text(
         "---\nadres: Laan 1\nplaats: Utrecht\nvraagprijs: 300000\nbouwjaar: 1932\n"
         "samenvatting: Ruim en licht.\npluspunten: [Tuin op het zuiden]\n---\n# Laan 1\n"
+        "Het dak is **oud**.\n\n<script>alert(1)</script>\n\n[x](javascript:alert(1))\n"
     )
     return reports
 
 
-def test_public_link_shows_basics_only(tmp_path):
+def test_public_link_shows_overview_and_report_only(tmp_path):
     with make_client(tmp_path, report(tmp_path)) as client:
         client.post("/api/import/scan")
         client.patch("/api/houses/laan-1", json={"notities": "Geheime notitie", "cijfer": 8})
         assert client.get("/api/houses/laan-1/publiek").json() is None
         link = client.put("/api/houses/laan-1/publiek", json={}).json()
-        assert link["fotos"] is True and link["rapport"] is False
         assert len(link["token"]) >= 30
         res = client.get(link["path"])
         assert res.status_code == 200
-        assert "Laan 1" in res.text and "€ 300.000" in res.text
-        assert "1932" in res.text
-        assert "Geheime notitie" not in res.text and "Ruim en licht" not in res.text
+        text = res.text
+        assert "Laan 1" in text and "€ 300.000" in text and "1932" in text
+        assert "Ruim en licht." in text and "Tuin op het zuiden" in text
+        assert "Het dak is <strong>oud</strong>." in text
+        assert "<script>" not in text and 'href="javascript' not in text
+        assert "Geheime notitie" not in text
         assert res.headers["x-robots-tag"].startswith("noindex")
         assert "default-src 'none'" in res.headers["content-security-policy"]
-
-        # The summary of the report only when the owner allows it; same link.
-        again = client.put("/api/houses/laan-1/publiek", json={"rapport": True}).json()
-        assert again["token"] == link["token"]
-        text = client.get(link["path"]).text
-        assert "Ruim en licht." in text and "Tuin op het zuiden" in text
+        assert client.put("/api/houses/laan-1/publiek", json={}).json()["token"] == link["token"]
 
 
 def test_public_link_new_and_revoke(tmp_path):
@@ -69,8 +67,5 @@ def test_public_photos_and_delete_house(tmp_path):
         link = client.put("/api/houses/laan-1/publiek", json={}).json()
         assert "/foto/0" in client.get(link["path"]).text
         assert client.get(f"{link['path']}/foto/0").content == b"jpg"
-        client.put("/api/houses/laan-1/publiek", json={"fotos": False})
-        assert client.get(f"{link['path']}/foto/0").status_code == 404
-        assert "/foto/0" not in client.get(link["path"]).text
         client.delete("/api/houses/laan-1")
         assert client.get(link["path"]).status_code == 404

@@ -3639,13 +3639,9 @@ a[aria-label],
 }
 
 /* Delen zonder inloggen (PublicLink.tsx) */
-.public-options {
-  display: grid;
-  gap: 10px;
-  margin: 12px 0 16px;
-}
 .public-url {
   display: flex;
+  margin-top: 12px;
   gap: 8px;
 }
 .public-url input {
