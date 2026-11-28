@@ -3637,3 +3637,28 @@ a[aria-label],
 .quick-more[open] > summary {
   margin-bottom: 8px;
 }
+
+/* Delen zonder inloggen (PublicLink.tsx) */
+.public-options {
+  display: grid;
+  gap: 10px;
+  margin: 12px 0 16px;
+}
+.public-url {
+  display: flex;
+  gap: 8px;
+}
+.public-url input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+}
+.public-actions {
+  flex-wrap: wrap;
+  margin-top: 12px;
+}

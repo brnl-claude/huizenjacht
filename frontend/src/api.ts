@@ -128,6 +128,9 @@ export type Me = {
   user: { subject: string; name: string | null; email: string | null } | null
 }
 
+/** A public read-only link to one house (/gedeeld/<token>), for someone without an account. */
+export type PublicLink = { token: string; path: string; created: string; fotos: boolean; rapport: boolean }
+
 export const api = {
   me: () => request<Me>('/api/auth/me'),
   logout: () => request<unknown>('/api/auth/logout', { method: 'POST' }),
@@ -155,6 +158,14 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ url, html, photos }),
     }),
+  publicLink: (id: string) => request<PublicLink | null>(`/api/houses/${encodeURIComponent(id)}/publiek`),
+  savePublicLink: (id: string, changes: { fotos?: boolean; rapport?: boolean; nieuw?: boolean }) =>
+    request<PublicLink>(`/api/houses/${encodeURIComponent(id)}/publiek`, {
+      method: 'PUT',
+      body: JSON.stringify(changes),
+    }),
+  stopPublicLink: (id: string) =>
+    request<void>(`/api/houses/${encodeURIComponent(id)}/publiek`, { method: 'DELETE' }),
   bookmarklet: () => request<{ token: string }>('/api/bookmarklet'),
   bookmarkletRotate: () => request<{ token: string }>('/api/bookmarklet/rotate', { method: 'POST' }),
   deleteHouse: (id: string) =>
